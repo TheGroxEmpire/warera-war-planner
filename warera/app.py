@@ -22,57 +22,6 @@ def get_country_from_ip(ip_address):
     except Exception:
         return None
 
-def generate_disinformation_builds(details, level, companies, pill, dodge_build):
-    # Sort by total damage in ascending order
-    details = sorted(details, key=lambda x: x["total_damage"])
-    
-    # Select builds in 50k damage increments from the bottom
-    disinfo_builds = []
-    next_damage_threshold = 50000
-    for d in details:
-        if d["total_damage"] >= next_damage_threshold:
-            disinfo_builds.append(d)
-            next_damage_threshold += 50000
-            
-    pill_text = "Using pill" if pill else "Not using pill"
-    dodge_text = "focusing dodge" if dodge_build else "not focusing dodge"
-    
-    builds_html = f"<h3>Optimized builds for level {level} with {companies} companies. {pill_text} and {dodge_text}.</h3>"
-    
-    for d in disinfo_builds:
-        builds_html += "<div class='card'>"
-        builds_html += f"<b>Total Damage:</b> {d['total_damage']:.2f}<br>"
-        builds_html += f"<b>Expected number of attacks:</b> {d['diag']['n_attacks']:.2f}<br>"
-        builds_html += f"<b>Total gear cost:</b> {d['diag']['gear_cost']:.2f}<br>"
-        builds_html += f"<b>Daily consumables (ammo+food) cost:</b> {d['diag']['food_cost'] + d['diag']['ammo_bullet_cost']:.2f}<br>"
-        builds_html += "<table>"
-        for i in range(0, len(SKILL_NAMES), 2):
-            builds_html += "<tr>"
-            builds_html += f"<td>{SKILL_NAMES[i]}: {d['skill_lvls'][i]}</td>"
-            if i + 1 < len(SKILL_NAMES):
-                builds_html += f"<td>{SKILL_NAMES[i+1]}: {d['skill_lvls'][i+1]}</td>"
-            builds_html += "</tr>"
-        builds_html += "</table>"
-        builds_html += "<table>"
-        for i in range(0, len(GEAR_SLOTS), 2):
-            builds_html += "<tr>"
-            slot1 = GEAR_SLOTS[i]
-            tier1 = WEAPON_TIERS[d['gear_idx'][i]] if i == 0 else GEAR_TIERS[d['gear_idx'][i]]
-            builds_html += f"<td>{slot1}: {tier1}</td>"
-            if i + 1 < len(GEAR_SLOTS):
-                slot2 = GEAR_SLOTS[i+1]
-                tier2 = GEAR_TIERS[d['gear_idx'][i+1]]
-                builds_html += f"<td>{slot2}: {tier2}</td>"
-            builds_html += "</tr>"
-        builds_html += "<tr>"
-        builds_html += f"<td>Ammo: {AMMO_NAMES[d['ammo_idx']]}</td>"
-        builds_html += f"<td>Food: {FOOD_NAMES[d['food_idx']]}</td>"
-        builds_html += "</tr>"
-        builds_html += "</table>"
-        builds_html += "</div>"
-        
-    return jsonify(builds=builds_html, trends="")
-
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -88,6 +37,7 @@ def run_optimization():
     dodge_build = request.form.get("dodge") == "on"
     
     dev_mode_disinfo = os.environ.get("DEV_MODE_DISINFO") == "true"
+    disinformation_mode = dev_mode_disinfo or country in DISINFO_COUNTRIES
     
     # Calculate skill point cost for companies
     company_cost = 0
@@ -98,7 +48,7 @@ def run_optimization():
     # Adjust level based on company cost
     adjusted_level = level - (company_cost / SKILL_POINTS_PER_LEVEL)
 
-    res = optimize(adjusted_level, dodge_build=dodge_build, verbose=True)
+    res = optimize(adjusted_level, dodge_build=dodge_build, verbose=True, disinformation_mode=disinformation_mode)
     X = None
     if hasattr(res, "algorithm") and hasattr(res.algorithm, "pop") and len(res.algorithm.pop) > 0:
         try:
@@ -133,9 +83,6 @@ def run_optimization():
 
     details = [d for d in details if d["total_damage"] <= 1000000]
     
-    if dev_mode_disinfo or country in DISINFO_COUNTRIES:
-        return generate_disinformation_builds(details, level, companies, pill, dodge_build)
-
     details = sorted(details, key=lambda x: (x["total_cost"], -x["total_damage"]))
     pareto = []
     max_damage = -1
@@ -221,8 +168,10 @@ def run_optimization():
         builds_html += "</table>"
 
         builds_html += "</div>"
-
-    return jsonify(builds=builds_html, trends=trends_html)
+    if (disinformation_mode):
+        return jsonify(builds=builds_html, trends="")
+    else:
+        return jsonify(builds=builds_html, trends=trends_html)
 
 if __name__ == "__main__":
     app.run(debug=True)

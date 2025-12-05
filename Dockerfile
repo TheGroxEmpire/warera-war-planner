@@ -13,8 +13,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Run the API calls at build time
 RUN python -c "from warera.api import update_gear_prices_from_api, update_food_and_ammo_from_api; update_gear_prices_from_api(); update_food_and_ammo_from_api()"
 
-# Make port 5000 available to the world outside this container
-EXPOSE 5000
+# Make port available to the world outside this container
+EXPOSE 10000
 
 # Run gunicorn when the container launches
-CMD ["gunicorn", "warera.app:app", "--bind", "0.0.0.0:5000"]
+CMD ["gunicorn", "warera.app:app", "--bind", "0.0.0.0:10000"]

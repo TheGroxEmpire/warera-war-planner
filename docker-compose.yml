@@ -3,6 +3,8 @@ services:
   web:
     build: .
     ports:
-      - "5000:5000"
+      - "10000:10000"
+    environment:
+      - PORT=10000
     volumes:
       - .:/app

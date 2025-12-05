@@ -42,7 +42,7 @@ def index():
 
 @app.route("/optimize", methods=["POST"])
 def run_optimization():
-    user_.ip = request.remote_addr
+    user_ip = request.remote_addr
     app.logger.info(f"User IP address: {user_ip}")
     country = get_country_from_ip(user_ip)
     app.logger.info(f"Country detected: {country}")

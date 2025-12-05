@@ -13,10 +13,12 @@ app = Flask(__name__, template_folder="../templates", static_folder="../static")
 DISINFO_COUNTRIES = ["VE", "RO", "ES", "FR"]
 
 def get_country_from_ip(ip_address):
+    if os.environ.get("DEV_MODE_DISINFO_COUNTRY"):
+        return os.environ.get("DEV_MODE_DISINFO_COUNTRY")
     if not ip_address or ip_address == "127.0.0.1":
         return "US" # Default to US for local testing
     try:
-        response = requests.get(f"http://ip-api.com/json/{ip_address}")
+        response = requests.get(f"http://ip-api.com/{ip_address}")
         data = response.json()
         return data.get("countryCode")
     except Exception:

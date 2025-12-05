@@ -1,5 +1,4 @@
 from flask import Flask, render_template, request, jsonify
-from werkzeug.middleware.proxy_fix import ProxyFix
 import numpy as np
 import requests
 import os
@@ -11,7 +10,6 @@ from .config import SKILL_LEVEL_COST, SKILL_NAMES, GEAR_SLOTS, WEAPON_TIERS, GEA
 from collections import Counter
 
 app = Flask(__name__, template_folder="../templates", static_folder="../static")
-app.wsgi_app = ProxyFix(app.wsgi_app, x_for=2, x_proto=1, x_host=1, x_prefix=1)
 gunicorn_logger = logging.getLogger("gunicorn.error")
 app.logger.handlers = gunicorn_logger.handlers
 app.logger.setLevel(gunicorn_logger.level)
@@ -43,8 +41,10 @@ def index():
 @app.route("/optimize", methods=["POST"])
 def run_optimization():
     if "X-Forwarded-For" in request.headers:
+        user_ip = request.headers["X-Forwarded-For"].split(",")[0].strip()
         app.logger.info(f"X-Forwarded-For: {request.headers['X-Forwarded-For']}")
-    user_ip = request.remote_addr
+    else:
+        user_ip = request.remote_addr
     app.logger.info(f"User IP address: {user_ip}")
     country = get_country_from_ip(user_ip)
     app.logger.info(f"Country detected: {country}")

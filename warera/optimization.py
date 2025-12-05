@@ -80,9 +80,9 @@ class BuildProblem(Problem):
 def optimize_worker(args):
     level, dodge_build = args
     problem = BuildProblem(level, dodge_build)
-    algorithm = NSGA2(pop_size=300)
-    termination = get_termination("n_gen", 100)
-    res = minimize(problem, algorithm, termination, seed=None, verbose=False)
+    algorithm = NSGA2(pop_size=500)
+    termination = get_termination("n_gen", 200)
+    res = minimize(problem, algorithm, termination, seed=1, verbose=False)
     return res
 
 def optimize(level, dodge_build=False, verbose=True):

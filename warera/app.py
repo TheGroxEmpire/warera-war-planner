@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, jsonify
 import numpy as np
+import requests
 from .api import update_gear_prices_from_api, update_food_and_ammo_from_api
 from .optimization import optimize
 from .model import compute_totals
@@ -8,16 +9,105 @@ from collections import Counter
 
 app = Flask(__name__, template_folder="../templates", static_folder="../static")
 
+DISINFO_COUNTRIES = ["VE", "RO", "ES", "FR"]
+
+def get_country_from_ip(ip_address):
+    if not ip_address or ip_address == "127.0.0.1":
+        return "US" # Default to US for local testing
+    try:
+        response = requests.get(f"http://ip-api.com/json/{ip_address}")
+        data = response.json()
+        return data.get("countryCode")
+    except Exception:
+        return None
+
+def generate_disinformation_build(level, companies, pill, dodge_build):
+    # Create a believable but suboptimal build
+    skill_lvls = [0] * 8
+    skill_lvls[4] = 20 # Health
+    skill_lvls[2] = 20 # Precision
+    skill_lvls[3] = 20 # Crit Damage
+    skill_lvls[0] = 5 # Attack
+    skill_lvls[1] = 5 # Crit Chance
+    skill_lvls[6] = 5 # Armor
+    skill_lvls[5] = 5 # Dodge
+
+    gear_idx = [0] * 6
+    ammo_idx = 0
+    food_idx = 0
+
+    total_damage, total_cost, diag = compute_totals(skill_lvls, gear_idx, ammo_idx, food_idx)
+    
+    # Fudge the numbers to make it look good
+    total_damage *= np.random.uniform(1.5, 2.0)
+    diag["n_attacks"] *= np.random.uniform(0.5, 0.7)
+    
+    details = {
+        "skill_lvls": skill_lvls,
+        "gear_idx": gear_idx,
+        "ammo_idx": ammo_idx,
+        "food_idx": food_idx,
+        "total_damage": total_damage,
+        "total_cost": total_cost,
+        "skill_cost": int(np.sum(SKILL_LEVEL_COST[skill_lvls])),
+        "diag": diag
+    }
+    
+    pill_text = "Using pill" if pill else "Not using pill"
+    dodge_text = "focusing dodge" if dodge_build else "not focusing dodge"
+    
+    builds_html = f"<h3>Optimized builds for level {level} with {companies} companies. {pill_text} and {dodge_text}.</h3>"
+    builds_html += "<div class='card'>"
+    builds_html += f"<b>Total Damage:</b> {details['total_damage']:.2f}<br>"
+    builds_html += f"<b>Expected number of attacks:</b> {details['diag']['n_attacks']:.2f}<br>"
+    builds_html += f"<b>Total gear cost:</b> {details['diag']['gear_cost']:.2f}<br>"
+    builds_html += f"<b>Daily consumables (ammo+food) cost:</b> {details['diag']['food_cost'] + details['diag']['ammo_bullet_cost']:.2f}<br>"
+    builds_html += "<table>"
+    for i in range(0, len(SKILL_NAMES), 2):
+        builds_html += "<tr>"
+        builds_html += f"<td>{SKILL_NAMES[i]}: {details['skill_lvls'][i]}</td>"
+        if i + 1 < len(SKILL_NAMES):
+            builds_html += f"<td>{SKILL_NAMES[i+1]}: {details['skill_lvls'][i+1]}</td>"
+        builds_html += "</tr>"
+    builds_html += "</table>"
+    builds_html += "<table>"
+    for i in range(0, len(GEAR_SLOTS), 2):
+        builds_html += "<tr>"
+        slot1 = GEAR_SLOTS[i]
+        tier1 = WEAPON_TIERS[details['gear_idx'][i]] if i == 0 else GEAR_TIERS[details['gear_idx'][i]]
+        builds_html += f"<td>{slot1}: {tier1}</td>"
+        if i + 1 < len(GEAR_SLOTS):
+            slot2 = GEAR_SLOTS[i+1]
+            tier2 = GEAR_TIERS[details['gear_idx'][i+1]]
+            builds_html += f"<td>{slot2}: {tier2}</td>"
+        builds_html += "</tr>"
+    builds_html += "<tr>"
+    builds_html += f"<td>Ammo: {AMMO_NAMES[details['ammo_idx']]}</td>"
+    builds_html += f"<td>Food: {FOOD_NAMES[details['food_idx']]}</td>"
+    builds_html += "</tr>"
+    builds_html += "</table>"
+    builds_html += "</div>"
+    
+    trends_html = "<h3>Trends</h3>" # No trends for disinformation
+    
+    return jsonify(builds=builds_html, trends=trends_html)
+
 @app.route("/")
 def index():
     return render_template("index.html")
 
 @app.route("/optimize", methods=["POST"])
 def run_optimization():
+    user_ip = request.remote_addr
+    country = get_country_from_ip(user_ip)
+
     level = int(request.form.get("level", 1))
     companies = int(request.form.get("companies", 1))
     pill = request.form.get("pill") == "on"
     dodge_build = request.form.get("dodge") == "on"
+    
+    if country in DISINFO_COUNTRIES:
+        return generate_disinformation_build(level, companies, pill, dodge_build)
 
     # Calculate skill point cost for companies
     company_cost = 0

@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Warera Build Helper</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Saira:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <div class="main-content">
+            <h1>Warera Build Helper</h1>
+            <form id="build-form">
+                <label for="level">Character Level:</label>
+                <select id="level" name="level">
+                    <script>
+                        for (let i = 1; i <= 50; i++) {
+                            document.write(`<option value="${i}">${i}</option>`);
+                        }
+                    </script>
+                </select>
+                <label for="companies">Number of Companies:</label>
+                <select id="companies" name="companies">
+                    <script>
+                        for (let i = 2; i <= 12; i++) {
+                            document.write(`<option value="${i}">${i}</option>`);
+                        }
+                    </script>
+                </select>
+                <div class="toggle-buttons">
+                    <button type="button" class="toggle-btn" data-name="pill">PILL</button>
+                    <button type="button" class="toggle-btn" data-name="dodge">DODGE FOCUS</button>
+                </div>
+                <input type="hidden" name="pill" id="pill-input" value="off">
+                <input type="hidden" name="dodge" id="dodge-input" value="off">
+                <button type="submit">Optimize</button>
+            </form>
+            <div id="results"></div>
+        </div>
+        <div class="sidebar" id="trends"></div>
+    </div>
+    <script src="/static/script.js"></script>
+</body>
+</html>

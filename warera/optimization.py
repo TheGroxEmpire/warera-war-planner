@@ -87,7 +87,7 @@ def optimize_worker(args):
         n_gen = 2
     else:
         pop_size = int(os.environ.get("POP_SIZE", 100))
-        n_gen = int(os.environ.get("N_GEN", 50))
+        n_gen = int(os.environ.get("N_GEN", 100))
     algorithm = NSGA2(pop_size=pop_size)
     termination = get_termination("n_gen", n_gen)
     res = minimize(problem, algorithm, termination, seed=1, verbose=False)

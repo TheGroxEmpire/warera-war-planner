@@ -80,14 +80,14 @@ class BuildProblem(Problem):
 def optimize_worker(args):
     level, dodge_build = args
     problem = BuildProblem(level, dodge_build)
-    algorithm = NSGA2(pop_size=500)
-    termination = get_termination("n_gen", 200)
+    algorithm = NSGA2(pop_size=100)
+    termination = get_termination("n_gen", 50)
     res = minimize(problem, algorithm, termination, seed=1, verbose=False)
     return res
 
 def optimize(level, dodge_build=False, verbose=True):
-    with Pool(4) as p:
-        results = p.map(optimize_worker, [(level, dodge_build)] * 4)
+    with Pool(1) as p:
+        results = p.map(optimize_worker, [(level, dodge_build)] * 1)
     
     best_res = None
     for res in results:

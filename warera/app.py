@@ -22,12 +22,18 @@ def get_country_from_ip(ip_address):
     except Exception:
         return None
 
-def generate_disinformation_builds(pareto, level, companies, pill, dodge_build):
-    # Select the bottom 10% of the Pareto front
-    num_builds = len(pareto)
-    num_to_show = max(1, int(num_builds * 0.1))
-    disinfo_builds = pareto[:num_to_show]
+def generate_disinformation_builds(details, level, companies, pill, dodge_build):
+    # Sort by total damage in ascending order
+    details = sorted(details, key=lambda x: x["total_damage"])
     
+    # Select builds in 50k damage increments from the bottom
+    disinfo_builds = []
+    next_damage_threshold = 50000
+    for d in details:
+        if d["total_damage"] >= next_damage_threshold:
+            disinfo_builds.append(d)
+            next_damage_threshold += 50000
+            
     pill_text = "Using pill" if pill else "Not using pill"
     dodge_text = "focusing dodge" if dodge_build else "not focusing dodge"
     
@@ -126,11 +132,11 @@ def run_optimization():
         })
 
     details = [d for d in details if d["total_damage"] <= 1000000]
-    details = sorted(details, key=lambda x: (x["total_cost"], -x["total_damage"]))
     
     if dev_mode_disinfo or country in DISINFO_COUNTRIES:
         return generate_disinformation_builds(details, level, companies, pill, dodge_build)
 
+    details = sorted(details, key=lambda x: (x["total_cost"], -x["total_damage"]))
     pareto = []
     max_damage = -1
     for d in details:

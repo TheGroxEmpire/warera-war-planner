@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, jsonify
 import numpy as np
 import requests
 import os
+import logging
 from .api import update_gear_prices_from_api, update_food_and_ammo_from_api
 from .optimization import optimize
 from .model import compute_totals
@@ -9,19 +10,28 @@ from .config import SKILL_LEVEL_COST, SKILL_NAMES, GEAR_SLOTS, WEAPON_TIERS, GEA
 from collections import Counter
 
 app = Flask(__name__, template_folder="../templates", static_folder="../static")
+gunicorn_logger = logging.getLogger("gunicorn.error")
+app.logger.handlers = gunicorn_logger.handlers
+app.logger.setLevel(gunicorn_logger.level)
 
 DISINFO_COUNTRIES = ["VE", "RO", "ES", "FR"]
 
 def get_country_from_ip(ip_address):
+    app.logger.info(f"get_country_from_ip called with IP: {ip_address}")
     if os.environ.get("DEV_MODE_DISINFO_COUNTRY"):
         return os.environ.get("DEV_MODE_DISINFO_COUNTRY")
     if not ip_address or ip_address == "127.0.0.1":
-        return "US" # Default to US for local testing
+        app.logger.info("IP is local, returning US")
+        return "US"  # Default to US for local testing
     try:
-        response = requests.get(f"http://ip-api.com/{ip_address}")
+        response = requests.get(f"http://ip-api.com/json/{ip_address}")
         data = response.json()
-        return data.get("countryCode")
-    except Exception:
+        country_code = data.get("countryCode")
+        app.logger.info(f"API response: {data}")
+        app.logger.info(f"Detected country code: {country_code} for IP: {ip_address}")
+        return country_code
+    except Exception as e:
+        app.logger.error(f"An error occurred: {e}")
         return None
 
 @app.route("/")
@@ -31,7 +41,9 @@ def index():
 @app.route("/optimize", methods=["POST"])
 def run_optimization():
     user_ip = request.remote_addr
+    app.logger.info(f"User IP address: {user_ip}")
     country = get_country_from_ip(user_ip)
+    app.logger.info(f"Country detected: {country}")
 
     level = int(request.form.get("level", 1))
     companies = int(request.form.get("companies", 1))

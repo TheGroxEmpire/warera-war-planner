@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, jsonify
 import numpy as np
 import requests
+import os
 from .api import update_gear_prices_from_api, update_food_and_ammo_from_api
 from .optimization import optimize
 from .model import compute_totals
@@ -21,76 +22,50 @@ def get_country_from_ip(ip_address):
     except Exception:
         return None
 
-def generate_disinformation_build(level, companies, pill, dodge_build):
-    # Create a believable but suboptimal build
-    skill_lvls = [0] * 8
-    skill_lvls[4] = 20 # Health
-    skill_lvls[2] = 20 # Precision
-    skill_lvls[3] = 20 # Crit Damage
-    skill_lvls[0] = 5 # Attack
-    skill_lvls[1] = 5 # Crit Chance
-    skill_lvls[6] = 5 # Armor
-    skill_lvls[5] = 5 # Dodge
-
-    gear_idx = [0] * 6
-    ammo_idx = 0
-    food_idx = 0
-
-    total_damage, total_cost, diag = compute_totals(skill_lvls, gear_idx, ammo_idx, food_idx)
-    
-    # Fudge the numbers to make it look good
-    total_damage *= np.random.uniform(1.5, 2.0)
-    diag["n_attacks"] *= np.random.uniform(0.5, 0.7)
-    
-    details = {
-        "skill_lvls": skill_lvls,
-        "gear_idx": gear_idx,
-        "ammo_idx": ammo_idx,
-        "food_idx": food_idx,
-        "total_damage": total_damage,
-        "total_cost": total_cost,
-        "skill_cost": int(np.sum(SKILL_LEVEL_COST[skill_lvls])),
-        "diag": diag
-    }
+def generate_disinformation_builds(pareto, level, companies, pill, dodge_build):
+    # Select the bottom 10% of the Pareto front
+    num_builds = len(pareto)
+    num_to_show = max(1, int(num_builds * 0.1))
+    disinfo_builds = pareto[:num_to_show]
     
     pill_text = "Using pill" if pill else "Not using pill"
     dodge_text = "focusing dodge" if dodge_build else "not focusing dodge"
     
     builds_html = f"<h3>Optimized builds for level {level} with {companies} companies. {pill_text} and {dodge_text}.</h3>"
-    builds_html += "<div class='card'>"
-    builds_html += f"<b>Total Damage:</b> {details['total_damage']:.2f}<br>"
-    builds_html += f"<b>Expected number of attacks:</b> {details['diag']['n_attacks']:.2f}<br>"
-    builds_html += f"<b>Total gear cost:</b> {details['diag']['gear_cost']:.2f}<br>"
-    builds_html += f"<b>Daily consumables (ammo+food) cost:</b> {details['diag']['food_cost'] + details['diag']['ammo_bullet_cost']:.2f}<br>"
-    builds_html += "<table>"
-    for i in range(0, len(SKILL_NAMES), 2):
-        builds_html += "<tr>"
-        builds_html += f"<td>{SKILL_NAMES[i]}: {details['skill_lvls'][i]}</td>"
-        if i + 1 < len(SKILL_NAMES):
-            builds_html += f"<td>{SKILL_NAMES[i+1]}: {details['skill_lvls'][i+1]}</td>"
-        builds_html += "</tr>"
-    builds_html += "</table>"
-    builds_html += "<table>"
-    for i in range(0, len(GEAR_SLOTS), 2):
-        builds_html += "<tr>"
-        slot1 = GEAR_SLOTS[i]
-        tier1 = WEAPON_TIERS[details['gear_idx'][i]] if i == 0 else GEAR_TIERS[details['gear_idx'][i]]
-        builds_html += f"<td>{slot1}: {tier1}</td>"
-        if i + 1 < len(GEAR_SLOTS):
-            slot2 = GEAR_SLOTS[i+1]
-            tier2 = GEAR_TIERS[details['gear_idx'][i+1]]
-            builds_html += f"<td>{slot2}: {tier2}</td>"
-        builds_html += "</tr>"
-    builds_html += "<tr>"
-    builds_html += f"<td>Ammo: {AMMO_NAMES[details['ammo_idx']]}</td>"
-    builds_html += f"<td>Food: {FOOD_NAMES[details['food_idx']]}</td>"
-    builds_html += "</tr>"
-    builds_html += "</table>"
-    builds_html += "</div>"
     
-    trends_html = "<h3>Trends</h3>" # No trends for disinformation
-    
-    return jsonify(builds=builds_html, trends=trends_html)
+    for d in disinfo_builds:
+        builds_html += "<div class='card'>"
+        builds_html += f"<b>Total Damage:</b> {d['total_damage']:.2f}<br>"
+        builds_html += f"<b>Expected number of attacks:</b> {d['diag']['n_attacks']:.2f}<br>"
+        builds_html += f"<b>Total gear cost:</b> {d['diag']['gear_cost']:.2f}<br>"
+        builds_html += f"<b>Daily consumables (ammo+food) cost:</b> {d['diag']['food_cost'] + d['diag']['ammo_bullet_cost']:.2f}<br>"
+        builds_html += "<table>"
+        for i in range(0, len(SKILL_NAMES), 2):
+            builds_html += "<tr>"
+            builds_html += f"<td>{SKILL_NAMES[i]}: {d['skill_lvls'][i]}</td>"
+            if i + 1 < len(SKILL_NAMES):
+                builds_html += f"<td>{SKILL_NAMES[i+1]}: {d['skill_lvls'][i+1]}</td>"
+            builds_html += "</tr>"
+        builds_html += "</table>"
+        builds_html += "<table>"
+        for i in range(0, len(GEAR_SLOTS), 2):
+            builds_html += "<tr>"
+            slot1 = GEAR_SLOTS[i]
+            tier1 = WEAPON_TIERS[d['gear_idx'][i]] if i == 0 else GEAR_TIERS[d['gear_idx'][i]]
+            builds_html += f"<td>{slot1}: {tier1}</td>"
+            if i + 1 < len(GEAR_SLOTS):
+                slot2 = GEAR_SLOTS[i+1]
+                tier2 = GEAR_TIERS[d['gear_idx'][i+1]]
+                builds_html += f"<td>{slot2}: {tier2}</td>"
+            builds_html += "</tr>"
+        builds_html += "<tr>"
+        builds_html += f"<td>Ammo: {AMMO_NAMES[d['ammo_idx']]}</td>"
+        builds_html += f"<td>Food: {FOOD_NAMES[d['food_idx']]}</td>"
+        builds_html += "</tr>"
+        builds_html += "</table>"
+        builds_html += "</div>"
+        
+    return jsonify(builds=builds_html, trends="")
 
 @app.route("/")
 def index():
@@ -106,9 +81,8 @@ def run_optimization():
     pill = request.form.get("pill") == "on"
     dodge_build = request.form.get("dodge") == "on"
     
-    if country in DISINFO_COUNTRIES:
-        return generate_disinformation_build(level, companies, pill, dodge_build)
-
+    dev_mode_disinfo = os.environ.get("DEV_MODE_DISINFO") == "true"
+    
     # Calculate skill point cost for companies
     company_cost = 0
     if companies > 2:
@@ -118,22 +92,7 @@ def run_optimization():
     # Adjust level based on company cost
     adjusted_level = level - (company_cost / SKILL_POINTS_PER_LEVEL)
 
-
-    global PILL_MODE
-    PILL_MODE = pill
-    global BUDGET_LIMIT
-    BUDGET_LIMIT = None
-
-    if pill:
-        global HOURS_PER_DAY
-        HOURS_PER_DAY = 17
-        print("Pill mode active: +0.8 ammo dmg bonus, 17-hour day.")
-
-    results = []
-    
-    print(f"Optimizing at level {adjusted_level} ...")
     res = optimize(adjusted_level, dodge_build=dodge_build, verbose=True)
-
     X = None
     if hasattr(res, "algorithm") and hasattr(res.algorithm, "pop") and len(res.algorithm.pop) > 0:
         try:
@@ -142,10 +101,10 @@ def run_optimization():
             X = None
     if X is None and hasattr(res, "X"):
         X = res.X
+    
     if X is None:
-        results.append(f"No population found in result for level {adjusted_level}.")
-        return "".join(results)
-
+        return jsonify(builds="<p>No optimal builds found.</p>", trends="")
+        
     details = []
     for row in X:
         row = np.round(row).astype(int)
@@ -166,11 +125,12 @@ def run_optimization():
             "diag": diag
         })
 
-    # Filter out builds over 1 million damage
     details = [d for d in details if d["total_damage"] <= 1000000]
-
-    # Pareto filtering
     details = sorted(details, key=lambda x: (x["total_cost"], -x["total_damage"]))
+    
+    if dev_mode_disinfo or country in DISINFO_COUNTRIES:
+        return generate_disinformation_builds(details, level, companies, pill, dodge_build)
+
     pareto = []
     max_damage = -1
     for d in details:
@@ -206,7 +166,7 @@ def run_optimization():
     # --- Results Display ---
     pill_text = "Using pill" if pill else "Not using pill"
     dodge_text = "focusing dodge" if dodge_build else "not focusing dodge"
-    results.append(f"<h3>Optimized builds for level {level} with {companies} companies. {pill_text} and {dodge_text}.</h3>")
+    builds_html = f"<h3>Optimized builds for level {level} with {companies} companies. {pill_text} and {dodge_text}.</h3>"
     
     # Select builds in 50k damage increments
     filtered_pareto = []
@@ -220,43 +180,43 @@ def run_optimization():
         filtered_pareto.append(pareto[-1]) # at least show the best one
 
     for d in filtered_pareto:
-        results.append("<div class='card'>")
-        results.append(f"<b>Total Damage:</b> {d['total_damage']:.2f}<br>")
-        results.append(f"<b>Expected number of attacks:</b> {d['diag']['n_attacks']:.2f}<br>")
-        results.append(f"<b>Total gear cost:</b> {d['diag']['gear_cost']:.2f}<br>")
-        results.append(f"<b>Daily consumables (ammo+food) cost:</b> {d['diag']['food_cost'] + d['diag']['ammo_bullet_cost']:.2f}<br>")
+        builds_html += "<div class='card'>"
+        builds_html += f"<b>Total Damage:</b> {d['total_damage']:.2f}<br>"
+        builds_html += f"<b>Expected number of attacks:</b> {d['diag']['n_attacks']:.2f}<br>"
+        builds_html += f"<b>Total gear cost:</b> {d['diag']['gear_cost']:.2f}<br>"
+        builds_html += f"<b>Daily consumables (ammo+food) cost:</b> {d['diag']['food_cost'] + d['diag']['ammo_bullet_cost']:.2f}<br>"
 
         # Skills table
-        results.append("<table>")
+        builds_html += "<table>"
         for i in range(0, len(SKILL_NAMES), 2):
-            results.append("<tr>")
-            results.append(f"<td>{SKILL_NAMES[i]}: {d['skill_lvls'][i]}</td>")
+            builds_html += "<tr>"
+            builds_html += f"<td>{SKILL_NAMES[i]}: {d['skill_lvls'][i]}</td>"
             if i + 1 < len(SKILL_NAMES):
-                results.append(f"<td>{SKILL_NAMES[i+1]}: {d['skill_lvls'][i+1]}</td>")
-            results.append("</tr>")
-        results.append("</table>")
+                builds_html += f"<td>{SKILL_NAMES[i+1]}: {d['skill_lvls'][i+1]}</td>"
+            builds_html += "</tr>"
+        builds_html += "</table>"
         
         # Gear table
-        results.append("<table>")
+        builds_html += "<table>"
         for i in range(0, len(GEAR_SLOTS), 2):
-            results.append("<tr>")
+            builds_html += "<tr>"
             slot1 = GEAR_SLOTS[i]
             tier1 = WEAPON_TIERS[d['gear_idx'][i]] if i == 0 else GEAR_TIERS[d['gear_idx'][i]]
-            results.append(f"<td>{slot1}: {tier1}</td>")
+            builds_html += f"<td>{slot1}: {tier1}</td>"
             if i + 1 < len(GEAR_SLOTS):
                 slot2 = GEAR_SLOTS[i+1]
                 tier2 = GEAR_TIERS[d['gear_idx'][i+1]]
-                results.append(f"<td>{slot2}: {tier2}</td>")
-            results.append("</tr>")
-        results.append("<tr>")
-        results.append(f"<td>Ammo: {AMMO_NAMES[d['ammo_idx']]}</td>")
-        results.append(f"<td>Food: {FOOD_NAMES[d['food_idx']]}</td>")
-        results.append("</tr>")
-        results.append("</table>")
+                builds_html += f"<td>{slot2}: {tier2}</td>"
+            builds_html += "</tr>"
+        builds_html += "<tr>"
+        builds_html += f"<td>Ammo: {AMMO_NAMES[d['ammo_idx']]}</td>"
+        builds_html += f"<td>Food: {FOOD_NAMES[d['food_idx']]}</td>"
+        builds_html += "</tr>"
+        builds_html += "</table>"
 
-        results.append("</div>")
+        builds_html += "</div>"
 
-    return jsonify(builds="".join(results), trends=trends_html)
+    return jsonify(builds=builds_html, trends=trends_html)
 
 if __name__ == "__main__":
     app.run(debug=True)

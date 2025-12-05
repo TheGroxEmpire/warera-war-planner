@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: warera-build-helper
+    env: python
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "gunicorn warera.app:app"
+    envVars:
+      - key: FLASK_APP
+        value: warera/app.py
+      - key: FLASK_ENV
+        value: production

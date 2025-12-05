@@ -7,5 +7,8 @@ services:
     environment:
       - PORT=10000
       - DEV_MODE_DISINFO=true
+      - POP_SIZE=500
+      - N_GEN=200
+      - POOL_SIZE=8
     volumes:
       - .:/app

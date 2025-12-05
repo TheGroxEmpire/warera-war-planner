@@ -6,6 +6,7 @@ from pymoo.termination import get_termination
 from .config import MAX_SKILL_LEVEL, WEAPON_TIERS, GEAR_TIERS, GEAR_SLOTS, AMMO_NAMES, FOOD_NAMES, SKILL_LEVEL_COST, SKILL_POINTS_PER_LEVEL
 from .model import compute_totals
 from multiprocessing import Pool
+import os
 
 # =========================================
 # OPTIMIZATION PROBLEM (NSGA-II)
@@ -80,14 +81,17 @@ class BuildProblem(Problem):
 def optimize_worker(args):
     level, dodge_build = args
     problem = BuildProblem(level, dodge_build)
-    algorithm = NSGA2(pop_size=100)
-    termination = get_termination("n_gen", 50)
+    pop_size = int(os.environ.get("POP_SIZE", 100))
+    n_gen = int(os.environ.get("N_GEN", 50))
+    algorithm = NSGA2(pop_size=pop_size)
+    termination = get_termination("n_gen", n_gen)
     res = minimize(problem, algorithm, termination, seed=1, verbose=False)
     return res
 
 def optimize(level, dodge_build=False, verbose=True):
-    with Pool(1) as p:
-        results = p.map(optimize_worker, [(level, dodge_build)] * 1)
+    pool_size = int(os.environ.get("POOL_SIZE", 1))
+    with Pool(pool_size) as p:
+        results = p.map(optimize_worker, [(level, dodge_build)] * pool_size)
     
     best_res = None
     for res in results:

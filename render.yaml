@@ -3,7 +3,7 @@ services:
     name: warera-build-helper
     env: python
     buildCommand: "pip install -r requirements.txt"
-    startCommand: "gunicorn warera.app:app"
+    startCommand: "./startup.sh"
     envVars:
       - key: FLASK_APP
         value: warera/app.py

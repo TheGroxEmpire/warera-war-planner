@@ -34,9 +34,6 @@ def run_optimization():
     global BUDGET_LIMIT
     BUDGET_LIMIT = None
 
-    update_gear_prices_from_api()
-    update_food_and_ammo_from_api()
-
     if pill:
         global HOURS_PER_DAY
         HOURS_PER_DAY = 17

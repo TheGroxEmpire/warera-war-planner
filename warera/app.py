@@ -42,6 +42,8 @@ def index():
 
 @app.route("/optimize", methods=["POST"])
 def run_optimization():
+    if "X-Forwarded-For" in request.headers:
+        app.logger.info(f"X-Forwarded-For: {request.headers['X-Forwarded-For']}")
     user_ip = request.remote_addr
     app.logger.info(f"User IP address: {user_ip}")
     country = get_country_from_ip(user_ip)

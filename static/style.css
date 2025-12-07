@@ -296,3 +296,22 @@ select, button {
 .card-consumables {
     width: 25%;
 }
+
+@media (max-width: 768px) {
+    .top-section {
+        flex-direction: column;
+        gap: 1em;
+    }
+
+    #build-form,
+    .trends {
+        width: 100%;
+    }
+
+    .trends {
+        flex-direction: column;
+    }
+    .trend-card {
+        width: 100%;
+    }
+}

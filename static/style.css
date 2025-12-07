@@ -95,6 +95,52 @@ h3 {
     margin-right: 0.5em;
 }
 
+.card-damage {
+    position: relative;
+}
+
+.card-damage .damage-label {
+    display: none;
+    position: absolute;
+    bottom: 100%;
+    left: 30%;
+    transform: translateX(-50%);
+    background-color: #333;
+    color: #fff;
+    padding: 0.5em;
+    border-radius: 5px;
+    white-space: nowrap;
+    z-index: 1;
+    font-size: 0.6em;
+}
+
+.card-damage:hover .damage-label {
+    display: block;
+}
+
+.card-cost {
+    position: relative;
+}
+
+.card-cost .cost-label {
+    display: none;
+    position: absolute;
+    bottom: 100%;
+    left: 20%;
+    transform: translateX(-50%);
+    background-color: #333;
+    color: #fff;
+    padding: 0.5em;
+    border-radius: 5px;
+    white-space: nowrap;
+    z-index: 1;
+    font-size: 0.8em;
+}
+
+.card-cost:hover .cost-label {
+    display: block;
+}
+
 .skill .skill-name {
     display: none;
     position: absolute;
@@ -134,7 +180,7 @@ h3 {
 }
 
 .gear-item img, .consumable-item img {
-    width: 100%;
+    width: 90%;
     height: auto;
 }
 

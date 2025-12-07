@@ -14,20 +14,25 @@ gunicorn_logger = logging.getLogger("gunicorn.error")
 app.logger.handlers = gunicorn_logger.handlers
 app.logger.setLevel(gunicorn_logger.level)
 
+def format_number(num):
+    if num > 1000:
+        return f"{num/1000:.1f}K"
+    return f"{num:.2f}"
+
 def get_tier_color(tier):
     colors = {
-        "grey": "grey", "green": "green", "blue": "blue", "purple": "purple", "gold": "gold", "red": "red",
-        "knife": "grey", "gun": "green", "rifle": "blue", "sniper": "purple", "tank": "gold", "jet": "red"
+        "grey": "rgb(58, 71, 83)", "green": "rgb(33, 88, 53)", "blue": "rgb(27, 54, 114)", "purple": "rgb(68, 46, 102)", "gold": "rgb(86, 83, 40)", "red": "rgb(103, 31, 31)",
+        "knife": "rgb(58, 71, 83)", "gun": "rgb(33, 88, 53)", "rifle": "rgb(27, 54, 114)", "sniper": "rgb(68, 46, 102)", "tank": "rgb(86, 83, 40)", "jet": "rgb(103, 31, 31)"
     }
     return colors.get(tier.lower(), "white")
 
 def get_consumable_color(name):
     if "light" in name.lower() or "bread" in name.lower():
-        return "green"
+        return "rgb(33, 88, 53)"
     if "heavy" in name.lower() or "fish" in name.lower():
-        return "purple"
+        return "rgb(68, 46, 102)"
     if "ammo" in name.lower() or "steak" in name.lower():
-        return "blue"
+        return "rgb(27, 54, 114)"
     return "white"
 
 DISINFO_COUNTRIES = ["VE", "RO", "ES", "FR"]
@@ -163,8 +168,8 @@ def run_optimization():
 
     for d in filtered_pareto:
         builds_html += "<div class='card'>"
-        builds_html += f"<div class='card-damage'>{d['total_damage']:.2f}</div>"
-        builds_html += f"<div class='card-cost'>Total Cost: {d['total_cost']:.2f}</div>"
+        builds_html += f"<div class='card-damage'>{format_number(d['total_damage'])} DMG<span class='damage-label'>Average daily damage</span></div>"
+        builds_html += f"<div class='card-cost'><svg stroke='currentColor' fill='currentColor' stroke-width='0' viewBox='0 0 24 24' height='1em' width='1em' xmlns='http://www.w3.org/2000/svg' style='width: 1em; height: 1em; paint-order: stroke; stroke-linecap: round; stroke-linejoin: round;'><path d='M12 5C7.031 5 2 6.546 2 9.5S7.031 14 12 14c4.97 0 10-1.546 10-4.5S16.97 5 12 5zm-5 9.938v3c1.237.299 2.605.482 4 .541v-3a21.166 21.166 0 0 1-4-.541zm6 .54v3a20.994 20.994 0 0 0 4-.541v-3a20.994 20.994 0 0 1-4 .541zm6-1.181v3c1.801-.755 3-1.857 3-3.297v-3c0 1.44-1.199 2.542-3 3.297zm-14 3v-3C3.2 13.542 2 12.439 2 11v3c0 1.439 1.2 2.542 3 3.297z'></path></svg> {d['total_cost']:.2f}<span class='cost-label'>Total daily cost</span></div>"
         
         builds_html += "<div class='card-sections'>"
         

@@ -24,10 +24,10 @@ def get_tier_color(tier):
 def get_consumable_color(name):
     if "light" in name.lower() or "bread" in name.lower():
         return "green"
-    if "ammo" in name.lower() or "steak" in name.lower():
-        return "blue"
     if "heavy" in name.lower() or "fish" in name.lower():
         return "purple"
+    if "ammo" in name.lower() or "steak" in name.lower():
+        return "blue"
     return "white"
 
 DISINFO_COUNTRIES = ["VE", "RO", "ES", "FR"]
@@ -134,26 +134,21 @@ def run_optimization():
         top_3_builds = build_counts.most_common(3)
         total_high_damage_builds = len(high_damage_builds)
 
-        trends_html += "<h3>Trends</h3>"
         trend_titles = ["Most common build", "Second most common", "Third most common"]
         for i, (build, count) in enumerate(top_3_builds):
             percentage = (count / total_high_damage_builds) * 100
             trends_html += f"<div class='trend-card'>"
-            trends_html += f"<h4>{trend_titles[i]} ({percentage:.2f}%)</h4>"
-            trends_html += "<table>"
-            for j in range(0, len(SKILL_NAMES), 2):
-                trends_html += "<tr>"
-                trends_html += f"<td>{SKILL_NAMES[j]}: {build[j]}</td>"
-                if j + 1 < len(SKILL_NAMES):
-                    trends_html += f"<td>{SKILL_NAMES[j+1]}: {build[j+1]}</td>"
-                trends_html += "</tr>"
-            trends_html += "</table>"
+            trends_html += f"<h3>{trend_titles[i]} ({percentage:.2f}%)</h3>"
+            trends_html += "<div class='trends-grid'>"
+            for j, level in enumerate(build):
+                trends_html += f"<div class='skill'><svg><use xlink:href='#skill-svg-{j+1}'></use></svg>{level}<span class='skill-name'>{SKILL_NAMES[j]}</span></div>"
+            trends_html += "</div>"
             trends_html += "</div>"
 
     # --- Results Display ---
     pill_text = "Using pill" if pill else "Not using pill"
     dodge_text = "focusing dodge" if dodge_build else "not focusing dodge"
-    builds_html = f"<h3>Optimized builds for level {level} with {companies} companies. {pill_text} and {dodge_text}.</h3>"
+    builds_html = ""
     
     # Select builds in 50k damage increments
     filtered_pareto = []
@@ -168,37 +163,42 @@ def run_optimization():
 
     for d in filtered_pareto:
         builds_html += "<div class='card'>"
-        builds_html += f"<div class='card-header'><span>Daily Damage: {d['total_damage']:.2f}</span><span>Total Cost: {d['total_cost']:.2f}</span></div>"
-        builds_html += "<div class='card-content'>"
-        builds_html += "<h4>Skills</h4>"
+        builds_html += f"<div class='card-damage'>{d['total_damage']:.2f}</div>"
+        builds_html += f"<div class='card-cost'>Total Cost: {d['total_cost']:.2f}</div>"
+        
+        builds_html += "<div class='card-sections'>"
+        
+        builds_html += "<div class='card-skills'>"
+        builds_html += "<h3>Skills</h4>"
         builds_html += "<div class='skills-grid'>"
         for i in range(len(SKILL_NAMES)):
-            builds_html += f"<div class='skill'><svg><use xlink:href='#skill-svg-{i+1}'></use></svg>{d['skill_lvls'][i]}</div>"
+            builds_html += f"<div class='skill'><svg><use xlink:href='#skill-svg-{i+1}'></use></svg>{d['skill_lvls'][i]}<span class='skill-name'>{SKILL_NAMES[i]}</span></div>"
+        builds_html += "</div>"
         builds_html += "</div>"
         
-        builds_html += "<h4>Gear</h4>"
+        builds_html += "<div class='card-consumables'>"
+        builds_html += "<h3>Consumables</h4>"
+        builds_html += f"<p class='subtitle'>Daily cost: {d['diag']['food_cost'] + d['diag']['ammo_bullet_cost']:.2f}</p>"
+        builds_html += "<div class='consumables-grid'>"
+        ammo_name = AMMO_NAMES[d['ammo_idx']]
+        food_name = FOOD_NAMES[d['food_idx']]
+        builds_html += f"<div class='consumable-item' style='background-color: {get_consumable_color(ammo_name)}'><img src='/static/images/{ammo_name}.png' alt='{ammo_name}'></div>"
+        builds_html += f"<div class='consumable-item' style='background-color: {get_consumable_color(food_name)}'><img src='/static/images/{food_name}.png' alt='{food_name}'></div>"
+        builds_html += "</div>"
+        builds_html += "</div>"
+        
+        builds_html += "</div>"
+
+        builds_html += "<h3>Gear</h4>"
+        builds_html += f"<p class='subtitle'>Total gear cost: {d['diag']['gear_cost']:.2f}</p>"
         builds_html += "<div class='gear-grid'>"
         for i in range(len(GEAR_SLOTS)):
             tier = WEAPON_TIERS[d['gear_idx'][i]] if i == 0 else GEAR_TIERS[d['gear_idx'][i]]
             image_name = WEAPON_TIERS[d['gear_idx'][i]] if i == 0 else GEAR_SLOTS[i]
             builds_html += f"<div class='gear-item' style='background-color: {get_tier_color(tier)}'><img src='/static/images/{image_name}.png' alt='{GEAR_SLOTS[i]}'></div>"
         builds_html += "</div>"
-        builds_html += f"<p class='subtitle'>Total gear cost: {d['diag']['gear_cost']:.2f}</p>"
 
-        builds_html += "<h4>Consumables</h4>"
-        builds_html += "<div class='consumables-grid'>"
-        
-        ammo_name = AMMO_NAMES[d['ammo_idx']]
-        food_name = FOOD_NAMES[d['food_idx']]
-        
-        builds_html += f"<div class='consumable-item' style='background-color: {get_consumable_color(ammo_name)}'><img src='/static/images/{ammo_name}.png' alt='{ammo_name}'></div>"
-        builds_html += f"<div class='consumable-item' style='background-color: {get_consumable_color(food_name)}'><img src='/static/images/{food_name}.png' alt='{food_name}'></div>"
-        
         builds_html += "</div>"
-        builds_html += f"<p class='subtitle'>Daily consumables cost: {d['diag']['food_cost'] + d['diag']['ammo_bullet_cost']:.2f}</p>"
-
-
-        builds_html += "</div></div>"
     if (disinformation_mode):
         return jsonify(builds=builds_html, trends="")
     else:

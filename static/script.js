@@ -17,7 +17,7 @@ document.getElementById("build-form").addEventListener("submit", async (event) =
     const data = new FormData(form);
     const resultsDiv = document.getElementById("results");
     const trendsDiv = document.getElementById("trends");
-    resultsDiv.innerHTML = "Optimizing...";
+    resultsDiv.innerHTML = "Optimizing... Thank you for your patience.";
     trendsDiv.innerHTML = "";
 
     const response = await fetch("/optimize", {

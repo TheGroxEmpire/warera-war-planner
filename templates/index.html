@@ -12,36 +12,44 @@
 <body>
     {% include 'skill_svgs.html' %}
     <div class="container">
-        <div class="main-content">
-            <h1>Warera Build Helper</h1>
+        <h1>Warera Build Helper</h1>
+        <div class="top-section">
             <form id="build-form">
-                <label for="level">Character Level:</label>
-                <select id="level" name="level">
-                    <script>
-                        for (let i = 1; i <= 50; i++) {
-                            document.write(`<option value="${i}">${i}</option>`);
-                        }
-                    </script>
-                </select>
-                <label for="companies">Number of Companies:</label>
-                <select id="companies" name="companies">
-                    <script>
-                        for (let i = 2; i <= 12; i++) {
-                            document.write(`<option value="${i}">${i}</option>`);
-                        }
-                    </script>
-                </select>
-                <div class="toggle-buttons">
-                    <button type="button" class="toggle-btn" data-name="pill">PILL</button>
-                    <button type="button" class="toggle-btn" data-name="dodge">DODGE FOCUS</button>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="level">Character Level:</label>
+                        <select id="level" name="level">
+                            <script>
+                                for (let i = 1; i <= 50; i++) {
+                                    document.write(`<option value="${i}">${i}</option>`);
+                                }
+                            </script>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="companies">Number of Companies:</label>
+                        <select id="companies" name="companies">
+                            <script>
+                                for (let i = 2; i <= 12; i++) {
+                                    document.write(`<option value="${i}">${i}</option>`);
+                                }
+                            </script>
+                        </select>
+                    </div>
                 </div>
-                <input type="hidden" name="pill" id="pill-input" value="off">
-                <input type="hidden" name="dodge" id="dodge-input" value="off">
-                <button type="submit">Optimize</button>
+                <div class="form-row">
+                    <div class="toggle-buttons">
+                        <button type="button" class="toggle-btn" data-name="pill">PILL</button>
+                        <button type="button" class="toggle-btn" data-name="dodge">DODGE FOCUS</button>
+                    </div>
+                    <input type="hidden" name="pill" id="pill-input" value="off">
+                    <input type="hidden" name="dodge" id="dodge-input" value="off">
+                    <button type="submit" class="optimize-btn">Optimize</button>
+                </div>
             </form>
-            <div id="results"></div>
+            <div class="trends" id="trends"></div>
         </div>
-        <div class="sidebar" id="trends"></div>
+        <div id="results"></div>
     </div>
     <script src="/static/script.js"></script>
 </body>

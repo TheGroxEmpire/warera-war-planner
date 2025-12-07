@@ -5,29 +5,64 @@ body {
     margin: 2em;
 }
 
+h3 {
+	margin-top: 0;
+	margin-bottom: 0;
+	display: flex;
+}
+.card-consumables h3 {
+	flex-direction: row-reverse;
+}
 .container {
     display: flex;
+    flex-direction: column;
 }
 
-.main-content {
-    flex-grow: 1;
-    padding-right: 20px;
+.top-section {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 2em;
 }
 
-.sidebar {
-    width: 300px;
-    position: sticky;
-    top: 20px;
-    height: 100vh;
-    overflow-y: auto;
+#build-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1em;
+    width: 35%;
+}
+
+.form-row {
+    display: flex;
+    align-items: center;
+    gap: 1em;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.trends {
+    width: 60%;
+    display: flex;
+    flex-direction: row;
+    gap: 1em;
+}
+
+#results {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 1em;
 }
 
 .card {
     background-color: #2a2a2a;
     border: 1px solid rgb(160, 0, 0);
-    border-radius: 0;
-    margin-bottom: 1em;
-    cursor: pointer;
+    border-radius: 5px;
+    padding: 1.5em;
+    display: flex;
+    flex-direction: column;
 }
 
 .card-header {
@@ -37,8 +72,8 @@ body {
 }
 
 .card-content {
-    display: none;
     padding: 1em;
+    flex-grow: 1;
 }
 
 .skills-grid {
@@ -51,37 +86,62 @@ body {
 .skill {
     display: flex;
     align-items: center;
+    position: relative;
 }
 
 .skill svg {
-    width: 2em;
-    height: 2em;
+    width: 1.5em;
+    height: 1.5em;
     margin-right: 0.5em;
 }
 
-.gear-grid, .consumables-grid {
+.skill .skill-name {
+    display: none;
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #333;
+    color: #fff;
+    padding: 0.5em;
+    border-radius: 5px;
+    white-space: nowrap;
+    z-index: 1;
+}
+
+.skill:hover .skill-name {
+    display: block;
+}
+
+.gear-grid {
     display: grid;
     grid-template-columns: repeat(6, 1fr);
-    gap: 1em;
-    margin-bottom: 1em;
+    gap: 0.8em;
+}
+
+.consumables-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.8em;
 }
 
 .gear-item, .consumable-item {
     display: flex;
     justify-content: center;
     align-items: center;
-    padding: 1em;
+    padding: 0;
+	border-radius: 5px;
 }
 
 .gear-item img, .consumable-item img {
-    max-width: 100%;
+    width: 100%;
     height: auto;
 }
 
 .subtitle {
-    text-align: center;
-    margin-top: 0.5em;
+    margin-top: 0.2em;
     color: #aaa;
+    font-size: 0.7em;
 }
 
 
@@ -91,12 +151,27 @@ body {
     border-radius: 0;
     padding: 1em;
     margin-bottom: 1em;
+    width: 33%;
+	border-radius: 5px;
+}
+
+.trends-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+    gap: 1em;
 }
 
 h1, h3, h4 {
     color: rgb(160, 0, 0);
     text-transform: uppercase;
 }
+
+h4 {
+    font-size: 0.7em;
+    margin-bottom: 0.5em;
+}
+
 
 table {
     width: 100%;
@@ -139,4 +214,39 @@ select, button {
     background-color: rgb(160, 0, 0);
     color: #fff;
     border-color: rgb(160, 0, 0);
+}
+
+.optimize-btn {
+    background-color: rgb(160, 0, 0);
+    font-weight: bold;
+    font-size: 1.2em;
+    padding: 1em 2em;
+}
+
+.card-damage {
+    font-size: 2em;
+    font-weight: bold;
+    color: rgb(160, 0, 0);
+}
+
+.card-damage::before {
+    content: "💥 ";
+}
+
+.card-cost {
+    font-size: 1.2em;
+    color: #aaa;
+}
+
+.card-sections {
+    display: flex;
+    justify-content: space-between;
+}
+
+.card-skills {
+    width: 65%;
+}
+
+.card-consumables {
+    width: 25%;
 }

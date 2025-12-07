@@ -108,8 +108,8 @@ def update_food_and_ammo_from_api():
     }
     for ammo_name, code in mapping.items():
         if code in prices:
-            old = AMMO[ammo_name]["bullet_cost"]
-            AMMO[ammo_name]["bullet_cost"] = prices[code]
+            old = AMMO[code]["bullet_cost"]
+            AMMO[code]["bullet_cost"] = prices[code]
             print(f"[AMMO] {ammo_name}: {old} -> {prices[code]}")
 
     print("Updated FOOD and AMMO prices from API.")

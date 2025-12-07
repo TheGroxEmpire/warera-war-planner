@@ -26,9 +26,64 @@ body {
     background-color: #2a2a2a;
     border: 1px solid rgb(160, 0, 0);
     border-radius: 0;
+    margin-bottom: 1em;
+    cursor: pointer;
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
     padding: 1em;
+}
+
+.card-content {
+    display: none;
+    padding: 1em;
+}
+
+.skills-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1em;
     margin-bottom: 1em;
 }
+
+.skill {
+    display: flex;
+    align-items: center;
+}
+
+.skill svg {
+    width: 2em;
+    height: 2em;
+    margin-right: 0.5em;
+}
+
+.gear-grid, .consumables-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 1em;
+    margin-bottom: 1em;
+}
+
+.gear-item, .consumable-item {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 1em;
+}
+
+.gear-item img, .consumable-item img {
+    max-width: 100%;
+    height: auto;
+}
+
+.subtitle {
+    text-align: center;
+    margin-top: 0.5em;
+    color: #aaa;
+}
+
 
 .trend-card {
     background-color: #2a2a2a;

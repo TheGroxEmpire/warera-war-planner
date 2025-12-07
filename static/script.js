@@ -29,3 +29,13 @@ document.getElementById("build-form").addEventListener("submit", async (event) =
     resultsDiv.innerHTML = results.builds;
     trendsDiv.innerHTML = results.trends;
 });
+
+document.getElementById("results").addEventListener("click", (event) => {
+    const card = event.target.closest(".card");
+    if (card) {
+        const content = card.querySelector(".card-content");
+        if (content) {
+            content.style.display = content.style.display === "block" ? "none" : "block";
+        }
+    }
+});

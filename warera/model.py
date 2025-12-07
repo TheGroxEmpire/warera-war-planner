@@ -50,13 +50,9 @@ def compute_totals(skill_levels, gear_idx, ammo_idx, food_idx):
 
     dmg_per_attack = expected_damage_per_attack(atk, prc, critc, critd)
     if globals().get("PILL_MODE", False):
-        if ammo_name != "none":  # apply ammo bonus only if ammo is used
-            dmg_per_attack *= (1.0 + 0.8 + ammo["dmg_bonus"])  # +80% with ammo
-        else:
-            dmg_per_attack *= (1.0 + 0.8 )  # +80% no ammo
+        dmg_per_attack *= (1.0 + 0.8 + ammo["dmg_bonus"])  # +80% with ammo
     else:
-        if ammo_name != "none":  # apply ammo bonus only if ammo is used
-            dmg_per_attack *= (1.0 + ammo["dmg_bonus"])  # ammo no 80%
+        dmg_per_attack *= (1.0 + ammo["dmg_bonus"])  # ammo no 80%
 
     # Attacks possible
     n_attacks = attacks_possible(hp, hun, arm, ddg, food["regen_bonus"])
@@ -68,18 +64,19 @@ def compute_totals(skill_levels, gear_idx, ammo_idx, food_idx):
         tier_idx = int(gear_idx[i])
         if slot == "weapon":
             tier = WEAPON_TIERS[tier_idx]
-            if tier != "none":
-                gear_cost_total += GEAR[slot][tier]["cost"] / GEAR[slot][tier]["uses"] * n_attacks
         else:
             tier = GEAR_TIERS[tier_idx]
-            if tier != "none":
-                gear_cost_total += GEAR[slot][tier]["cost"] / GEAR[slot][tier]["uses"] * n_attacks * (1 - ddg)
+
+        gear_item = GEAR[slot][tier]
+        cost_per_use = gear_item["cost"] / 100
+        if slot == "weapon":
+            gear_cost_total += cost_per_use * n_attacks
+        else:
+            gear_cost_total += cost_per_use * n_attacks * (1 - ddg)
 
     # Food + ammo costs
     food_cost = food["cost"] * hun * 2.4
-    ammo_cost = 0.0
-    if ammo_name != "none":
-        ammo_cost = ammo["bullet_cost"] * n_attacks
+    ammo_cost = ammo["bullet_cost"] * n_attacks
 
     total_cost = gear_cost_total + food_cost + ammo_cost
     total_damage = dmg_per_attack * n_attacks

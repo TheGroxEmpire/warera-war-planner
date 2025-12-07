@@ -1,6 +1,6 @@
 import requests
 import json
-from .config import SLOT_CODES, WEAPON_TIERS, TIER_NUM, GEAR, FOOD_NAMES, AMMO_NAMES, FOOD, AMMO
+from .config import WEAPON_TIERS, TIER_NUM, GEAR, FOOD_NAMES, AMMO_NAMES, FOOD, AMMO, GEAR_SLOTS
 
 # =========================================
 # HELPERS
@@ -12,25 +12,19 @@ def fetch_equipment_prices(slots=None):
     Returns a dict like {slot: {tier: avgPrice, ...}, ...}
     """
     if slots is None:
-        slots = SLOT_CODES.keys()
+        slots = GEAR_SLOTS
 
     batch_input = {}
     idx = 0
 
     for slot in slots:
         if slot == "weapon":
-            # weapons: use explicit codes, no numbers
             for weapon in WEAPON_TIERS:
-                if weapon == "none":
-                    continue
                 batch_input[str(idx)] = {"itemCode": weapon}
                 idx += 1
         else:
-            # armor/helmet/etc: numeric tiers
             for tier, num in TIER_NUM.items():
-                if tier == "none":
-                    continue
-                item_code = f"{SLOT_CODES[slot]}{num}"
+                item_code = f"{slot}{num}"
                 batch_input[str(idx)] = {"itemCode": item_code}
                 idx += 1
 
@@ -125,8 +119,6 @@ def update_gear_prices_from_api():
     prices = fetch_equipment_prices()
     for slot, tiers in prices.items():
         for tier, price in tiers.items():
-            if tier == "none":
-                continue  # leave it as cost=0
             if price and price > 0:
                 old = GEAR[slot][tier]["cost"]
                 GEAR[slot][tier]["cost"] = price

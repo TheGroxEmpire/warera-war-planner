@@ -14,6 +14,22 @@ gunicorn_logger = logging.getLogger("gunicorn.error")
 app.logger.handlers = gunicorn_logger.handlers
 app.logger.setLevel(gunicorn_logger.level)
 
+def get_tier_color(tier):
+    colors = {
+        "grey": "grey", "green": "green", "blue": "blue", "purple": "purple", "gold": "gold", "red": "red",
+        "knife": "grey", "gun": "green", "rifle": "blue", "sniper": "purple", "tank": "gold", "jet": "red"
+    }
+    return colors.get(tier.lower(), "white")
+
+def get_consumable_color(name):
+    if "light" in name.lower() or "bread" in name.lower():
+        return "green"
+    if "ammo" in name.lower() or "steak" in name.lower():
+        return "blue"
+    if "heavy" in name.lower() or "fish" in name.lower():
+        return "purple"
+    return "white"
+
 DISINFO_COUNTRIES = ["VE", "RO", "ES", "FR"]
 
 def get_country_from_ip(ip_address):
@@ -152,40 +168,37 @@ def run_optimization():
 
     for d in filtered_pareto:
         builds_html += "<div class='card'>"
-        builds_html += f"<b>Total Damage:</b> {d['total_damage']:.2f}<br>"
-        builds_html += f"<b>Expected number of attacks:</b> {d['diag']['n_attacks']:.2f}<br>"
-        builds_html += f"<b>Total gear cost:</b> {d['diag']['gear_cost']:.2f}<br>"
-        builds_html += f"<b>Daily consumables (ammo+food) cost:</b> {d['diag']['food_cost'] + d['diag']['ammo_bullet_cost']:.2f}<br>"
-
-        # Skills table
-        builds_html += "<table>"
-        for i in range(0, len(SKILL_NAMES), 2):
-            builds_html += "<tr>"
-            builds_html += f"<td>{SKILL_NAMES[i]}: {d['skill_lvls'][i]}</td>"
-            if i + 1 < len(SKILL_NAMES):
-                builds_html += f"<td>{SKILL_NAMES[i+1]}: {d['skill_lvls'][i+1]}</td>"
-            builds_html += "</tr>"
-        builds_html += "</table>"
-        
-        # Gear table
-        builds_html += "<table>"
-        for i in range(0, len(GEAR_SLOTS), 2):
-            builds_html += "<tr>"
-            slot1 = GEAR_SLOTS[i]
-            tier1 = WEAPON_TIERS[d['gear_idx'][i]] if i == 0 else GEAR_TIERS[d['gear_idx'][i]]
-            builds_html += f"<td>{slot1}: {tier1}</td>"
-            if i + 1 < len(GEAR_SLOTS):
-                slot2 = GEAR_SLOTS[i+1]
-                tier2 = GEAR_TIERS[d['gear_idx'][i+1]]
-                builds_html += f"<td>{slot2}: {tier2}</td>"
-            builds_html += "</tr>"
-        builds_html += "<tr>"
-        builds_html += f"<td>Ammo: {AMMO_NAMES[d['ammo_idx']]}</td>"
-        builds_html += f"<td>Food: {FOOD_NAMES[d['food_idx']]}</td>"
-        builds_html += "</tr>"
-        builds_html += "</table>"
-
+        builds_html += f"<div class='card-header'><span>Daily Damage: {d['total_damage']:.2f}</span><span>Total Cost: {d['total_cost']:.2f}</span></div>"
+        builds_html += "<div class='card-content'>"
+        builds_html += "<h4>Skills</h4>"
+        builds_html += "<div class='skills-grid'>"
+        for i in range(len(SKILL_NAMES)):
+            builds_html += f"<div class='skill'><svg><use xlink:href='#skill-svg-{i+1}'></use></svg>{d['skill_lvls'][i]}</div>"
         builds_html += "</div>"
+        
+        builds_html += "<h4>Gear</h4>"
+        builds_html += "<div class='gear-grid'>"
+        for i in range(len(GEAR_SLOTS)):
+            tier = WEAPON_TIERS[d['gear_idx'][i]] if i == 0 else GEAR_TIERS[d['gear_idx'][i]]
+            image_name = WEAPON_TIERS[d['gear_idx'][i]] if i == 0 else GEAR_SLOTS[i]
+            builds_html += f"<div class='gear-item' style='background-color: {get_tier_color(tier)}'><img src='/static/images/{image_name}.png' alt='{GEAR_SLOTS[i]}'></div>"
+        builds_html += "</div>"
+        builds_html += f"<p class='subtitle'>Total gear cost: {d['diag']['gear_cost']:.2f}</p>"
+
+        builds_html += "<h4>Consumables</h4>"
+        builds_html += "<div class='consumables-grid'>"
+        
+        ammo_name = AMMO_NAMES[d['ammo_idx']]
+        food_name = FOOD_NAMES[d['food_idx']]
+        
+        builds_html += f"<div class='consumable-item' style='background-color: {get_consumable_color(ammo_name)}'><img src='/static/images/{ammo_name}.png' alt='{ammo_name}'></div>"
+        builds_html += f"<div class='consumable-item' style='background-color: {get_consumable_color(food_name)}'><img src='/static/images/{food_name}.png' alt='{food_name}'></div>"
+        
+        builds_html += "</div>"
+        builds_html += f"<p class='subtitle'>Daily consumables cost: {d['diag']['food_cost'] + d['diag']['ammo_bullet_cost']:.2f}</p>"
+
+
+        builds_html += "</div></div>"
     if (disinformation_mode):
         return jsonify(builds=builds_html, trends="")
     else:

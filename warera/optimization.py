@@ -13,20 +13,19 @@ import os
 # =========================================
 class BuildProblem(Problem):
     def __init__(self, level, dodge_build=False, disinformation_mode=False):
-        n_vars = 16
-        xl = np.array([0]*8 + [0]*6 + [0] + [0])
+        n_vars = 8 + len(GEAR_SLOTS) + 2
+        xl = np.zeros(n_vars, dtype=int)
         if dodge_build:
-            xl[5] = 7  # Dodge skill at least 7
-            
+            xl[5] = min(level/4,10)
+
         xu = np.array(
             [MAX_SKILL_LEVEL]*8 +
-            [len(WEAPON_TIERS)-1] +                    # weapon slot
-            [len(GEAR_TIERS)-1] * (len(GEAR_SLOTS)-1) +  # rest of gear
+            [len(WEAPON_TIERS)-1] + [len(GEAR_TIERS)-1] * (len(GEAR_SLOTS) - 1) +
             [len(AMMO_NAMES)-1] +
             [len(FOOD_NAMES)-1]
         )
 
-        n_constr = 3 if dodge_build else 2
+        n_constr = 2 if dodge_build else 1
         super().__init__(n_var=n_vars, n_obj=2, n_constr=n_constr, xl=xl, xu=xu)
         self.level = level
         self.skill_points = int(level * SKILL_POINTS_PER_LEVEL)
@@ -47,18 +46,7 @@ class BuildProblem(Problem):
             skill_cost = int(np.sum(SKILL_LEVEL_COST[skill_lvls]))
             g1 = skill_cost - self.skill_points
 
-            # ---- Ammo constraint
-            weapon_tier = WEAPON_TIERS[int(gear_idx[0])]
-            ammo_name = AMMO_NAMES[int(ammo_idx)]
-
-            # invalid if mismatch between weapon/ammo logic
-            if (weapon_tier in ["none", "knife"] and ammo_name != "none") or \
-           (weapon_tier not in ["none", "knife"] and ammo_name == "none"):
-                g2 = 1
-            else:
-                g2 = 0
-
-            constraints = [g1, g2]
+            constraints = [g1]
             
             # --- Dodge build constraint ---
             if self.dodge_build:
@@ -90,7 +78,7 @@ def optimize_worker(args):
         n_gen = int(os.environ.get("N_GEN", 100))
     algorithm = NSGA2(pop_size=pop_size)
     termination = get_termination("n_gen", n_gen)
-    res = minimize(problem, algorithm, termination, seed=1, verbose=False)
+    res = minimize(problem, algorithm, termination, verbose=False)
     return res
 
 def optimize(level, dodge_build=False, verbose=True, disinformation_mode=False):

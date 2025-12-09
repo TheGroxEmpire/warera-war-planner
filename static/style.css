@@ -29,22 +29,11 @@ h3 {
     display: flex;
     flex-direction: column;
     gap: 1em;
-    width: 35%;
-}
-
-.form-row {
-    display: flex;
-    align-items: center;
-    gap: 1em;
-}
-
-.form-group {
-    display: flex;
-    flex-direction: column;
+    width: 25%;
 }
 
 .trends {
-    width: 60%;
+    width: 70%;
     display: flex;
     flex-direction: row;
     gap: 1em;
@@ -196,15 +185,15 @@ h3 {
     border: 1px solid rgb(160, 0, 0);
     border-radius: 0;
     padding: 1em;
-    margin-bottom: 1em;
     width: 33%;
 	border-radius: 5px;
 }
 
 .trends-grid {
+	margin-top: 0.5em;
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    grid-template-rows: repeat(2, 1fr);
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(4, 1fr);
     gap: 1em;
 }
 
@@ -232,8 +221,8 @@ th, td {
 }
 
 .toggle-buttons {
-    margin-top: 1em;
-    margin-bottom: 1em;
+    display: flex;
+    justify-content: center;
 }
 
 select, button {
@@ -243,17 +232,19 @@ select, button {
     padding: 0.5em 1em;
     cursor: pointer;
     border-radius: 5px;
-    margin-right: 10px;
     text-transform: uppercase;
+	margin: 0.25em;
 }
 
 .toggle-btn {
     background-color: #333;
     border: 1px solid rgb(160, 0, 0);
     color: #e0e0e0;
-    padding: 0.5em 1em;
     cursor: pointer;
     border-radius: 5px;
+	font-weight: bold;
+	font-size: 1em;
+	padding: 0.5em;
 }
 
 .toggle-btn.active {
@@ -263,6 +254,8 @@ select, button {
 }
 
 .optimize-btn {
+	display:flex;
+    justify-content: center;
     background-color: rgb(160, 0, 0);
     font-weight: bold;
     font-size: 1.2em;
@@ -314,4 +307,27 @@ select, button {
     .trend-card {
         width: 100%;
     }
+}
+
+.spinner {
+    display: inline;
+    width: 1em;
+    height: 1em;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: spinner-border 1s linear infinite;
+}
+
+@keyframes spinner-border {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.optimize-btn:disabled {
+    background-color: #333;
+    font-weight:bold;
+    font-size: 1em;
+    cursor: not-allowed;
 }

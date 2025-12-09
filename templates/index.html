@@ -15,37 +15,29 @@
         <h1>Warera Build Helper</h1>
         <div class="top-section">
             <form id="build-form">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="level">Character Level:</label>
-                        <select id="level" name="level">
-                            <script>
-                                for (let i = 1; i <= 50; i++) {
-                                    document.write(`<option value="${i}">${i}</option>`);
-                                }
-                            </script>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="companies">Number of Companies:</label>
-                        <select id="companies" name="companies">
-                            <script>
-                                for (let i = 2; i <= 12; i++) {
-                                    document.write(`<option value="${i}">${i}</option>`);
-                                }
-                            </script>
-                        </select>
-                    </div>
+                <select id="level" name="level" required>
+                    <option value="" disabled selected hidden>Level</option>
+                    <script>
+                        for (let i = 1; i <= 50; i++) {
+                            document.write(`<option value="${i}">${i}</option>`);
+                        }
+                    </script>
+                </select>
+                <select id="companies" name="companies" required>
+                    <option value="" disabled selected hidden>Companies</option>
+                    <script>
+                        for (let i = 2; i <= 12; i++) {
+                            document.write(`<option value="${i}">${i}</option>`);
+                        }
+                    </script>
+                </select>
+                <div class="toggle-buttons">
+                    <button type="button" class="toggle-btn" data-name="pill">PILL</button>
+                    <button type="button" class="toggle-btn" data-name="dodge">DODGE FOCUS</button>
                 </div>
-                <div class="form-row">
-                    <div class="toggle-buttons">
-                        <button type="button" class="toggle-btn" data-name="pill">PILL</button>
-                        <button type="button" class="toggle-btn" data-name="dodge">DODGE FOCUS</button>
-                    </div>
-                    <input type="hidden" name="pill" id="pill-input" value="off">
-                    <input type="hidden" name="dodge" id="dodge-input" value="off">
-                    <button type="submit" class="optimize-btn">Optimize</button>
-                </div>
+                <input type="hidden" name="pill" id="pill-input" value="off">
+                <input type="hidden" name="dodge" id="dodge-input" value="off">
+                <button type="submit" class="optimize-btn">Optimize</button>
             </form>
             <div class="trends" id="trends"></div>
         </div>

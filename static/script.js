@@ -17,17 +17,26 @@ document.getElementById("build-form").addEventListener("submit", async (event) =
     const data = new FormData(form);
     const resultsDiv = document.getElementById("results");
     const trendsDiv = document.getElementById("trends");
-    resultsDiv.innerHTML = "Optimizing... Thank you for your patience.";
+    const optimizeBtn = form.querySelector(".optimize-btn"); 
+
     trendsDiv.innerHTML = "";
 
-    const response = await fetch("/optimize", {
-        method: "POST",
-        body: data,
-    });
+    optimizeBtn.disabled = true;
+    optimizeBtn.innerHTML = `<span class="spinner"></span><span>OPTIMIZING</span>`;
 
-    const results = await response.json();
-    resultsDiv.innerHTML = results.builds;
-    trendsDiv.innerHTML = results.trends;
+    try {
+        const response = await fetch("/optimize", {
+            method: "POST",
+            body: data,
+        });
+
+        const results = await response.json();
+        resultsDiv.innerHTML = results.builds;
+        trendsDiv.innerHTML = results.trends;
+    } finally {
+        optimizeBtn.disabled = false;
+        optimizeBtn.innerHTML = "Optimize";
+    }
 });
 
 document.getElementById("results").addEventListener("click", (event) => {

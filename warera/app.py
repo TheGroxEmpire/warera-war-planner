@@ -183,7 +183,7 @@ def run_optimization():
         
         builds_html += "<div class='card-consumables'>"
         builds_html += "<h3>Consumables</h4>"
-        builds_html += f"<p class='subtitle'>Daily cost: {d['diag']['food_cost'] + d['diag']['ammo_bullet_cost']:.2f}</p>"
+        # builds_html += f"<p class='subtitle'>Daily cost: {d['diag']['food_cost'] + d['diag']['ammo_bullet_cost']:.2f}</p>"
         builds_html += "<div class='consumables-grid'>"
         ammo_name = AMMO_NAMES[d['ammo_idx']]
         food_name = FOOD_NAMES[d['food_idx']]
@@ -195,7 +195,7 @@ def run_optimization():
         builds_html += "</div>"
 
         builds_html += "<h3>Gear</h4>"
-        builds_html += f"<p class='subtitle'>Total gear cost: {d['diag']['gear_cost']:.2f}</p>"
+        # builds_html += f"<p class='subtitle'>Total gear cost: {d['diag']['gear_cost']:.2f}</p>"
         builds_html += "<div class='gear-grid'>"
         for i in range(len(GEAR_SLOTS)):
             tier = WEAPON_TIERS[d['gear_idx'][i]] if i == 0 else GEAR_TIERS[d['gear_idx'][i]]

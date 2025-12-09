@@ -76,6 +76,8 @@ h3 {
     display: flex;
     align-items: center;
     position: relative;
+    color: #d2d9e0;
+	font-weight: bold;
 }
 
 .skill svg {
@@ -109,6 +111,7 @@ h3 {
 
 .card-cost {
     position: relative;
+	font-weight: bold;
 }
 
 .card-cost .cost-label {
@@ -142,6 +145,7 @@ h3 {
     border-radius: 5px;
     white-space: nowrap;
     z-index: 1;
+	font-weight: bold;
 }
 
 .skill:hover .skill-name {
@@ -274,7 +278,7 @@ select, button {
 
 .card-cost {
     font-size: 1.2em;
-    color: #aaa;
+    color: #d8d28b;
 }
 
 .card-sections {
@@ -337,3 +341,13 @@ select, button {
     font-size: 1em;
     cursor: not-allowed;
 }
+
+/* Skill SVG colors */
+#skill-svg-1 { color: #edb59e; } /* attack */
+#skill-svg-2 { color: #edb59e; } /* precision */
+#skill-svg-3 { color: #ed8b8b; } /* crit chance */
+#skill-svg-4 { color: #ed8b8b; } /* crit damage */
+#skill-svg-5 { color: #9dadbb; } /* armor */
+#skill-svg-6 { color: #9dadbb; } /* dodge */
+#skill-svg-7 { color: #2f804d; } /* health */
+#skill-svg-8 { color: #974035; } /* hunger */

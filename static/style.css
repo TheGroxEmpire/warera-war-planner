@@ -304,9 +304,15 @@ select, button {
     .trends {
         flex-direction: column;
     }
-    .trend-card {
-        width: 100%;
-    }
+
+	.trend-card {
+        width: 95%;
+}
+
+    .trends-grid {
+        grid-template-columns: repeat(4, 1fr);
+        grid-template-rows: repeat(2, 1fr);
+}
 }
 
 .spinner {

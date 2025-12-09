@@ -51,7 +51,7 @@ class BuildProblem(Problem):
             # --- Dodge build constraint ---
             if self.dodge_build:
                 boots_tier_idx = gear_idx[5]
-                purple_tier_idx = GEAR_TIERS.index("purple")
+                purple_tier_idx = GEAR_TIERS.index("blue")
                 if boots_tier_idx < purple_tier_idx:
                     g3 = 1
                 else:

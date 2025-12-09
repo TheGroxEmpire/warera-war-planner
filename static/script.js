@@ -3,6 +3,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const levelInput = document.getElementById("level-input");
     const companiesSlider = document.getElementById("companies-slider");
     const companiesInput = document.getElementById("companies-input");
+    const costSlider = document.getElementById("cost-slider");
+    const costInput = document.getElementById("cost-input");
+    const costSliderSection = document.getElementById("cost-slider-section");
+    const resultsDiv = document.getElementById("results");
+
+    let allBuilds = [];
 
     levelSlider.addEventListener("input", () => {
         levelInput.value = levelSlider.value;
@@ -18,6 +24,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
     companiesInput.addEventListener("input", () => {
         companiesSlider.value = companiesInput.value;
+    });
+
+    costSlider.addEventListener("input", () => {
+        costInput.value = costSlider.value;
+        updateBuilds();
+    });
+
+    costInput.addEventListener("input", () => {
+        costSlider.value = costInput.value;
+        updateBuilds();
     });
 
     document.querySelectorAll(".toggle-btn").forEach(button => {
@@ -37,11 +53,12 @@ document.addEventListener("DOMContentLoaded", () => {
         event.preventDefault();
         const form = event.target;
         const data = new FormData(form);
-        const resultsDiv = document.getElementById("results");
         const trendsDiv = document.getElementById("trends");
         const optimizeBtn = form.querySelector(".optimize-btn"); 
 
         trendsDiv.innerHTML = "";
+        resultsDiv.innerHTML = "";
+        costSliderSection.style.display = "none";
 
         optimizeBtn.disabled = true;
         optimizeBtn.innerHTML = `<span class="spinner"></span><span>OPTIMIZING</span>`;
@@ -53,21 +70,83 @@ document.addEventListener("DOMContentLoaded", () => {
             });
 
             const results = await response.json();
-            resultsDiv.innerHTML = results.builds;
+            allBuilds = results.builds;
             trendsDiv.innerHTML = results.trends;
+
+            if (allBuilds && allBuilds.length > 0) {
+                costSliderSection.style.display = "block";
+                costSlider.min = results.min_cost;
+                costSlider.max = results.max_cost;
+                costSlider.value = results.min_cost;
+                costInput.min = results.min_cost;
+                costInput.max = results.max_cost;
+                costInput.value = results.min_cost;
+                updateBuilds();
+            } else {
+                resultsDiv.innerHTML = "<p>No optimal builds found.</p>";
+            }
+
         } finally {
             optimizeBtn.disabled = false;
             optimizeBtn.innerHTML = "Optimize";
         }
     });
 
-    document.getElementById("results").addEventListener("click", (event) => {
-        const card = event.target.closest(".card");
-        if (card) {
-            const content = card.querySelector(".card-content");
-            if (content) {
-                content.style.display = content.style.display === "block" ? "none" : "block";
-            }
+    function updateBuilds() {
+        const targetCost = parseFloat(costInput.value);
+        const closestBuilds = findClosestBuilds(targetCost);
+        renderBuilds(closestBuilds);
+    }
+
+    function findClosestBuilds(targetCost) {
+        if (!allBuilds || allBuilds.length === 0) {
+            return [];
         }
-    });
+
+        allBuilds.sort((a, b) => {
+            const diffA = Math.abs(a.total_cost - targetCost);
+            const diffB = Math.abs(b.total_cost - targetCost);
+            return diffA - diffB;
+        });
+
+        return allBuilds.slice(0, 3);
+    }
+
+    function renderBuilds(builds) {
+        resultsDiv.innerHTML = "";
+        builds.forEach(d => {
+            let skillsHtml = "";
+            for (let i = 0; i < d.skill_lvls.length; i++) {
+                skillsHtml += `<div class='skill'><svg><use xlink:href='#skill-svg-${i+1}'></use></svg>${d.skill_lvls[i]}<span class='skill-name'>SKILL</span></div>`;
+            }
+
+            let gearHtml = "";
+            d.gear.forEach(g => {
+                gearHtml += `<div class='gear-item' style='background-color: ${g.color}'><img src='/static/images/${g.image_name}.png' alt='${g.slot}'></div>`;
+            });
+
+            const buildHtml = `
+                <div class='card'>
+                    <div class='card-damage'>${d.total_damage_formatted} DMG<span class='damage-label'>Average daily damage</span></div>
+                    <div class='card-cost'><svg stroke='currentColor' fill='currentColor' stroke-width='0' viewBox='0 0 24 24' height='1em' width='1em' xmlns='http://www.w3.org/2000/svg' style='width: 1em; height: 1em; paint-order: stroke; stroke-linecap: round; stroke-linejoin: round;'><path d='M12 5C7.031 5 2 6.546 2 9.5S7.031 14 12 14c4.97 0 10-1.546 10-4.5S16.97 5 12 5zm-5 9.938v3c1.237.299 2.605.482 4 .541v-3a21.166 21.166 0 0 1-4-.541zm6 .54v3a20.994 20.994 0 0 0 4-.541v-3a20.994 20.994 0 0 1-4 .541zm6-1.181v3c1.801-.755 3-1.857 3-3.297v-3c0 1.44-1.199 2.542-3 3.297zm-14 3v-3C3.2 13.542 2 12.439 2 11v3c0 1.439 1.2 2.542 3 3.297z'></path></svg> ${d.total_cost_formatted}<span class='cost-label'>Total daily cost</span></div>
+                    <div class='card-sections'>
+                        <div class='card-skills'>
+                            <h3>Skills</h4>
+                            <div class='skills-grid'>${skillsHtml}</div>
+                        </div>
+                        <div class='card-consumables'>
+                            <h3>Consumables</h4>
+                            <div class='consumables-grid'>
+                                <div class='consumable-item' style='background-color: ${d.ammo_color}'><img src='/static/images/${d.ammo_name}.png' alt='${d.ammo_name}'></div>
+                                <div class='consumable-item' style='background-color: ${d.food_color}'><img src='/static/images/${d.food_name}.png' alt='${d.food_name}'></div>
+                            </div>
+                        </div>
+                    </div>
+                    <h3>Gear</h4>
+                    <div class='gear-grid'>${gearHtml}</div>
+                </div>
+            `;
+            resultsDiv.innerHTML += buildHtml;
+        });
+    }
 });

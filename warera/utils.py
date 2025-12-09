@@ -74,7 +74,7 @@ def save_results_details(details, level, outfile="builds_cost_damage.csv"):
             row = [
                 level,
                 *gear_tiers,
-                ammo_name, food_name,
+                ammo_name, food_.name,
                 *[int(x) for x in skill_lvls.tolist()],
                 float(total_damage),
                 float(total_cost),

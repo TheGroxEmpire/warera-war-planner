@@ -15,6 +15,8 @@ app.logger.handlers = gunicorn_logger.handlers
 app.logger.setLevel(gunicorn_logger.level)
 
 def format_number(num):
+    if num >= 1000000:
+        return f"{num/1000000:.2f}M"
     if num > 1000:
         return f"{num/1000:.1f}K"
     return f"{num:.2f}"
@@ -54,6 +56,20 @@ def get_country_from_ip(ip_address):
     except Exception as e:
         app.logger.error(f"An error occurred: {e}")
         return None
+
+def convert_numpy_types(obj):
+    if isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, dict):
+        return {k: convert_numpy_types(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_numpy_types(i) for i in obj]
+    else:
+        return obj
 
 @app.route("/")
 def index():
@@ -98,7 +114,7 @@ def run_optimization():
         X = res.X
     
     if X is None:
-        return jsonify(builds="<p>No optimal builds found.</p>", trends="")
+        return jsonify(builds=[], min_cost=0, max_cost=0, trends="")
         
     details = []
     for row in X:
@@ -110,8 +126,8 @@ def run_optimization():
         total_damage, total_cost, diag = compute_totals(skill_lvls, gear_idx, ammo_idx, food_idx)
         skill_cost = int(np.sum(SKILL_LEVEL_COST[skill_lvls]))
         details.append({
-            "skill_lvls": skill_lvls,
-            "gear_idx": gear_idx,
+            "skill_lvls": skill_lvls.tolist(),
+            "gear_idx": gear_idx.tolist(),
             "ammo_idx": ammo_idx,
             "food_idx": food_idx,
             "total_damage": total_damage,
@@ -120,16 +136,8 @@ def run_optimization():
             "diag": diag
         })
 
-    details = [d for d in details if d["total_damage"] <= 1000000]
-    
     details = sorted(details, key=lambda x: (x["total_cost"], -x["total_damage"]))
-    pareto = []
-    max_damage = -1
-    for d in details:
-        if d["total_damage"] > max_damage:
-            pareto.append(d)
-            max_damage = d["total_damage"]
-            
+    
     # --- Trends Analysis ---
     high_damage_builds = [d for d in details if d["total_damage"] >= 50000]
     trends_html = ""
@@ -149,65 +157,42 @@ def run_optimization():
                 trends_html += f"<div class='skill'><svg><use xlink:href='#skill-svg-{j+1}'></use></svg>{level}<span class='skill-name'>{SKILL_NAMES[j]}</span></div>"
             trends_html += "</div>"
             trends_html += "</div>"
-
-    # --- Results Display ---
-    pill_text = "Using pill" if pill else "Not using pill"
-    dodge_text = "focusing dodge" if dodge_build else "not focusing dodge"
-    builds_html = ""
     
-    # Select builds in 50k damage increments
-    filtered_pareto = []
-    next_damage_threshold = 50000
-    for d in pareto:
-        if d["total_damage"] >= next_damage_threshold:
-            filtered_pareto.append(d)
-            next_damage_threshold += 50000
-    
-    if not filtered_pareto and pareto:
-        filtered_pareto.append(pareto[-1]) # at least show the best one
+    pareto = []
+    max_damage = -1
+    for d in details:
+        if d["total_damage"] > max_damage:
+            # Add consumable and gear names
+            d['ammo_name'] = AMMO_NAMES[d['ammo_idx']]
+            d['food_name'] = FOOD_NAMES[d['food_idx']]
+            d['gear'] = []
+            for i in range(len(GEAR_SLOTS)):
+                tier = WEAPON_TIERS[d['gear_idx'][i]] if i == 0 else GEAR_TIERS[d['gear_idx'][i]]
+                image_name = WEAPON_TIERS[d['gear_idx'][i]] if i == 0 else GEAR_SLOTS[i]
+                d['gear'].append({
+                    'tier': tier,
+                    'image_name': image_name,
+                    'slot': GEAR_SLOTS[i]
+                })
 
-    for d in filtered_pareto:
-        builds_html += "<div class='card'>"
-        builds_html += f"<div class='card-damage'>{format_number(d['total_damage'])} DMG<span class='damage-label'>Average daily damage</span></div>"
-        builds_html += f"<div class='card-cost'><svg stroke='currentColor' fill='currentColor' stroke-width='0' viewBox='0 0 24 24' height='1em' width='1em' xmlns='http://www.w3.org/2000/svg' style='width: 1em; height: 1em; paint-order: stroke; stroke-linecap: round; stroke-linejoin: round;'><path d='M12 5C7.031 5 2 6.546 2 9.5S7.031 14 12 14c4.97 0 10-1.546 10-4.5S16.97 5 12 5zm-5 9.938v3c1.237.299 2.605.482 4 .541v-3a21.166 21.166 0 0 1-4-.541zm6 .54v3a20.994 20.994 0 0 0 4-.541v-3a20.994 20.994 0 0 1-4 .541zm6-1.181v3c1.801-.755 3-1.857 3-3.297v-3c0 1.44-1.199 2.542-3 3.297zm-14 3v-3C3.2 13.542 2 12.439 2 11v3c0 1.439 1.2 2.542 3 3.297z'></path></svg> {d['total_cost']:.2f}<span class='cost-label'>Total daily cost</span></div>"
-        
-        builds_html += "<div class='card-sections'>"
-        
-        builds_html += "<div class='card-skills'>"
-        builds_html += "<h3>Skills</h4>"
-        builds_html += "<div class='skills-grid'>"
-        for i in range(len(SKILL_NAMES)):
-            builds_html += f"<div class='skill'><svg><use xlink:href='#skill-svg-{i+1}'></use></svg>{d['skill_lvls'][i]}<span class='skill-name'>{SKILL_NAMES[i]}</span></div>"
-        builds_html += "</div>"
-        builds_html += "</div>"
-        
-        builds_html += "<div class='card-consumables'>"
-        builds_html += "<h3>Consumables</h4>"
-        # builds_html += f"<p class='subtitle'>Daily cost: {d['diag']['food_cost'] + d['diag']['ammo_bullet_cost']:.2f}</p>"
-        builds_html += "<div class='consumables-grid'>"
-        ammo_name = AMMO_NAMES[d['ammo_idx']]
-        food_name = FOOD_NAMES[d['food_idx']]
-        builds_html += f"<div class='consumable-item' style='background-color: {get_consumable_color(ammo_name)}'><img src='/static/images/{ammo_name}.png' alt='{ammo_name}'></div>"
-        builds_html += f"<div class='consumable-item' style='background-color: {get_consumable_color(food_name)}'><img src='/static/images/{food_name}.png' alt='{food_name}'></div>"
-        builds_html += "</div>"
-        builds_html += "</div>"
-        
-        builds_html += "</div>"
+            # Add colors
+            d['ammo_color'] = get_consumable_color(d['ammo_name'])
+            d['food_color'] = get_consumable_color(d['food_name'])
+            for i in range(len(d['gear'])):
+                d['gear'][i]['color'] = get_tier_color(d['gear'][i]['tier'])
+            
+            d["total_damage_formatted"] = format_number(d["total_damage"])
+            d["total_cost_formatted"] = format_number(d["total_cost"])
+            pareto.append(d)
+            max_damage = d["total_damage"]
 
-        builds_html += "<h3>Gear</h4>"
-        # builds_html += f"<p class='subtitle'>Total gear cost: {d['diag']['gear_cost']:.2f}</p>"
-        builds_html += "<div class='gear-grid'>"
-        for i in range(len(GEAR_SLOTS)):
-            tier = WEAPON_TIERS[d['gear_idx'][i]] if i == 0 else GEAR_TIERS[d['gear_idx'][i]]
-            image_name = WEAPON_TIERS[d['gear_idx'][i]] if i == 0 else GEAR_SLOTS[i]
-            builds_html += f"<div class='gear-item' style='background-color: {get_tier_color(tier)}'><img src='/static/images/{image_name}.png' alt='{GEAR_SLOTS[i]}'></div>"
-        builds_html += "</div>"
+    min_cost = 0
+    max_cost = 0
+    if pareto:
+        min_cost = pareto[0]["total_cost"]
+        max_cost = pareto[-1]["total_cost"]
 
-        builds_html += "</div>"
-    if (disinformation_mode):
-        return jsonify(builds=builds_html, trends="")
-    else:
-        return jsonify(builds=builds_html, trends=trends_html)
+    return jsonify(builds=convert_numpy_types(pareto), min_cost=convert_numpy_types(min_cost), max_cost=convert_numpy_types(max_cost), trends=trends_html)
 
 if __name__ == "__main__":
     app.run(debug=True)

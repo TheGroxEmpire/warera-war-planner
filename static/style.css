@@ -41,8 +41,19 @@ h3 {
 
 #results {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
     gap: 1em;
+}
+
+.results-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1em;
+}
+
+#cost-slider-section {
+    width: 100%;
+    margin-bottom: 2em;
 }
 
 .card {
@@ -248,7 +259,8 @@ select, button {
     border-radius: 5px;
 	font-weight: bold;
 	font-size: 1em;
-	padding: 0.5em;
+	padding: 1em;
+	width: 50%;
 }
 
 .toggle-btn.active {
@@ -361,7 +373,7 @@ select, button {
 
 .slider-label {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-start;
     align-items: center;
     margin-bottom: 0.5em;
     color: #e0e0e0;
@@ -371,7 +383,7 @@ select, button {
 }
 
 .slider-input {
-    width: 50px;
+    width: 100px;
     background-color: #333;
     border: 1px solid rgb(160, 0, 0);
     color: #e0e0e0;
@@ -380,6 +392,7 @@ select, button {
     text-align: center;
     font-size: 1em;
 	font-weight: bold;
+    margin-left: 1em;
 }
 
 .slider {

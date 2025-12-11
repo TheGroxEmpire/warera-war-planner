@@ -114,7 +114,7 @@ def run_optimization():
         X = res.X
     
     if X is None:
-        return jsonify(builds=[], min_cost=0, max_cost=0, trends="")
+        return jsonify(builds=[], trends="")
         
     details = []
     for row in X:
@@ -157,42 +157,56 @@ def run_optimization():
                 trends_html += f"<div class='skill'><svg><use xlink:href='#skill-svg-{j+1}'></use></svg>{level}<span class='skill-name'>{SKILL_NAMES[j]}</span></div>"
             trends_html += "</div>"
             trends_html += "</div>"
-    
-    pareto = []
-    max_damage = -1
-    for d in details:
-        if d["total_damage"] > max_damage:
-            # Add consumable and gear names
-            d['ammo_name'] = AMMO_NAMES[d['ammo_idx']]
-            d['food_name'] = FOOD_NAMES[d['food_idx']]
-            d['gear'] = []
-            for i in range(len(GEAR_SLOTS)):
-                tier = WEAPON_TIERS[d['gear_idx'][i]] if i == 0 else GEAR_TIERS[d['gear_idx'][i]]
-                image_name = WEAPON_TIERS[d['gear_idx'][i]] if i == 0 else GEAR_SLOTS[i]
-                d['gear'].append({
-                    'tier': tier,
-                    'image_name': image_name,
-                    'slot': GEAR_SLOTS[i]
-                })
-
-            # Add colors
-            d['ammo_color'] = get_consumable_color(d['ammo_name'])
-            d['food_color'] = get_consumable_color(d['food_name'])
-            for i in range(len(d['gear'])):
-                d['gear'][i]['color'] = get_tier_color(d['gear'][i]['tier'])
             
-            d["total_damage_formatted"] = format_number(d["total_damage"])
-            d["total_cost_formatted"] = format_number(d["total_cost"])
-            pareto.append(d)
-            max_damage = d["total_damage"]
+    # --- New cost band filtering logic ---
+    damage_bands = [
+        (50000, 1000), (75000, 1000), (100000, 1000), (150000, 1000), 
+        (200000, 5000), (250000, 5000), (300000, 5000), (400000, 5000),
+        (500000, 10000), (750000, 10000), (1000000, 100000), (2000000, 100000)
+    ]
+    
+    best_builds_by_band = {}
 
-    min_cost = 0
-    max_cost = 0
-    if pareto:
-        min_cost = pareto[0]["total_cost"]
-        max_cost = pareto[-1]["total_cost"]
+    for d in details:
+        for center, tolerance in damage_bands:
+            if (center - tolerance) <= d["total_damage"] <= (center + tolerance):
+                band_key = center
+                # Check if the cost is greater than zero to avoid division by zero
+                if d["total_cost"] > 0:
+                    efficiency = d["total_damage"] / d["total_cost"]
+                    if band_key not in best_builds_by_band or efficiency > best_builds_by_band[band_key].get("efficiency", 0):
+                        d["efficiency"] = efficiency
+                        best_builds_by_band[band_key] = d
 
-    return jsonify(builds=convert_numpy_types(pareto), min_cost=convert_numpy_types(min_cost), max_cost=convert_numpy_types(max_cost), trends=trends_html)
+    pareto_details = list(best_builds_by_band.values())
+    pareto_details = sorted(pareto_details, key=lambda x: x["total_cost"])
+
+    builds = []
+    for d in pareto_details:
+        # Add consumable and gear names
+        d['ammo_name'] = AMMO_NAMES[d['ammo_idx']]
+        d['food_name'] = FOOD_NAMES[d['food_idx']]
+        d['gear'] = []
+        for i in range(len(GEAR_SLOTS)):
+            tier = WEAPON_TIERS[d['gear_idx'][i]] if i == 0 else GEAR_TIERS[d['gear_idx'][i]]
+            image_name = WEAPON_TIERS[d['gear_idx'][i]] if i == 0 else GEAR_SLOTS[i]
+            d['gear'].append({
+                'tier': tier,
+                'image_name': image_name,
+                'slot': GEAR_SLOTS[i]
+            })
+
+        # Add colors
+        d['ammo_color'] = get_consumable_color(d['ammo_name'])
+        d['food_color'] = get_consumable_color(d['food_name'])
+        for i in range(len(d['gear'])):
+            d['gear'][i]['color'] = get_tier_color(d['gear'][i]['tier'])
+        
+        d["total_damage_formatted"] = format_number(d["total_damage"])
+        d["total_cost_formatted"] = format_number(d["total_cost"])
+        builds.append(d)
+
+    return jsonify(builds=convert_numpy_types(builds), trends=trends_html)
 
 if __name__ == "__main__":
     app.run(debug=True)

@@ -51,11 +51,6 @@ h3 {
     gap: 1em;
 }
 
-#cost-slider-section {
-    width: 100%;
-    margin-bottom: 2em;
-}
-
 .card {
     background-color: #2a2a2a;
     border: 1px solid rgb(160, 0, 0);
@@ -157,6 +152,10 @@ h3 {
     white-space: nowrap;
     z-index: 1;
 	font-weight: bold;
+}
+
+.trends-grid .skill .skill-name {
+    left: 20%;
 }
 
 .skill:hover .skill-name {

@@ -1,11 +1,10 @@
+SKILL_NAMES = ["Attack", "Precision", "Crit. Chance", "Crit. Dmg", "Armor", "Dodge", "Health", "Hunger"]
+
 document.addEventListener("DOMContentLoaded", () => {
     const levelSlider = document.getElementById("level-slider");
     const levelInput = document.getElementById("level-input");
     const companiesSlider = document.getElementById("companies-slider");
     const companiesInput = document.getElementById("companies-input");
-    const costSlider = document.getElementById("cost-slider");
-    const costInput = document.getElementById("cost-input");
-    const costSliderSection = document.getElementById("cost-slider-section");
     const resultsDiv = document.getElementById("results");
 
     let allBuilds = [];
@@ -24,16 +23,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     companiesInput.addEventListener("input", () => {
         companiesSlider.value = companiesInput.value;
-    });
-
-    costSlider.addEventListener("input", () => {
-        costInput.value = costSlider.value;
-        updateBuilds();
-    });
-
-    costInput.addEventListener("input", () => {
-        costSlider.value = costInput.value;
-        updateBuilds();
     });
 
     document.querySelectorAll(".toggle-btn").forEach(button => {
@@ -58,7 +47,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
         trendsDiv.innerHTML = "";
         resultsDiv.innerHTML = "";
-        costSliderSection.style.display = "none";
 
         optimizeBtn.disabled = true;
         optimizeBtn.innerHTML = `<span class="spinner"></span><span>OPTIMIZING</span>`;
@@ -74,14 +62,7 @@ document.addEventListener("DOMContentLoaded", () => {
             trendsDiv.innerHTML = results.trends;
 
             if (allBuilds && allBuilds.length > 0) {
-                costSliderSection.style.display = "block";
-                costSlider.min = results.min_cost;
-                costSlider.max = results.max_cost;
-                costSlider.value = results.min_cost;
-                costInput.min = results.min_cost;
-                costInput.max = results.max_cost;
-                costInput.value = results.min_cost;
-                updateBuilds();
+                renderBuilds(allBuilds);
             } else {
                 resultsDiv.innerHTML = "<p>No optimal builds found.</p>";
             }
@@ -92,32 +73,12 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    function updateBuilds() {
-        const targetCost = parseFloat(costInput.value);
-        const closestBuilds = findClosestBuilds(targetCost);
-        renderBuilds(closestBuilds);
-    }
-
-    function findClosestBuilds(targetCost) {
-        if (!allBuilds || allBuilds.length === 0) {
-            return [];
-        }
-
-        allBuilds.sort((a, b) => {
-            const diffA = Math.abs(a.total_cost - targetCost);
-            const diffB = Math.abs(b.total_cost - targetCost);
-            return diffA - diffB;
-        });
-
-        return allBuilds.slice(0, 3);
-    }
-
     function renderBuilds(builds) {
         resultsDiv.innerHTML = "";
         builds.forEach(d => {
             let skillsHtml = "";
             for (let i = 0; i < d.skill_lvls.length; i++) {
-                skillsHtml += `<div class='skill'><svg><use xlink:href='#skill-svg-${i+1}'></use></svg>${d.skill_lvls[i]}<span class='skill-name'>SKILL</span></div>`;
+                skillsHtml += `<div class='skill'><svg><use xlink:href='#skill-svg-${i+1}'></use></svg>${d.skill_lvls[i]}<span class='skill-name'>${SKILL_NAMES[i]}</span></div>`;
             }
 
             let gearHtml = "";

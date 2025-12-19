@@ -90,6 +90,7 @@ def run_optimization():
     companies = int(request.form.get("companies", 1))
     pill = request.form.get("pill") == "on"
     dodge_build = request.form.get("dodge") == "on"
+    rank_bonus = 1 + (float(request.form.get("rank_bonus", 45)) / 100)
     
     dev_mode_disinfo = os.environ.get("DEV_MODE_DISINFO") == "true"
     disinformation_mode = dev_mode_disinfo or country in DISINFO_COUNTRIES
@@ -123,7 +124,7 @@ def run_optimization():
         gear_idx   = row[8:14]
         ammo_idx   = int(row[14])
         food_idx   = int(row[15])
-        total_damage, total_cost, diag = compute_totals(skill_lvls, gear_idx, ammo_idx, food_idx)
+        total_damage, total_cost, diag = compute_totals(skill_lvls, gear_idx, ammo_idx, food_idx, rank_bonus=rank_bonus)
         skill_cost = int(np.sum(SKILL_LEVEL_COST[skill_lvls]))
         details.append({
             "skill_lvls": skill_lvls.tolist(),

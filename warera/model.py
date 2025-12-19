@@ -15,7 +15,7 @@ def attacks_possible(hp, hun, armor, dodge, food_regen_bonus):
     cost_per_attack = 10 * (1 - armor) * (1 - dodge)
     return max(0.0, regen_all / max(1e-9, cost_per_attack))
 
-def compute_totals(skill_levels, gear_idx, ammo_idx, food_idx):
+def compute_totals(skill_levels, gear_idx, ammo_idx, food_idx, rank_bonus=1.45):
     """Compute total_damage and total_cost for a single solution."""
 
     # Decode gear choices
@@ -47,12 +47,11 @@ def compute_totals(skill_levels, gear_idx, ammo_idx, food_idx):
     ammo = AMMO[ammo_name]
     food = FOOD[food_name]
 
+    pill_bonus = 1.8 if globals().get("PILL_MODE", False) else 1.0
+    ammo_bonus = 1.0 + ammo["dmg_bonus"]
+    atk *= pill_bonus * ammo_bonus * rank_bonus
 
-    dmg_per_attack = expected_damage_per_attack(atk, prc, critc, critd)
-    if globals().get("PILL_MODE", False):
-        dmg_per_attack *= (1.0 + 0.8 + ammo["dmg_bonus"])  # +80% with ammo
-    else:
-        dmg_per_attack *= (1.0 + ammo["dmg_bonus"])  # ammo no 80%
+    dmg_per_attack = atk * prc * (1 + critc * critd) + (atk / 2.0) * (1 - prc)
 
     # Attacks possible
     n_attacks = attacks_possible(hp, hun, arm, ddg, food["regen_bonus"])

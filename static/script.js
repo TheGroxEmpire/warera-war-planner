@@ -5,6 +5,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const levelInput = document.getElementById("level-input");
     const companiesSlider = document.getElementById("companies-slider");
     const companiesInput = document.getElementById("companies-input");
+    const rankBonusSlider = document.getElementById("rank_bonus-slider");
+    const rankBonusInput = document.getElementById("rank_bonus-input");
     const resultsDiv = document.getElementById("results");
 
     let allBuilds = [];
@@ -23,6 +25,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
     companiesInput.addEventListener("input", () => {
         companiesSlider.value = companiesInput.value;
+    });
+
+    rankBonusSlider.addEventListener("input", () => {
+        rankBonusInput.value = rankBonusSlider.value;
+    });
+
+    rankBonusInput.addEventListener("input", () => {
+        rankBonusSlider.value = rankBonusInput.value;
     });
 
     document.querySelectorAll(".toggle-btn").forEach(button => {

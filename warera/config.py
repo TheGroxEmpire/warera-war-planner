@@ -45,6 +45,12 @@ AMMO = {
 }
 AMMO_NAMES = list(AMMO.keys())
 
+AMMO_API_MAPPING = {
+    "green": "lightAmmo",
+    "blue": "ammo",
+    "purple": "heavyAmmo"
+}
+
 # GEAR SLOTS and TIERS
 GEAR_SLOTS = ["weapon", "helmet", "gloves", "chest", "pants", "boots"]
 GEAR_TIERS = ["grey", "green", "blue", "purple", "gold", "red"]

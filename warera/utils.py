@@ -4,6 +4,66 @@ import numpy as np
 import pandas as pd
 from collections import Counter
 from .config import GEAR_SLOTS, WEAPON_TIERS, GEAR_TIERS, AMMO_NAMES, FOOD_NAMES, MAX_SKILL_LEVEL, SKILL_POINTS_PER_LEVEL, SKILL_LEVEL_COST
+import requests
+import json
+import logging
+
+gunicorn_logger = logging.getLogger("gunicorn.error")
+
+def get_tier_color(tier):
+    colors = {
+        "grey": "rgb(58, 71, 83)", "green": "rgb(33, 88, 53)", "blue": "rgb(27, 54, 114)", "purple": "rgb(68, 46, 102)", "gold": "rgb(86, 83, 40)", "red": "rgb(103, 31, 31)",
+        "knife": "rgb(58, 71, 83)", "gun": "rgb(33, 88, 53)", "rifle": "rgb(27, 54, 114)", "sniper": "rgb(68, 46, 102)", "tank": "rgb(86, 83, 40)", "jet": "rgb(103, 31, 31)"
+    }
+    return colors.get(tier.lower(), "white")
+
+def get_consumable_color(name):
+    if "light" in name.lower() or "bread" in name.lower():
+        return "rgb(33, 88, 53)"
+    if "heavy" in name.lower() or "fish" in name.lower():
+        return "rgb(68, 46, 102)"
+    if "ammo" in name.lower() or "steak" in name.lower():
+        return "rgb(27, 54, 114)"
+    return "white"
+
+def format_number(num):
+    if num >= 1000000:
+        return f"{num/1000000:.2f}M"
+    if num > 1000:
+        return f"{num/1000:.1f}K"
+    return f"{num:.2f}"
+
+def get_country_from_ip(ip_address):
+    gunicorn_logger.info(f"get_country_from_ip called with IP: {ip_address}")
+    if os.environ.get("DEV_MODE_DISINFO_COUNTRY"):
+        return os.environ.get("DEV_MODE_DISINFO_COUNTRY")
+    if not ip_address or ip_address == "127.0.0.1":
+        gunicorn_logger.info("IP is local, returning US")
+        return "US"  # Default to US for local testing
+    try:
+        response = requests.get(f"http://ip-api.com/json/{ip_address}")
+        data = response.json()
+        country_code = data.get("countryCode")
+        gunicorn_logger.info(f"API response: {data}")
+        gunicorn_logger.info(f"Detected country code: {country_code} for IP: {ip_address}")
+        return country_code
+    except Exception as e:
+        gunicorn_logger.error(f"An error occurred: {e}")
+        return None
+
+def convert_numpy_types(obj):
+    if isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, dict):
+        return {k: convert_numpy_types(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_numpy_types(i) for i in obj]
+    else:
+        return obj
 
 def closest_feasible_build(avg_vector, level):
     """Find the closest feasible skill build to the averages (respecting total skill-point budget)."""
@@ -74,7 +134,7 @@ def save_results_details(details, level, outfile="builds_cost_damage.csv"):
             row = [
                 level,
                 *gear_tiers,
-                ammo_name, food_.name,
+                ammo_name, food_name,
                 *[int(x) for x in skill_lvls.tolist()],
                 float(total_damage),
                 float(total_cost),

@@ -1,12 +1,12 @@
 from flask import Flask, render_template, request, jsonify
 import numpy as np
-import requests
 import os
 import logging
 from .api import update_gear_prices_from_api, update_food_and_ammo_from_api
 from .optimization import optimize
 from .model import compute_totals
 from .config import SKILL_LEVEL_COST, SKILL_NAMES, GEAR_SLOTS, WEAPON_TIERS, GEAR_TIERS, AMMO_NAMES, FOOD_NAMES, SKILL_POINTS_PER_LEVEL
+from .utils import get_tier_color, get_consumable_color, format_number, get_country_from_ip, convert_numpy_types
 from collections import Counter
 
 app = Flask(__name__, template_folder="../templates", static_folder="../static")
@@ -14,62 +14,28 @@ gunicorn_logger = logging.getLogger("gunicorn.error")
 app.logger.handlers = gunicorn_logger.handlers
 app.logger.setLevel(gunicorn_logger.level)
 
-def format_number(num):
-    if num >= 1000000:
-        return f"{num/1000000:.2f}M"
-    if num > 1000:
-        return f"{num/1000:.1f}K"
-    return f"{num:.2f}"
-
-def get_tier_color(tier):
-    colors = {
-        "grey": "rgb(58, 71, 83)", "green": "rgb(33, 88, 53)", "blue": "rgb(27, 54, 114)", "purple": "rgb(68, 46, 102)", "gold": "rgb(86, 83, 40)", "red": "rgb(103, 31, 31)",
-        "knife": "rgb(58, 71, 83)", "gun": "rgb(33, 88, 53)", "rifle": "rgb(27, 54, 114)", "sniper": "rgb(68, 46, 102)", "tank": "rgb(86, 83, 40)", "jet": "rgb(103, 31, 31)"
-    }
-    return colors.get(tier.lower(), "white")
-
-def get_consumable_color(name):
-    if "light" in name.lower() or "bread" in name.lower():
-        return "rgb(33, 88, 53)"
-    if "heavy" in name.lower() or "fish" in name.lower():
-        return "rgb(68, 46, 102)"
-    if "ammo" in name.lower() or "steak" in name.lower():
-        return "rgb(27, 54, 114)"
-    return "white"
-
 DISINFO_COUNTRIES = ["VE", "RO", "ES", "FR"]
 
-def get_country_from_ip(ip_address):
-    app.logger.info(f"get_country_from_ip called with IP: {ip_address}")
-    if os.environ.get("DEV_MODE_DISINFO_COUNTRY"):
-        return os.environ.get("DEV_MODE_DISINFO_COUNTRY")
-    if not ip_address or ip_address == "127.0.0.1":
-        app.logger.info("IP is local, returning US")
-        return "US"  # Default to US for local testing
-    try:
-        response = requests.get(f"http://ip-api.com/json/{ip_address}")
-        data = response.json()
-        country_code = data.get("countryCode")
-        app.logger.info(f"API response: {data}")
-        app.logger.info(f"Detected country code: {country_code} for IP: {ip_address}")
-        return country_code
-    except Exception as e:
-        app.logger.error(f"An error occurred: {e}")
-        return None
+def generate_trends_html(details):
+    high_damage_builds = [d for d in details if d["total_damage"] >= 50000]
+    trends_html = ""
+    if high_damage_builds:
+        skill_builds = [tuple(d["skill_lvls"]) for d in high_damage_builds]
+        build_counts = Counter(skill_builds)
+        top_3_builds = build_counts.most_common(3)
+        total_high_damage_builds = len(high_damage_builds)
 
-def convert_numpy_types(obj):
-    if isinstance(obj, np.integer):
-        return int(obj)
-    elif isinstance(obj, np.floating):
-        return float(obj)
-    elif isinstance(obj, np.ndarray):
-        return obj.tolist()
-    elif isinstance(obj, dict):
-        return {k: convert_numpy_types(v) for k, v in obj.items()}
-    elif isinstance(obj, list):
-        return [convert_numpy_types(i) for i in obj]
-    else:
-        return obj
+        trend_titles = ["Most common build", "Second most common", "Third most common"]
+        for i, (build, count) in enumerate(top_3_builds):
+            percentage = (count / total_high_damage_builds) * 100
+            trends_html += f"<div class='trend-card'>"
+            trends_html += f"<h3>{trend_titles[i]} ({percentage:.2f}%)</h3>"
+            trends_html += "<div class='trends-grid'>"
+            for j, level in enumerate(build):
+                trends_html += f"<div class='skill'><svg><use xlink:href='#skill-svg-{j+1}'></use></svg>{level}<span class='skill-name'>{SKILL_NAMES[j]}</span></div>"
+            trends_html += "</div>"
+            trends_html += "</div>"
+    return trends_html
 
 @app.route("/")
 def index():
@@ -124,7 +90,7 @@ def run_optimization():
         gear_idx   = row[8:14]
         ammo_idx   = int(row[14])
         food_idx   = int(row[15])
-        total_damage, total_cost, diag = compute_totals(skill_lvls, gear_idx, ammo_idx, food_idx, rank_bonus=rank_bonus)
+        total_damage, total_cost, diag = compute_totals(skill_lvls, gear_idx, ammo_idx, food_idx, rank_bonus=rank_bonus, pill_mode=pill)
         skill_cost = int(np.sum(SKILL_LEVEL_COST[skill_lvls]))
         details.append({
             "skill_lvls": skill_lvls.tolist(),
@@ -139,25 +105,7 @@ def run_optimization():
 
     details = sorted(details, key=lambda x: (x["total_cost"], -x["total_damage"]))
     
-    # --- Trends Analysis ---
-    high_damage_builds = [d for d in details if d["total_damage"] >= 50000]
-    trends_html = ""
-    if high_damage_builds:
-        skill_builds = [tuple(d["skill_lvls"]) for d in high_damage_builds]
-        build_counts = Counter(skill_builds)
-        top_3_builds = build_counts.most_common(3)
-        total_high_damage_builds = len(high_damage_builds)
-
-        trend_titles = ["Most common build", "Second most common", "Third most common"]
-        for i, (build, count) in enumerate(top_3_builds):
-            percentage = (count / total_high_damage_builds) * 100
-            trends_html += f"<div class='trend-card'>"
-            trends_html += f"<h3>{trend_titles[i]} ({percentage:.2f}%)</h3>"
-            trends_html += "<div class='trends-grid'>"
-            for j, level in enumerate(build):
-                trends_html += f"<div class='skill'><svg><use xlink:href='#skill-svg-{j+1}'></use></svg>{level}<span class='skill-name'>{SKILL_NAMES[j]}</span></div>"
-            trends_html += "</div>"
-            trends_html += "</div>"
+    trends_html = generate_trends_html(details)
             
     # --- New cost band filtering logic ---
     damage_bands = [

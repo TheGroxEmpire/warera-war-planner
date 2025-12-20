@@ -5,17 +5,19 @@ from .stats import apply_gear_to_baseline, make_skill_tables
 # DAMAGE / ATTACKS / COST MODEL
 # =========================================
 
-def expected_damage_per_attack(atk, prc, critc, critd):
-    """Expected damage per attack with graze (miss) penalty like your original."""
-    return atk * prc * (1 + critc * critd) + (atk / 2.0) * (1 - prc)
-
 def attacks_possible(hp, hun, armor, dodge, food_regen_bonus):
+    """Calculates the number of attacks possible based on health regeneration and attack cost."""
+    # HP regenerated per day from baseline health and hunger, including food bonus
     regen_base = hp * HEALTH_RECOVERY_RATE_PER_HOUR * HOURS_PER_DAY
     regen_all = regen_base + hun * HUNGER_RECOVERY_RATE_PER_HOUR * HOURS_PER_DAY * food_regen_bonus
+    
+    # Cost per attack, adjusted for armor and dodge
     cost_per_attack = 10 * (1 - armor) * (1 - dodge)
+    
+    # Avoid division by zero, though cost_per_attack should be > 0 in practice
     return max(0.0, regen_all / max(1e-9, cost_per_attack))
 
-def compute_totals(skill_levels, gear_idx, ammo_idx, food_idx, rank_bonus=1.45):
+def compute_totals(skill_levels, gear_idx, ammo_idx, food_idx, rank_bonus=1.45, pill_mode=False):
     """Compute total_damage and total_cost for a single solution."""
 
     # Decode gear choices
@@ -37,17 +39,13 @@ def compute_totals(skill_levels, gear_idx, ammo_idx, food_idx, rank_bonus=1.45):
     hp    = hp_tab[int(skill_levels[6])]
     hun   = hun_tab[int(skill_levels[7])]
 
-    # Decode weapon tier
-    weapon_tier_idx = int(gear_idx[0])  # first slot is weapon
-    weapon_tier = WEAPON_TIERS[weapon_tier_idx]
-
     # Ammo / food
     ammo_name = AMMO_NAMES[int(ammo_idx)]
     food_name = FOOD_NAMES[int(food_idx)]
     ammo = AMMO[ammo_name]
     food = FOOD[food_name]
 
-    pill_bonus = 1.8 if globals().get("PILL_MODE", False) else 1.0
+    pill_bonus = 1.8 if pill_mode else 1.0
     ammo_bonus = 1.0 + ammo["dmg_bonus"]
     atk *= pill_bonus * ammo_bonus * rank_bonus
 
@@ -61,17 +59,13 @@ def compute_totals(skill_levels, gear_idx, ammo_idx, food_idx, rank_bonus=1.45):
     gear_cost_total = 0.0
     for i, slot in enumerate(GEAR_SLOTS):
         tier_idx = int(gear_idx[i])
-        if slot == "weapon":
-            tier = WEAPON_TIERS[tier_idx]
-        else:
-            tier = GEAR_TIERS[tier_idx]
-
+        tier = WEAPON_TIERS[tier_idx] if slot == "weapon" else GEAR_TIERS[tier_idx]
+        
         gear_item = GEAR[slot][tier]
         cost_per_use = gear_item["cost"] / 100
-        if slot == "weapon":
-            gear_cost_total += cost_per_use * n_attacks
-        else:
-            gear_cost_total += cost_per_use * n_attacks * (1 - ddg)
+        
+        decay_multiplier = 1 if slot == "weapon" else (1 - ddg)
+        gear_cost_total += cost_per_use * n_attacks * decay_multiplier
 
     # Food + ammo costs
     food_cost = food["cost"] * hun * 2.4

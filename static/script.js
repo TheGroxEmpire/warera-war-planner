@@ -97,6 +97,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const gearHtml = d.gear.map(g => `
                 <div class='gear-item' style='background-color: ${g.color}'>
                     <img src='/static/images/${g.image_name}.png' alt='${g.slot}'>
+                    <span class='quantity-label'>x ${g.quantity}</span>
                 </div>
             `).join("");
 
@@ -112,8 +113,14 @@ document.addEventListener("DOMContentLoaded", () => {
                         <div class='card-consumables'>
                             <h3>Consumables</h4>
                             <div class='consumables-grid'>
-                                <div class='consumable-item' style='background-color: ${d.ammo_color}'><img src='/static/images/${d.ammo_name}.png' alt='${d.ammo_name}'></div>
-                                <div class='consumable-item' style='background-color: ${d.food_color}'><img src='/static/images/${d.food_name}.png' alt='${d.food_name}'></div>
+                                <div class='consumable-item' style='background-color: ${d.ammo_color}'>
+                                    <img src='/static/images/${d.ammo_name}.png' alt='${d.ammo_name}'>
+                                    <span class='quantity-label'>${d.ammo_quantity}</span>
+                                </div>
+                                <div class='consumable-item' style='background-color: ${d.food_color}'>
+                                    <img src='/static/images/${d.food_name}.png' alt='${d.food_name}'>
+                                    <span class='quantity-label'>${d.food_quantity}</span>
+                                </div>
                             </div>
                         </div>
                     </div>

@@ -117,14 +117,29 @@ def run_optimization():
         # Add consumable and gear names
         d['ammo_name'] = AMMO_NAMES[d['ammo_idx']]
         d['food_name'] = FOOD_NAMES[d['food_idx']]
+        d['ammo_quantity'] = int(np.ceil(d['diag']['n_attacks']))
+        d['food_quantity'] = int(np.ceil(d['diag']['hun'] * 2.4))
+
         d['gear'] = []
         for i in range(len(GEAR_SLOTS)):
+            slot = GEAR_SLOTS[i]
             tier = WEAPON_TIERS[d['gear_idx'][i]] if i == 0 else GEAR_TIERS[d['gear_idx'][i]]
             image_name = WEAPON_TIERS[d['gear_idx'][i]] if i == 0 else GEAR_SLOTS[i]
+            
+            # Calculate quantity based on durability (decay)
+            # Each use is 1% durability (or less if dodge applies)
+            # Total decay = 1% * n_attacks * (1 - ddg) [for non-weapons]
+            ddg = d['diag']['ddg']
+            n_attacks = d['diag']['n_attacks']
+            decay_multiplier = 1 if slot == "weapon" else (1 - ddg)
+            total_decay_percent = n_attacks * decay_multiplier
+            quantity = int(np.ceil(total_decay_percent / 100))
+
             d['gear'].append({
                 'tier': tier,
                 'image_name': image_name,
-                'slot': GEAR_SLOTS[i]
+                'slot': slot,
+                'quantity': max(1, quantity)
             })
 
         # Add colors

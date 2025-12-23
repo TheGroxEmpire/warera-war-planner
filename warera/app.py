@@ -16,27 +16,6 @@ app.logger.setLevel(gunicorn_logger.level)
 
 DISINFO_COUNTRIES = ["VE", "RO", "ES", "FR", "PT"]
 
-def generate_trends_html(details):
-    high_damage_builds = [d for d in details if d["total_damage"] < 1000000]
-    trends_html = ""
-    if high_damage_builds:
-        skill_builds = [tuple(d["skill_lvls"]) for d in high_damage_builds]
-        build_counts = Counter(skill_builds)
-        top_3_builds = build_counts.most_common(3)
-        total_high_damage_builds = len(high_damage_builds)
-
-        trend_titles = ["Most common build", "Second most common", "Third most common"]
-        for i, (build, count) in enumerate(top_3_builds):
-            percentage = (count / total_high_damage_builds) * 100
-            trends_html += f"<div class='trend-card'>"
-            trends_html += f"<h3>{trend_titles[i]} ({percentage:.2f}%)</h3>"
-            trends_html += "<div class='trends-grid'>"
-            for j, level in enumerate(build):
-                trends_html += f"<div class='skill'><svg><use xlink:href='#skill-svg-{j+1}'></use></svg>{level}<span class='skill-name'>{SKILL_NAMES[j]}</span></div>"
-            trends_html += "</div>"
-            trends_html += "</div>"
-    return trends_html
-
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -105,8 +84,6 @@ def run_optimization():
 
     details = sorted(details, key=lambda x: (x["total_cost"], -x["total_damage"]))
     
-    trends_html = generate_trends_html(details)
-            
     # --- New cost band filtering logic ---
     pareto_details = select_builds(details)
     pareto_details = sorted(pareto_details, key=lambda x: x["total_cost"])
@@ -152,7 +129,7 @@ def run_optimization():
         d["total_cost_formatted"] = format_number(d["total_cost"])
         builds.append(d)
 
-    return jsonify(builds=convert_numpy_types(builds), trends=trends_html)
+    return jsonify(builds=convert_numpy_types(builds))
 
 if __name__ == "__main__":
     app.run(debug=True)

@@ -2,7 +2,6 @@ const SKILL_NAMES = ["Attack", "Precision", "Crit. Chance", "Crit. Dmg", "Armor"
 
 document.addEventListener("DOMContentLoaded", () => {
     const resultsDiv = document.getElementById("results");
-    const trendsDiv = document.getElementById("trends");
     const buildForm = document.getElementById("build-form");
     const optimizeBtn = buildForm.querySelector(".optimize-btn");
 
@@ -54,7 +53,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const data = new FormData(buildForm);
 
-        trendsDiv.innerHTML = "";
         resultsDiv.innerHTML = "";
         optimizeBtn.disabled = true;
         optimizeBtn.innerHTML = `<span class="spinner"></span><span>OPTIMIZING</span>`;
@@ -72,7 +70,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
             const results = await response.json();
             allBuilds = results.builds;
-            trendsDiv.innerHTML = results.trends;
 
             renderBuilds(allBuilds);
 

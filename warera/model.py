@@ -45,7 +45,7 @@ def compute_totals(skill_levels, gear_idx, ammo_idx, food_idx, rank_bonus=1.45, 
     ammo = AMMO[ammo_name]
     food = FOOD[food_name]
 
-    pill_bonus = 1.8 if pill_mode else 1.0
+    pill_bonus = 1.5 if pill_mode else 1.0
     ammo_bonus = 1.0 + ammo["dmg_bonus"]
     atk *= pill_bonus * ammo_bonus * rank_bonus
 

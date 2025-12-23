@@ -28,12 +28,12 @@ h3 {
 #build-form {
     display: flex;
     flex-direction: column;
-    gap: 1em;
-    width: 25%;
+    gap: 0.5em;
+    width: 28%;
 }
 
 .trends {
-    width: 70%;
+    width: 68%;
     display: flex;
     flex-direction: row;
     gap: 1em;
@@ -246,9 +246,106 @@ th, td {
     text-align: left;
 }
 
-.toggle-buttons {
+.row-group {
     display: flex;
-    justify-content: center;
+    gap: 0.8em;
+    margin-top: 0.5em;
+    align-items: flex-end;
+}
+
+.row-group > div {
+    flex: 1;
+}
+
+.input-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.input-group label {
+    color: #e0e0e0;
+    text-transform: uppercase;
+    font-size: 1em;
+    font-weight: bold;
+    margin-bottom: 0.3em;
+}
+
+.input-group select {
+    background-color: #333;
+    border: 1px solid rgb(160, 0, 0);
+    color: #e0e0e0;
+    padding: 0.5em;
+    cursor: pointer;
+    border-radius: 5px;
+    text-transform: uppercase;
+    font-weight: bold;
+    font-size: 1em;
+    width: 100%;
+}
+
+.pill-wrapper {
+    display: flex;
+    flex-direction: column;
+}
+
+.pill-wrapper label {
+    color: #e0e0e0;
+    text-transform: uppercase;
+    font-size: 1em;
+    font-weight: bold;
+    margin-bottom: 0.3em;
+}
+
+.pill-toggle {
+    position: relative;
+    width: 100%;
+    height: 40px;
+    background: #333;
+    border: 1px solid rgb(160, 0, 0);
+    border-radius: 5px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0;
+    overflow: hidden;
+}
+
+.pill-slider {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: calc(50% - 4px);
+    height: 36px;
+    background: #444;
+    border-radius: 3px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 1;
+}
+
+.pill-toggle.active .pill-slider {
+    left: calc(50% + 2px);
+    background: rgb(160, 0, 0);
+}
+
+.pill-label {
+    flex: 1;
+    text-align: center;
+    font-size: 0.9em;
+    font-weight: 700;
+    z-index: 2;
+    transition: color 0.3s;
+    pointer-events: none;
+    color: #e0e0e0;
+    text-transform: uppercase;
+}
+
+.pill-toggle.active .pill-label.off {
+    color: #888;
+}
+
+.pill-toggle:not(.active) .pill-label.on {
+    color: #888;
 }
 
 select, button {
@@ -260,24 +357,6 @@ select, button {
     border-radius: 5px;
     text-transform: uppercase;
 	margin: 0.25em;
-}
-
-.toggle-btn {
-    background-color: #333;
-    border: 1px solid rgb(160, 0, 0);
-    color: #e0e0e0;
-    cursor: pointer;
-    border-radius: 5px;
-	font-weight: bold;
-	font-size: 1em;
-	padding: 1em;
-	width: 50%;
-}
-
-.toggle-btn.active {
-    background-color: rgb(160, 0, 0);
-    color: #fff;
-    border-color: rgb(160, 0, 0);
 }
 
 .optimize-btn {
@@ -378,23 +457,33 @@ select, button {
 .slider-container {
     display: flex;
     flex-direction: column;
-    gap: 1em;
-    margin-top: 1em;
+    gap: 0.3em;
+}
+
+.slider-container.small .slider-label {
+    font-size: 0.9em;
+}
+
+.slider-container.small .slider-input {
+    width: 50px;
+    margin-left: 0.5em;
+    padding: 0.1em;
+    font-size: 0.9em;
 }
 
 .slider-label {
     display: flex;
     justify-content: flex-start;
     align-items: center;
-    margin-bottom: 0.5em;
+    margin-bottom: 0.2em;
     color: #e0e0e0;
     text-transform: uppercase;
-    font-size: 1.2em;
+    font-size: 1.1em;
 	font-weight: bold;
 }
 
 .slider-input {
-    width: 100px;
+    width: 80px;
     background-color: #333;
     border: 1px solid rgb(160, 0, 0);
     color: #e0e0e0;
@@ -403,7 +492,7 @@ select, button {
     text-align: center;
     font-size: 1em;
 	font-weight: bold;
-    margin-left: 1em;
+    margin-left: 0.8em;
 }
 
 .slider {

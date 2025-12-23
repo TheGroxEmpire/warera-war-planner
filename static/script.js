@@ -32,17 +32,18 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     syncSliderAndInput("level-slider", "level-input");
-    syncSliderAndInput("companies-slider", "companies-input");
     syncSliderAndInput("rank_bonus-slider", "rank_bonus-input");
 
-    // --- Toggle Buttons ---
-    document.querySelectorAll(".toggle-btn").forEach(button => {
-        button.addEventListener("click", () => {
-            const input = document.getElementById(`${button.dataset.name}-input`);
-            input.value = (input.value === "on") ? "off" : "on";
-            button.classList.toggle("active");
+    // --- Pill Toggle ---
+    const pillToggle = document.getElementById('pill-toggle');
+    const pillInput = document.getElementById('pill-input');
+
+    if (pillToggle) {
+        pillToggle.addEventListener('click', function() {
+            this.classList.toggle('active');
+            pillInput.value = this.classList.contains('active') ? 'on' : 'off';
         });
-    });
+    }
 
     // --- Form Submission ---
     buildForm.addEventListener("submit", async (event) => {

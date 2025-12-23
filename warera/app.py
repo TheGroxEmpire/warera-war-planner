@@ -56,8 +56,7 @@ def run_optimization():
     level = int(request.form.get("level", 1))
     companies = int(request.form.get("companies", 1))
     pill = request.form.get("pill") == "on"
-    dodge_build = request.form.get("dodge") == "on"
-    rank_bonus = 1 + (float(request.form.get("rank_bonus", 45)) / 100)
+    rank_bonus = 1 + (float(request.form.get("rank_bonus")) / 100)
     
     dev_mode_disinfo = os.environ.get("DEV_MODE_DISINFO") == "true"
     disinformation_mode = dev_mode_disinfo or country in DISINFO_COUNTRIES
@@ -71,7 +70,7 @@ def run_optimization():
     # Adjust level based on company cost
     adjusted_level = level - (company_cost / SKILL_POINTS_PER_LEVEL)
 
-    res = optimize(adjusted_level, dodge_build=dodge_build, verbose=True, disinformation_mode=disinformation_mode)
+    res = optimize(adjusted_level, verbose=True, disinformation_mode=disinformation_mode)
     X = None
     if hasattr(res, "algorithm") and hasattr(res.algorithm, "pop") and len(res.algorithm.pop) > 0:
         try:

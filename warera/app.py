@@ -117,7 +117,8 @@ def run_optimization():
         d['ammo_name'] = AMMO_NAMES[d['ammo_idx']]
         d['food_name'] = FOOD_NAMES[d['food_idx']]
         d['ammo_quantity'] = int(np.ceil(d['diag']['n_attacks']))
-        d['food_quantity'] = int(np.ceil(d['diag']['hun'] * 2.4))
+        day_multiplier = 1.7 if pill else 2.4
+        d['food_quantity'] = int(np.ceil(d['diag']['hun'] * day_multiplier))
 
         d['gear'] = []
         for i in range(len(GEAR_SLOTS)):

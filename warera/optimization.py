@@ -98,7 +98,8 @@ class BuildProblem(Problem):
                 decay = 1 if slot == "weapon" else (1 - ddg)
                 gear_cost_total += (gear_item["cost"] / 100) * n_attacks * decay
 
-            total_cost = gear_cost_total + (food["cost"] * hun * 2.4) + (ammo["bullet_cost"] * n_attacks)
+            day_multiplier = 1.7 if self.pill_mode else 2.4
+            total_cost = gear_cost_total + (food["cost"] * hun * day_multiplier) + (ammo["bullet_cost"] * n_attacks)
             total_damage = dmg_per_attack * n_attacks
 
             F[i, 0] = -total_damage

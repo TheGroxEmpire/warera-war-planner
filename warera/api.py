@@ -37,9 +37,12 @@ def fetch_equipment_prices(slots=None):
 
     logger.info(f"Fetching {len(batch_input)} equipment prices...")
     try:
-        resp = requests.get(url)
+        resp = requests.get(url, timeout=10)
         resp.raise_for_status()
         data = resp.json()
+        if not isinstance(data, list):
+            logger.error(f"Unexpected API response format: {data}")
+            return {}
     except requests.exceptions.RequestException as e:
         logger.error(f"Failed to fetch equipment prices: {e}")
         return {}
@@ -66,7 +69,7 @@ def fetch_food_and_bullet_prices():
     url = "https://api2.warera.io/trpc/itemTrading.getPrices"
     logger.info("Fetching food and bullet prices...")
     try:
-        resp = requests.get(url)
+        resp = requests.get(url, timeout=10)
         resp.raise_for_status()
         data = resp.json()
         result = data["result"]["data"]

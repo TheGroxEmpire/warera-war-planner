@@ -1,3 +1,4 @@
+import numpy as np
 from .config import HEALTH_RECOVERY_RATE_PER_HOUR, HOURS_PER_DAY, HUNGER_RECOVERY_RATE_PER_HOUR, GEAR_SLOTS, WEAPON_TIERS, GEAR_TIERS, AMMO_NAMES, FOOD_NAMES, AMMO, FOOD, GEAR
 from .stats import apply_gear_to_baseline, make_skill_tables
 
@@ -15,7 +16,7 @@ def attacks_possible(hp, hun, armor, dodge, food_regen_bonus):
     cost_per_attack = 10 * (1 - armor) * (1 - dodge)
     
     # Avoid division by zero, though cost_per_attack should be > 0 in practice
-    return max(0.0, regen_all / max(1e-9, cost_per_attack))
+    return np.maximum(0.0, regen_all / np.maximum(1e-9, cost_per_attack))
 
 def compute_totals(skill_levels, gear_idx, ammo_idx, food_idx, rank_bonus=1.45, pill_mode=False):
     """Compute total_damage and total_cost for a single solution."""
@@ -45,8 +46,9 @@ def compute_totals(skill_levels, gear_idx, ammo_idx, food_idx, rank_bonus=1.45, 
     ammo = AMMO[ammo_name]
     food = FOOD[food_name]
 
-    pill_bonus = 1.5 if pill_mode else 1.0
+    pill_bonus = 1.6 if pill_mode else 1.0
     ammo_bonus = 1.0 + ammo["dmg_bonus"]
+    # Ensure rank_bonus is treated as a multiplier (e.g. 1.45 for +45%)
     atk *= pill_bonus * ammo_bonus * rank_bonus
 
     dmg_per_attack = atk * prc * (1 + critc * critd) + (atk / 2.0) * (1 - prc)
@@ -68,7 +70,9 @@ def compute_totals(skill_levels, gear_idx, ammo_idx, food_idx, rank_bonus=1.45, 
         gear_cost_total += cost_per_use * n_attacks * decay_multiplier
 
     # Food + ammo costs
-    food_cost = food["cost"] * hun * 2.4
+    # In pill mode, the "day" for regeneration and consumption is 17 hours instead of 24.
+    day_multiplier = 1.7 if pill_mode else 2.4
+    food_cost = food["cost"] * hun * day_multiplier
     ammo_cost = ammo["bullet_cost"] * n_attacks
 
     total_cost = gear_cost_total + food_cost + ammo_cost

@@ -46,14 +46,19 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // --- Form Submission ---
+    let isOptimizing = false;
+
     buildForm.addEventListener("submit", async (event) => {
         event.preventDefault();
+        if (isOptimizing) return;
+
         const data = new FormData(buildForm);
 
         trendsDiv.innerHTML = "";
         resultsDiv.innerHTML = "";
         optimizeBtn.disabled = true;
         optimizeBtn.innerHTML = `<span class="spinner"></span><span>OPTIMIZING</span>`;
+        isOptimizing = true;
 
         try {
             const response = await fetch("/optimize", {
@@ -69,11 +74,7 @@ document.addEventListener("DOMContentLoaded", () => {
             allBuilds = results.builds;
             trendsDiv.innerHTML = results.trends;
 
-            if (allBuilds && allBuilds.length > 0) {
-                renderBuilds(allBuilds);
-            } else {
-                resultsDiv.innerHTML = "<p>No optimal builds found. Please adjust your parameters and try again.</p>";
-            }
+            renderBuilds(allBuilds);
 
         } catch (error) {
             console.error("Optimization error:", error);
@@ -81,11 +82,17 @@ document.addEventListener("DOMContentLoaded", () => {
         } finally {
             optimizeBtn.disabled = false;
             optimizeBtn.innerHTML = "Optimize";
+            isOptimizing = false;
         }
     });
 
     // --- Render Builds ---
     function renderBuilds(builds) {
+        if (!builds || builds.length === 0) {
+            resultsDiv.innerHTML = "<p>No optimal builds found. Please adjust your parameters and try again.</p>";
+            return;
+        }
+
         resultsDiv.innerHTML = builds.map(d => {
             const skillsHtml = d.skill_lvls.map((level, i) => `
                 <div class='skill'>
@@ -108,11 +115,11 @@ document.addEventListener("DOMContentLoaded", () => {
                     <div class='card-cost'><svg stroke='currentColor' fill='currentColor' stroke-width='0' viewBox='0 0 24 24' height='1em' width='1em' xmlns='http://www.w3.org/2000/svg' style='width: 1em; height: 1em; paint-order: stroke; stroke-linecap: round; stroke-linejoin: round;'><path d='M12 5C7.031 5 2 6.546 2 9.5S7.031 14 12 14c4.97 0 10-1.546 10-4.5S16.97 5 12 5zm-5 9.938v3c1.237.299 2.605.482 4 .541v-3a21.166 21.166 0 0 1-4-.541zm6 .54v3a20.994 20.994 0 0 0 4-.541v-3a20.994 20.994 0 0 1-4 .541zm6-1.181v3c1.801-.755 3-1.857 3-3.297v-3c0 1.44-1.199 2.542-3 3.297zm-14 3v-3C3.2 13.542 2 12.439 2 11v3c0 1.439 1.2 2.542 3 3.297z'></path></svg> ${d.total_cost_formatted}<span class='cost-label'>Total daily cost</span></div>
                     <div class='card-sections'>
                         <div class='card-skills'>
-                            <h3>Skills</h4>
+                            <h3>Skills</h3>
                             <div class='skills-grid'>${skillsHtml}</div>
                         </div>
                         <div class='card-consumables'>
-                            <h3>Consumables</h4>
+                            <h3>Consumables</h3>
                             <div class='consumables-grid'>
                                 <div class='consumable-item' style='background-color: ${d.ammo_color}'>
                                     <img src='/static/images/${d.ammo_name}.png' alt='${d.ammo_name}'>
@@ -125,7 +132,7 @@ document.addEventListener("DOMContentLoaded", () => {
                             </div>
                         </div>
                     </div>
-                    <h3>Gear</h4>
+                    <h3>Gear</h3>
                     <div class='gear-grid'>${gearHtml}</div>
                 </div>
             `;

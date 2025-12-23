@@ -2,7 +2,6 @@ from flask import Flask, render_template, request, jsonify
 import numpy as np
 import os
 import logging
-from .api import update_gear_prices_from_api, update_food_and_ammo_from_api
 from .optimization import optimize
 from .model import compute_totals
 from .config import SKILL_LEVEL_COST, SKILL_NAMES, GEAR_SLOTS, WEAPON_TIERS, GEAR_TIERS, AMMO_NAMES, FOOD_NAMES, SKILL_POINTS_PER_LEVEL
@@ -68,9 +67,10 @@ def run_optimization():
         company_cost = n * (n + 1) // 2
         
     # Adjust level based on company cost
-    adjusted_level = level - (company_cost / SKILL_POINTS_PER_LEVEL)
+    # Safety: Ensure level doesn't go below 1
+    adjusted_level = max(1.0, level - (company_cost / SKILL_POINTS_PER_LEVEL))
 
-    res = optimize(adjusted_level, verbose=True, disinformation_mode=disinformation_mode)
+    res = optimize(adjusted_level, verbose=True, disinformation_mode=disinformation_mode, rank_bonus=rank_bonus, pill_mode=pill)
     X = None
     if hasattr(res, "algorithm") and hasattr(res.algorithm, "pop") and len(res.algorithm.pop) > 0:
         try:

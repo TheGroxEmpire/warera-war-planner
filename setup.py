@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="warera_build_helper",
+    name="warera_build_tool",
     version="0.1.0",
     packages=find_packages(),
     install_requires=[
@@ -12,7 +12,7 @@ setup(
     ],
     entry_points={
         "console_scripts": [
-            "warera_build_helper=warera.main:main",
+            "warera_build_tool=warera.main:main",
         ],
     },
 )

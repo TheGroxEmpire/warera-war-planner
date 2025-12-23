@@ -19,7 +19,7 @@ import os
 # OPTIMIZATION PROBLEM (NSGA-II)
 # =========================================
 class BuildProblem(Problem):
-    def __init__(self, level, disinformation_mode=False, rank_bonus=1.45, pill_mode=False):
+    def __init__(self, level, disinformation_mode=False, rank_bonus=1.0, pill_mode=False):
         n_vars = 8 + len(GEAR_SLOTS) + 2
         xl = np.zeros(n_vars, dtype=int)
 
@@ -105,6 +105,10 @@ class BuildProblem(Problem):
             F[i, 0] = -total_damage
             F[i, 1] = total_cost
 
+        # Periodically clear cache if it gets too large (> 1000 entries)
+        if len(self._gear_cache) > 1000:
+            self._gear_cache.clear()
+
         out["F"] = F
         out["G"] = G
 
@@ -144,7 +148,7 @@ def optimize_worker(args):
 def optimize(level, verbose=True, disinformation_mode=False, rank_bonus=1.45, pill_mode=False):
     # Reliability improvement: Multi-start with different seeds and merging results
     num_runs = int(os.environ.get("NUM_RUNS", 2))
-    pool_size = min(num_runs, int(os.environ.get("POOL_SIZE", 2)))
+    pool_size = min(num_runs, int(os.environ.get("POOL_SIZE", 1)))
     
     seeds = np.random.randint(0, 10000, size=num_runs).tolist()
     args = [(level, disinformation_mode, int(seeds[i]), rank_bonus, pill_mode) for i in range(num_runs)]

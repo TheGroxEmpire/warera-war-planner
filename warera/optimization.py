@@ -122,8 +122,9 @@ def optimize_worker(args):
         algorithm = NSGA2(pop_size=pop_size)
     else:
         # High reliability settings
-        pop_size = int(os.environ.get("POP_SIZE", 400))
-        n_gen = int(os.environ.get("N_GEN", 100))
+        # Reduced defaults for free tier to prevent timeouts and OOM
+        pop_size = int(os.environ.get("POP_SIZE", 200))
+        n_gen = int(os.environ.get("N_GEN", 40))
         
         algorithm = NSGA2(
             pop_size=pop_size,

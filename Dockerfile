@@ -20,4 +20,5 @@ EXPOSE 10000
 # --workers 1 to keep memory usage low on free tier
 # --preload to share memory between workers if we ever increase workers
 # --max-requests 50 to restart workers and prevent memory leaks
-CMD ["gunicorn", "warera.app:app", "--bind", "0.0.0.0:10000", "--workers", "1", "--preload", "--max-requests", "50"]
+# --timeout 120 to prevent worker kills during long optimization runs
+CMD ["gunicorn", "warera.app:app", "--bind", "0.0.0.0:10000", "--workers", "1", "--preload", "--max-requests", "50", "--timeout", "120"]

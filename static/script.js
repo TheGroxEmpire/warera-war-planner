@@ -12,8 +12,23 @@ document.addEventListener("DOMContentLoaded", () => {
     const syncSliderAndInput = (sliderId, inputId) => {
         const slider = document.getElementById(sliderId);
         const input = document.getElementById(inputId);
-        slider.addEventListener("input", () => input.value = slider.value);
-        input.addEventListener("input", () => slider.value = input.value);
+
+        const updateSliderBackground = () => {
+            const value = (slider.value - slider.min) / (slider.max - slider.min) * 100;
+            slider.style.background = `linear-gradient(to right, rgb(160, 0, 0) ${value}%, #333 ${value}%)`;
+        };
+
+        slider.addEventListener("input", () => {
+            input.value = slider.value;
+            updateSliderBackground();
+        });
+
+        input.addEventListener("input", () => {
+            slider.value = input.value;
+            updateSliderBackground();
+        });
+
+        updateSliderBackground(); // Initial update
     };
 
     syncSliderAndInput("level-slider", "level-input");

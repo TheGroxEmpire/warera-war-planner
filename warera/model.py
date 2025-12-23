@@ -31,10 +31,10 @@ def compute_totals(skill_levels, gear_idx, ammo_idx, food_idx, rank_bonus=1.45, 
 
     # Pick skill levels
     atk   = atk_tab[int(skill_levels[0])]
-    prc   = prc_tab[int(skill_levels[1])]
-    critc = critc_tab[int(skill_levels[2])]
+    prc   = min(1,prc_tab[int(skill_levels[1])])
+    critc = min(1,critc_tab[int(skill_levels[2])])
     critd = critd_tab[int(skill_levels[3])]
-    arm   = arm_tab[int(skill_levels[4])]
+    arm   = min(0.9,arm_tab[int(skill_levels[4])])
     ddg   = ddg_tab[int(skill_levels[5])]
     hp    = hp_tab[int(skill_levels[6])]
     hun   = hun_tab[int(skill_levels[7])]

@@ -7,6 +7,7 @@ from .optimization import optimize
 from .model import compute_totals
 from .config import SKILL_LEVEL_COST, SKILL_NAMES, GEAR_SLOTS, WEAPON_TIERS, GEAR_TIERS, AMMO_NAMES, FOOD_NAMES, SKILL_POINTS_PER_LEVEL
 from .utils import get_tier_color, get_consumable_color, format_number, get_country_from_ip, convert_numpy_types
+from .build_selector import select_builds
 from collections import Counter
 
 app = Flask(__name__, template_folder="../templates", static_folder="../static")
@@ -14,10 +15,10 @@ gunicorn_logger = logging.getLogger("gunicorn.error")
 app.logger.handlers = gunicorn_logger.handlers
 app.logger.setLevel(gunicorn_logger.level)
 
-DISINFO_COUNTRIES = ["VE", "RO", "ES", "FR"]
+DISINFO_COUNTRIES = ["VE", "RO", "ES", "FR", "PT"]
 
 def generate_trends_html(details):
-    high_damage_builds = [d for d in details if d["total_damage"] >= 50000]
+    high_damage_builds = [d for d in details if d["total_damage"] < 1000000]
     trends_html = ""
     if high_damage_builds:
         skill_builds = [tuple(d["skill_lvls"]) for d in high_damage_builds]
@@ -108,26 +109,7 @@ def run_optimization():
     trends_html = generate_trends_html(details)
             
     # --- New cost band filtering logic ---
-    damage_bands = [
-        (50000, 1000), (75000, 1000), (100000, 1000), (150000, 1000), 
-        (200000, 5000), (250000, 5000), (300000, 5000), (400000, 5000),
-        (500000, 10000), (750000, 10000), (1000000, 100000), (2000000, 100000)
-    ]
-    
-    best_builds_by_band = {}
-
-    for d in details:
-        for center, tolerance in damage_bands:
-            if (center - tolerance) <= d["total_damage"] <= (center + tolerance):
-                band_key = center
-                # Check if the cost is greater than zero to avoid division by zero
-                if d["total_cost"] > 0:
-                    efficiency = d["total_damage"] / d["total_cost"]
-                    if band_key not in best_builds_by_band or efficiency > best_builds_by_band[band_key].get("efficiency", 0):
-                        d["efficiency"] = efficiency
-                        best_builds_by_band[band_key] = d
-
-    pareto_details = list(best_builds_by_band.values())
+    pareto_details = select_builds(details)
     pareto_details = sorted(pareto_details, key=lambda x: x["total_cost"])
 
     builds = []

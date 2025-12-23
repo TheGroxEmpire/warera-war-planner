@@ -15,7 +15,7 @@ def get_tier_color(tier):
         "grey": "rgb(58, 71, 83)", "green": "rgb(33, 88, 53)", "blue": "rgb(27, 54, 114)", "purple": "rgb(68, 46, 102)", "gold": "rgb(86, 83, 40)", "red": "rgb(103, 31, 31)",
         "knife": "rgb(58, 71, 83)", "gun": "rgb(33, 88, 53)", "rifle": "rgb(27, 54, 114)", "sniper": "rgb(68, 46, 102)", "tank": "rgb(86, 83, 40)", "jet": "rgb(103, 31, 31)"
     }
-    return colors.get(tier.lower(), "white")
+    return colors.get(tier.lower(), "rgb(58, 71, 83)")
 
 def get_consumable_color(name):
     if "light" in name.lower() or "bread" in name.lower():
@@ -24,7 +24,7 @@ def get_consumable_color(name):
         return "rgb(68, 46, 102)"
     if "ammo" in name.lower() or "steak" in name.lower():
         return "rgb(27, 54, 114)"
-    return "white"
+    return "rgb(58, 71, 83)"
 
 def format_number(num):
     if num >= 1000000:

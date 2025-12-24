@@ -18,59 +18,44 @@ def attacks_possible(hp, hun, armor, dodge, food_regen_bonus):
     # Avoid division by zero, though cost_per_attack should be > 0 in practice
     return np.maximum(0.0, regen_all / np.maximum(1e-9, cost_per_attack))
 
-def compute_totals(skill_levels, gear_idx, ammo_idx, food_idx, rank_bonus=1.45, pill_mode=False):
+def compute_totals(skill_levels, gear_idx, ammo_idx, food_idx, rank_bonus=1.45, pill_mode=False, tables=None):
     """Compute total_damage and total_cost for a single solution."""
 
-    # Decode gear choices
-    gear_choice = {slot: int(gear_idx[i]) for i, slot in enumerate(GEAR_SLOTS)}
-
-    # Baseline with gear mods applied
-    combined_baseline, _ = apply_gear_to_baseline(gear_choice)
-
-    # Extract skill tables
-    atk_tab, prc_tab, critc_tab, critd_tab, arm_tab, ddg_tab, hp_tab, hun_tab = make_skill_tables(combined_baseline)
+    if tables is None:
+        # Decode gear choices
+        gear_choice = {slot: int(gear_idx[i]) for i, slot in enumerate(GEAR_SLOTS)}
+        # Baseline with gear mods applied
+        combined_baseline, _ = apply_gear_to_baseline(gear_choice)
+        # Extract skill tables
+        tables = make_skill_tables(combined_baseline)
 
     # Pick skill levels
-    atk   = atk_tab[int(skill_levels[0])]
-    prc   = min(1,prc_tab[int(skill_levels[1])])
-    critc = min(1,critc_tab[int(skill_levels[2])])
-    critd = critd_tab[int(skill_levels[3])]
-    arm   = min(0.9,arm_tab[int(skill_levels[4])])
-    ddg   = ddg_tab[int(skill_levels[5])]
-    hp    = hp_tab[int(skill_levels[6])]
-    hun   = hun_tab[int(skill_levels[7])]
+    atk   = tables[0][int(skill_levels[0])]
+    prc   = min(1.0, tables[1][int(skill_levels[1])])
+    critc = min(1.0, tables[2][int(skill_levels[2])])
+    critd = tables[3][int(skill_levels[3])]
+    arm   = min(0.9, tables[4][int(skill_levels[4])])
+    ddg   = tables[5][int(skill_levels[5])]
+    hp    = tables[6][int(skill_levels[6])]
+    hun   = tables[7][int(skill_levels[7])]
 
     # Ammo / food
-    ammo_name = AMMO_NAMES[int(ammo_idx)]
-    food_name = FOOD_NAMES[int(food_idx)]
-    ammo = AMMO[ammo_name]
-    food = FOOD[food_name]
+    ammo = AMMO[AMMO_NAMES[int(ammo_idx)]]
+    food = FOOD[FOOD_NAMES[int(food_idx)]]
 
     pill_bonus = 1.6 if pill_mode else 1.0
-    ammo_bonus = 1.0 + ammo["dmg_bonus"]
-    # Ensure rank_bonus is treated as a multiplier (e.g. 1.45 for +45%)
-    atk *= pill_bonus * ammo_bonus * rank_bonus
+    atk *= pill_bonus * (1.0 + ammo["dmg_bonus"]) * rank_bonus
 
     dmg_per_attack = atk * prc * (1 + critc * critd) + (atk / 2.0) * (1 - prc)
-
-    # Attacks possible
     n_attacks = attacks_possible(hp, hun, arm, ddg, food["regen_bonus"])
 
-    # --- Costs ---
     # Gear costs (weapons don’t decay by dodge, others do)
     gear_cost_total = 0.0
     for i, slot in enumerate(GEAR_SLOTS):
-        tier_idx = int(gear_idx[i])
-        tier = WEAPON_TIERS[tier_idx] if slot == "weapon" else GEAR_TIERS[tier_idx]
-        
-        gear_item = GEAR[slot][tier]
-        cost_per_use = gear_item["cost"] / 100
-        
+        tier = WEAPON_TIERS[int(gear_idx[i])] if slot == "weapon" else GEAR_TIERS[int(gear_idx[i])]
         decay_multiplier = 1 if slot == "weapon" else (1 - ddg)
-        gear_cost_total += cost_per_use * n_attacks * decay_multiplier
+        gear_cost_total += (GEAR[slot][tier]["cost"] / 100) * n_attacks * decay_multiplier
 
-    # Food + ammo costs
-    # In pill mode, the "day" for regeneration and consumption is 17 hours instead of 24.
     day_multiplier = 1.7 if pill_mode else 2.4
     food_cost = food["cost"] * hun * day_multiplier
     ammo_cost = ammo["bullet_cost"] * n_attacks

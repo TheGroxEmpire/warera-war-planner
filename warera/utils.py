@@ -1,6 +1,5 @@
 import os
 import numpy as np
-import requests
 import logging
 
 gunicorn_logger = logging.getLogger("gunicorn.error")
@@ -27,24 +26,6 @@ def format_number(num):
     if num > 1000:
         return f"{num/1000:.1f}K"
     return f"{num:.2f}"
-
-def get_country_from_ip(ip_address):
-    gunicorn_logger.info(f"get_country_from_ip called with IP: {ip_address}")
-    if os.environ.get("DEV_MODE_DISINFO_COUNTRY"):
-        return os.environ.get("DEV_MODE_DISINFO_COUNTRY")
-    if not ip_address or ip_address == "127.0.0.1":
-        gunicorn_logger.info("IP is local, returning US")
-        return "US"  # Default to US for local testing
-    try:
-        response = requests.get(f"http://ip-api.com/json/{ip_address}", timeout=5)
-        data = response.json()
-        country_code = data.get("countryCode")
-        gunicorn_logger.info(f"API response: {data}")
-        gunicorn_logger.info(f"Detected country code: {country_code} for IP: {ip_address}")
-        return country_code
-    except Exception as e:
-        gunicorn_logger.error(f"An error occurred: {e}")
-        return None
 
 def convert_numpy_types(obj):
     if isinstance(obj, np.integer):

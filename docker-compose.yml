@@ -1,26 +1,12 @@
 version: "3.8"
 services:
-  web-no-disinfo:
+  web:
     build: .
     ports:
       - "10000:10000"
     environment:
       - PORT=10000
-      - DEV_MODE_DISINFO=false
-      - POP_SIZE=500
-      - N_GEN=200
-      - POOL_SIZE=8
-    volumes:
-      - .:/app
-  web-disinfo:
-    build: .
-    ports:
-      - "10001:10000"
-    environment:
-      - PORT=10000
-      - DEV_MODE_DISINFO=true
-      - POP_SIZE=500
-      - N_GEN=200
-      - POOL_SIZE=8
+      - POP_SIZE=200
+      - N_GEN=50
     volumes:
       - .:/app

@@ -5,7 +5,7 @@ import logging
 from .optimization import optimize
 from .model import compute_totals
 from .config import SKILL_LEVEL_COST, SKILL_NAMES, GEAR_SLOTS, WEAPON_TIERS, GEAR_TIERS, AMMO_NAMES, FOOD_NAMES, SKILL_POINTS_PER_LEVEL
-from .utils import get_tier_color, get_consumable_color, format_number, get_country_from_ip, convert_numpy_types
+from .utils import get_tier_color, get_consumable_color, format_number, convert_numpy_types
 from .build_selector import select_builds
 from collections import Counter
 
@@ -14,31 +14,16 @@ gunicorn_logger = logging.getLogger("gunicorn.error")
 app.logger.handlers = gunicorn_logger.handlers
 app.logger.setLevel(gunicorn_logger.level)
 
-DISINFO_COUNTRIES = ["VE", "RO", "ES", "FR", "PT"]
-
 @app.route("/")
 def index():
     return render_template("index.html")
 
 @app.route("/optimize", methods=["POST"])
 def run_optimization():
-    if "X-Forwarded-For" in request.headers:
-        user_ip = request.headers["X-Forwarded-For"].split(",")[0].strip()
-        app.logger.info(f"X-Forwarded-For: {request.headers['X-Forwarded-For']}")
-    else:
-        user_ip = request.remote_addr
-    app.logger.info(f"User IP address: {user_ip}")
-    country = get_country_from_ip(user_ip)
-    app.logger.info(f"Country detected: {country}")
-
     level = int(request.form.get("level", 1))
     companies = int(request.form.get("companies", 1))
     pill = request.form.get("pill") == "on"
     rank_bonus = 1 + (float(request.form.get("rank_bonus")) / 100)
-    
-    # dev_mode_disinfo = os.environ.get("DEV_MODE_DISINFO") == "true"
-    # disinformation_mode = dev_mode_disinfo or country in DISINFO_COUNTRIES
-    disinformation_mode = False # Module disabled but kept in project
     
     # Calculate skill point cost for companies
     company_cost = 0
@@ -50,7 +35,7 @@ def run_optimization():
     # Safety: Ensure level doesn't go below 1
     adjusted_level = max(1.0, level - (company_cost / SKILL_POINTS_PER_LEVEL))
 
-    res = optimize(adjusted_level, verbose=True, disinformation_mode=disinformation_mode, rank_bonus=rank_bonus, pill_mode=pill)
+    res = optimize(adjusted_level, verbose=True, rank_bonus=rank_bonus, pill_mode=pill)
     X = None
     if hasattr(res, "algorithm") and hasattr(res.algorithm, "pop") and len(res.algorithm.pop) > 0:
         try:

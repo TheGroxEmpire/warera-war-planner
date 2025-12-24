@@ -36,8 +36,9 @@ def run_optimization():
     pill = request.form.get("pill") == "on"
     rank_bonus = 1 + (float(request.form.get("rank_bonus")) / 100)
     
-    dev_mode_disinfo = os.environ.get("DEV_MODE_DISINFO") == "true"
-    disinformation_mode = dev_mode_disinfo or country in DISINFO_COUNTRIES
+    # dev_mode_disinfo = os.environ.get("DEV_MODE_DISINFO") == "true"
+    # disinformation_mode = dev_mode_disinfo or country in DISINFO_COUNTRIES
+    disinformation_mode = False # Module disabled but kept in project
     
     # Calculate skill point cost for companies
     company_cost = 0

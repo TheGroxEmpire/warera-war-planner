@@ -1,10 +1,39 @@
 import requests
 import json
 import logging
+import time
+import os
+
 from .config import WEAPON_TIERS, TIER_NUM, GEAR, FOOD_NAMES, AMMO_NAMES, FOOD, AMMO, GEAR_SLOTS, AMMO_API_MAPPING
 
 # Configure logging
 logger = logging.getLogger(__name__)
+
+API_KEY = os.environ.get('WARERA_API_KEY', 'wae_df98b2cf737089a80db9f84b435c7cc3ada1ecfb1a5122760a4270eed8b29bf6')
+MIN_REQUEST_INTERVAL = 0.35  # 200 requests per minute = 1 every 0.3s, 0.35s to be safe
+last_request_time = 0
+
+def api_request(url):
+    """Helper function to make a rate-limited API request with the API key."""
+    global last_request_time
+    
+    elapsed = time.time() - last_request_time
+    if elapsed < MIN_REQUEST_INTERVAL:
+        time.sleep(MIN_REQUEST_INTERVAL - elapsed)
+    
+    last_request_time = time.time()
+    
+    headers = {
+        'X-API-Key': API_KEY
+    }
+    
+    try:
+        resp = requests.get(url, headers=headers, timeout=10)
+        resp.raise_for_status()
+        return resp.json()
+    except requests.exceptions.RequestException as e:
+        logger.error(f"API request failed for {url}: {e}")
+        return None
 
 def fetch_equipment_prices(slots=None):
     """
@@ -36,15 +65,9 @@ def fetch_equipment_prices(slots=None):
     )
 
     logger.info(f"Fetching {len(batch_input)} equipment prices...")
-    try:
-        resp = requests.get(url, timeout=10)
-        resp.raise_for_status()
-        data = resp.json()
-        if not isinstance(data, list):
-            logger.error(f"Unexpected API response format: {data}")
-            return {}
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Failed to fetch equipment prices: {e}")
+    data = api_request(url)
+    if not isinstance(data, list):
+        logger.error(f"Unexpected API response format: {data}")
         return {}
 
     prices = {slot: {} for slot in slots}
@@ -68,17 +91,13 @@ def fetch_food_and_bullet_prices():
     """Fetches food and bullet prices from the WarEra API."""
     url = "https://api2.warera.io/trpc/itemTrading.getPrices"
     logger.info("Fetching food and bullet prices...")
-    try:
-        resp = requests.get(url, timeout=10)
-        resp.raise_for_status()
-        data = resp.json()
-        result = data["result"]["data"]
+    data = api_request(url)
+    if data:
+        result = data.get("result", {}).get("data", {})
         for k, v in result.items():
             logger.debug(f"  - {k}: {v}")
         return result
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Failed to fetch food and bullet prices: {e}")
-        return {}
+    return {}
 
 
 def update_food_and_ammo_from_api():

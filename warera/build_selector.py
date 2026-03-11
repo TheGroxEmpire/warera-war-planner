@@ -1,6 +1,6 @@
 import numpy as np
 
-def select_builds(details, min_damage=100000, max_damage=5000000, num_builds=15):
+def select_builds(details, min_damage=100000, max_damage=5000000, num_builds=15, cost_key="total_cost"):
     """
     Selects a specified number of builds from a list of build details,
     based on damage range and efficiency. The builds are chosen as local
@@ -13,6 +13,7 @@ def select_builds(details, min_damage=100000, max_damage=5000000, num_builds=15)
         min_damage (int): The minimum damage for the builds to be selected.
         max_damage (int): The maximum damage for the builds to be selected.
         num_builds (int): The number of builds to select.
+        cost_key (str): The key to use for cost when computing efficiency.
 
     Returns:
         list: A list of the selected builds.
@@ -44,8 +45,8 @@ def select_builds(details, min_damage=100000, max_damage=5000000, num_builds=15)
         if builds_in_band:
             # Calculate efficiency for each build in the band
             for build in builds_in_band:
-                if build["total_cost"] > 0:
-                    build["efficiency"] = build["total_damage"] / build["total_cost"]
+                if build[cost_key] > 0:
+                    build["efficiency"] = build["total_damage"] / build[cost_key]
                 else:
                     build["efficiency"] = 0
             

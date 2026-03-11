@@ -101,35 +101,32 @@ document.addEventListener("DOMContentLoaded", () => {
             const gearHtml = d.gear.map(g => `
                 <div class='gear-item' style='background-color: ${g.color}'>
                     <img src='/static/images/${g.image_name}.png' alt='${g.slot}'>
-                    <span class='quantity-label'>x ${g.quantity}</span>
+                    <span class='quantity-label'>x ${(Number(g.quantity)*100).toFixed(0)} %</span>
                 </div>
             `).join("");
 
             return `
                 <div class='card${d.is_max_damage ? " max-damage-card" : ""}'>
                     <div class='card-damage'>${d.total_damage_formatted} DMG<span class='damage-label'>Average daily damage</span></div>
-                    <div class='card-cost'><svg stroke='currentColor' fill='currentColor' stroke-width='0' viewBox='0 0 24 24' height='1em' width='1em' xmlns='http://www.w3.org/2000/svg' style='width: 1em; height: 1em; paint-order: stroke; stroke-linecap: round; stroke-linejoin: round;'><path d='M12 5C7.031 5 2 6.546 2 9.5S7.031 14 12 14c4.97 0 10-1.546 10-4.5S16.97 5 12 5zm-5 9.938v3c1.237.299 2.605.482 4 .541v-3a21.166 21.166 0 0 1-4-.541zm6 .54v3a20.994 20.994 0 0 0 4-.541v-3a20.994 20.994 0 0 1-4 .541zm6-1.181v3c1.801-.755 3-1.857 3-3.297v-3c0 1.44-1.199 2.542-3 3.297zm-14 3v-3C3.2 13.542 2 12.439 2 11v3c0 1.439 1.2 2.542 3 3.297z'></path></svg> ${d.total_cost_formatted} (- ${d.monetary_value_from_scrap_formatted} from scrap)<span class='cost-label'>Total daily cost</span></div>
-                    <div class='card-sections'>
-                        <div class='card-skills'>
-                            <h3>Skills</h3>
-                            <div class='skills-grid'>${skillsHtml}</div>
-                        </div>
-                        <div class='card-consumables'>
-                            <h3>Consumables</h3>
-                            <div class='consumables-grid'>
-                                <div class='consumable-item' style='background-color: ${d.ammo_color}'>
-                                    <img src='/static/images/${d.ammo_name}.png' alt='${d.ammo_name}'>
-                                    <span class='quantity-label'>${d.ammo_quantity}</span>
-                                </div>
-                                <div class='consumable-item' style='background-color: ${d.food_color}'>
-                                    <img src='/static/images/${d.food_name}.png' alt='${d.food_name}'>
-                                    <span class='quantity-label'>${d.food_quantity}</span>
-                                </div>
+                    <div class='card-cost'><div class='cost-left'><svg stroke='currentColor' fill='currentColor' stroke-width='0' viewBox='0 0 24 24' height='1em' width='1em' xmlns='http://www.w3.org/2000/svg' style='width: 1em; height: 1em; paint-order: stroke; stroke-linecap: round; stroke-linejoin: round;'><path d='M12 5C7.031 5 2 6.546 2 9.5S7.031 14 12 14c4.97 0 10-1.546 10-4.5S16.97 5 12 5zm-5 9.938v3c1.237.299 2.605.482 4 .541v-3a21.166 21.166 0 0 1-4-.541zm6 .54v3a20.994 20.994 0 0 0 4-.541v-3a20.994 20.994 0 0 1-4 .541zm6-1.181v3c1.801-.755 3-1.857 3-3.297v-3c0 1.44-1.199 2.542-3 3.297zm-14 3v-3C3.2 13.542 2 12.439 2 11v3c0 1.439 1.2 2.542 3 3.297z'></path></svg><span class='net-cost-value'>${d.net_cost_formatted}</span><div class='cost-label'>Daily net cost<div class='cost-breakdown'><span class='cost-line negative'>- ${d.total_cost_formatted} gear and consumables</span><span class='cost-line positive'>+ ${d.monetary_value_from_scrap_formatted} from scrap</span><span class='cost-line positive'>+ ${d.case_value_formatted} from ${d.cases_per_day_formatted} cases</span></div></div></div><span class='card-efficiency'>${(d.net_cost / d.total_damage * 1000).toFixed(2)} $/K<span class='efficiency-label'>Net cost per 1K damage</span></span></div>
+                    <div class='card-skills'>
+                        <h3>Skills</h3>
+                        <div class='skills-grid'>${skillsHtml}</div>
+                    </div>
+                    <div class='card-items'>
+                        <h3>Gear &amp; Consumables</h3>
+                        <div class='items-grid'>
+                            ${gearHtml}
+                            <div class='gear-item' style='background-color: ${d.ammo_color}'>
+                                <img src='/static/images/${d.ammo_name}.png' alt='${d.ammo_name}'>
+                                <span class='quantity-label'>${d.ammo_quantity}</span>
+                            </div>
+                            <div class='gear-item' style='background-color: ${d.food_color}'>
+                                <img src='/static/images/${d.food_name}.png' alt='${d.food_name}'>
+                                <span class='quantity-label'>${d.food_quantity}</span>
                             </div>
                         </div>
                     </div>
-                    <h3>Gear</h3>
-                    <div class='gear-grid'>${gearHtml}</div>
                 </div>
             `;
         }).join("");

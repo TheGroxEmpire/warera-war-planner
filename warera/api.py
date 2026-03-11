@@ -4,12 +4,13 @@ import logging
 import time
 import os
 
-from .config import WEAPON_TIERS, TIER_NUM, GEAR, FOOD_NAMES, AMMO_NAMES, FOOD, AMMO, GEAR_SLOTS, AMMO_API_MAPPING, SCRAP_API_CODE
+from .config import WEAPON_TIERS, TIER_NUM, GEAR, FOOD_NAMES, AMMO_NAMES, FOOD, AMMO, GEAR_SLOTS, AMMO_API_MAPPING, SCRAP_API_CODE, CASE_API_CODE
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
 _SCRAP_PRICE = 0
+_CASE1_PRICE = 0
 
 API_KEY = os.environ.get('WARERA_API_KEY', 'wae_df98b2cf737089a80db9f84b435c7cc3ada1ecfb1a5122760a4270eed8b29bf6')
 MIN_REQUEST_INTERVAL = 0.35  # 200 requests per minute = 1 every 0.3s, 0.35s to be safe
@@ -94,6 +95,8 @@ def fetch_food_and_bullet_prices():
     item_codes_to_fetch = list(AMMO_API_MAPPING.values()) + FOOD_NAMES
     if SCRAP_API_CODE:
         item_codes_to_fetch.append(SCRAP_API_CODE)
+    if CASE_API_CODE:
+        item_codes_to_fetch.append(CASE_API_CODE)
     
     batch_input = {str(i): {"itemCode": code} for i, code in enumerate(item_codes_to_fetch)}
     url = (
@@ -169,6 +172,17 @@ def update_food_and_ammo_from_api():
     else:
         logger.warning(f"[SCRAP] {SCRAP_API_CODE} not found in API response. Defaulting to 0.")
 
+    global _CASE1_PRICE
+    if CASE_API_CODE in prices:
+        case_data = prices[CASE_API_CODE]
+        if isinstance(case_data, dict):
+            _CASE1_PRICE = case_data.get('price', case_data.get('value', case_data.get('cost', 0)))
+        else:
+            _CASE1_PRICE = case_data
+        logger.info(f"[CASE1] price: {_CASE1_PRICE}")
+    else:
+        logger.warning(f"[CASE1] {CASE_API_CODE} not found in API response. Defaulting to 0.")
+
     logger.info("Updated FOOD, AMMO, and SCRAP prices from API.")
 
 
@@ -192,3 +206,11 @@ def get_scrap_price():
     if _SCRAP_PRICE == 0:
         update_food_and_ammo_from_api()
     return _SCRAP_PRICE
+
+
+def get_case1_price():
+    """Returns the fetched case1 price, fetching if not already available."""
+    global _CASE1_PRICE
+    if _CASE1_PRICE == 0:
+        update_food_and_ammo_from_api()
+    return _CASE1_PRICE

@@ -52,6 +52,7 @@ AMMO_API_MAPPING = {
 }
 
 SCRAP_API_CODE = "scraps"
+CASE_API_CODE = "case1"
 
 # GEAR SLOTS and TIERS
 GEAR_SLOTS = ["weapon", "helmet", "gloves", "chest", "pants", "boots"]

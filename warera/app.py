@@ -7,7 +7,7 @@ from .model import compute_totals
 from .config import SKILL_LEVEL_COST, SKILL_NAMES, GEAR_SLOTS, WEAPON_TIERS, GEAR_TIERS, AMMO_NAMES, FOOD_NAMES, SKILL_POINTS_PER_LEVEL, GEAR
 from .utils import get_tier_color, get_consumable_color, format_number, convert_numpy_types
 from .build_selector import select_builds
-from .api import get_scrap_price, update_gear_prices_from_api, update_food_and_ammo_from_api
+from .api import get_scrap_price, get_case1_price, update_gear_prices_from_api, update_food_and_ammo_from_api
 from collections import Counter
 
 app = Flask(__name__, template_folder="../templates", static_folder="../static")
@@ -29,7 +29,7 @@ def run_optimization():
     pill = request.form.get("pill") == "on"
     include_max_damage = request.form.get("max_damage_build") == "on"
     rank_bonus = 1 + (float(request.form.get("rank_bonus")) / 100)
-    scaling_mode = request.form.get("scaling_mode", "dev")
+    scaling_mode = request.form.get("scaling_mode", "prod")
     
     # Calculate skill point cost for companies
     company_cost = 0
@@ -75,9 +75,31 @@ def run_optimization():
         })
 
     details = sorted(details, key=lambda x: (x["total_cost"], -x["total_damage"]))
-    
+
+    # Fetch prices before selection so net_cost can be used for efficiency ranking
+    scrap_price = get_scrap_price()
+    case1_price = get_case1_price()
+    app.logger.info(f"Scrap price from API: {scrap_price}")
+
+    # Pre-compute net_cost for efficient build selection
+    for d in details:
+        ddg = d['diag']['ddg']
+        n_attacks = d['diag']['n_attacks']
+        total_scrap = 0
+        for i in range(len(GEAR_SLOTS)):
+            slot = GEAR_SLOTS[i]
+            tier = WEAPON_TIERS[d['gear_idx'][i]] if i == 0 else GEAR_TIERS[d['gear_idx'][i]]
+            decay_multiplier = 1 if slot == "weapon" else (
+                (1 - ddg / (ddg + 40)) if scaling_mode == 'dev' else (1 - ddg / 100)
+            )
+            quantity = round(float(n_attacks) * decay_multiplier / 100, 2)
+            total_scrap += (GEAR[slot][tier]["scrap"] / 3) * quantity
+        loot_chance = 0.05 + 0.05 * (d["diag"]["dmg_per_attack"] / 1000.0)
+        case_value = loot_chance * n_attacks * case1_price
+        d["net_cost"] = d["total_cost"] - (total_scrap * scrap_price) - case_value
+
     # --- New cost band filtering logic ---
-    pareto_details = select_builds(details)
+    pareto_details = select_builds(details, cost_key="net_cost")
     pareto_details = sorted(pareto_details, key=lambda x: x["total_cost"])
 
     builds = []
@@ -104,14 +126,14 @@ def run_optimization():
                 decay_multiplier = 1 if slot == "weapon" else (1 - ddg / (ddg + 40))
             else:
                 decay_multiplier = 1 if slot == "weapon" else (1 - ddg / 100)
-            total_decay_percent = n_attacks * decay_multiplier
-            quantity = int(np.ceil(total_decay_percent / 100))
+            total_decay_percent = float(n_attacks) * decay_multiplier
+            quantity = round(total_decay_percent / 100, 2)
 
             d['gear'].append({
                 'tier': tier,
                 'image_name': image_name,
                 'slot': slot,
-                'quantity': max(1, quantity)
+                'quantity': max(0.01, quantity)
             })
 
         # Add colors
@@ -125,9 +147,6 @@ def run_optimization():
         builds.append(d)
 
     # Calculate scrap values
-    scrap_price = get_scrap_price()
-    app.logger.info(f"Scrap price from API: {scrap_price}")
-    
     for d in builds:
         total_scrap_generated = 0
         # For each gear piece, scrap generated = (scrap_value / 3) * quantity
@@ -139,11 +158,22 @@ def run_optimization():
             quantity = d['gear'][i]['quantity']
             # Each item used (100 durability) generates scrap_value/3
             total_scrap_generated += (scrap_value / 3) * quantity
-        
+
         d["total_scrap_generated"] = total_scrap_generated
         d["monetary_value_from_scrap"] = total_scrap_generated * scrap_price
         d["total_scrap_generated_formatted"] = format_number(d["total_scrap_generated"])
         d["monetary_value_from_scrap_formatted"] = format_number(d["monetary_value_from_scrap"])
+
+        dmg_per_attack = d["diag"]["dmg_per_attack"]
+        n_attacks = d["diag"]["n_attacks"]
+        loot_chance_per_hit = 0.05 + 0.05 * (dmg_per_attack / 1000.0)
+        cases_per_day = loot_chance_per_hit * n_attacks
+        d["cases_per_day"] = cases_per_day
+        d["case_value"] = cases_per_day * case1_price
+        d["case_value_formatted"] = format_number(d["case_value"])
+        d["cases_per_day_formatted"] = format_number(cases_per_day)
+        d["net_cost"] = d["total_cost"] - d["monetary_value_from_scrap"] - d["case_value"]
+        d["net_cost_formatted"] = format_number(d["net_cost"])
 
     if include_max_damage:
         md = optimize_max_damage(adjusted_level, rank_bonus=rank_bonus, pill_mode=pill, scaling_mode=scaling_mode)
@@ -166,13 +196,13 @@ def run_optimization():
                     decay_multiplier = 1 if slot == "weapon" else (1 - ddg / (ddg + 40))
                 else:
                     decay_multiplier = 1 if slot == "weapon" else (1 - ddg / 100)
-                total_decay_percent = n_attacks * decay_multiplier
-                quantity = int(np.ceil(total_decay_percent / 100))
+                total_decay_percent = float(n_attacks) * decay_multiplier
+                quantity = round(total_decay_percent / 100, 2)
                 d['gear'].append({
                     'tier': tier,
                     'image_name': image_name,
                     'slot': slot,
-                    'quantity': max(1, quantity)
+                    'quantity': max(0.01, quantity)
                 })
 
             d['ammo_color'] = get_consumable_color(d['ammo_name'])
@@ -194,6 +224,17 @@ def run_optimization():
             d["monetary_value_from_scrap"] = total_scrap_generated * scrap_price
             d["total_scrap_generated_formatted"] = format_number(d["total_scrap_generated"])
             d["monetary_value_from_scrap_formatted"] = format_number(d["monetary_value_from_scrap"])
+
+            dmg_per_attack = d["diag"]["dmg_per_attack"]
+            n_attacks = d["diag"]["n_attacks"]
+            loot_chance_per_hit = 0.05 + 0.05 * (dmg_per_attack / 1000.0)
+            cases_per_day = loot_chance_per_hit * n_attacks
+            d["cases_per_day"] = cases_per_day
+            d["case_value"] = cases_per_day * case1_price
+            d["case_value_formatted"] = format_number(d["case_value"])
+            d["cases_per_day_formatted"] = format_number(cases_per_day)
+            d["net_cost"] = d["total_cost"] - d["monetary_value_from_scrap"] - d["case_value"]
+            d["net_cost_formatted"] = format_number(d["net_cost"])
 
             builds.append(d)
 

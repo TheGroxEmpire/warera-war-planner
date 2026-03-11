@@ -10,9 +10,7 @@ h3 {
 	margin-bottom: 0;
 	display: flex;
 }
-.card-consumables h3 {
-	flex-direction: row-reverse;
-}
+
 .container {
     display: flex;
     flex-direction: column;
@@ -41,7 +39,7 @@ h3 {
 
 #results {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
     gap: 1em;
 }
 
@@ -118,6 +116,9 @@ h3 {
 .card-cost {
     position: relative;
 	font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
 }
 
 .card-cost .cost-label {
@@ -128,15 +129,40 @@ h3 {
     transform: translateX(-50%);
     background-color: #333;
     color: #fff;
-    padding: 0.5em;
+    padding: 0.5em 0.7em;
     border-radius: 5px;
     white-space: nowrap;
-    z-index: 1;
+    z-index: 10;
     font-size: 0.8em;
+    flex-direction: column;
+    gap: 0.4em;
 }
 
 .card-cost:hover .cost-label {
-    display: block;
+    display: flex;
+}
+
+.net-cost-value {
+    margin-left: 0.3em;
+}
+
+.cost-breakdown {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1em;
+    font-size: 0.9em;
+    font-weight: normal;
+    opacity: 0.85;
+    border-top: 1px solid #555;
+    padding-top: 0.3em;
+}
+
+.cost-line.positive {
+    color: #7ec87e;
+}
+
+.cost-line.negative {
+    color: #d88;
 }
 
 .skill .skill-name {
@@ -162,15 +188,9 @@ h3 {
     display: block;
 }
 
-.gear-grid {
+.items-grid {
     display: grid;
-    grid-template-columns: repeat(6, 1fr);
-    gap: 0.8em;
-}
-
-.consumables-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 0.8em;
 }
 
@@ -192,6 +212,34 @@ h3 {
     padding: 2px 4px;
     border-radius: 3px;
     margin-top: 2px;
+    white-space: nowrap;
+}
+
+.tooltip {
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 4px);
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #333;
+    color: #fff;
+    padding: 0.4em 0.6em;
+    border-radius: 5px;
+    white-space: normal;
+    word-wrap: break-word;
+    max-width: 180px;
+    width: max-content;
+    z-index: 10;
+    font-size: 0.75em;
+    font-weight: normal;
+    pointer-events: none;
+    text-align: center;
+}
+
+.input-group:hover .tooltip,
+.checkbox-wrapper:hover .tooltip,
+.pill-wrapper:hover .tooltip {
+    display: block;
 }
 
 .gear-item img, .consumable-item img {
@@ -260,6 +308,7 @@ th, td {
 .input-group {
     display: flex;
     flex-direction: column;
+    position: relative;
 }
 
 .input-group label {
@@ -286,6 +335,7 @@ th, td {
 .pill-wrapper {
     display: flex;
     flex-direction: column;
+    position: relative;
 }
 
 .pill-wrapper label {
@@ -383,18 +433,37 @@ select, button {
     color: #d8d28b;
 }
 
-.card-sections {
-    display: flex;
-    justify-content: space-between;
+.card-efficiency {
+    font-size: 1.2em;
+    color: #d8d28b;
+    font-weight: bold;
+    position: relative;
+}
+
+.card-efficiency .efficiency-label {
+    display: none;
+    position: absolute;
+    bottom: 100%;
+    left: 30%;
+    transform: translateX(-50%);
+    background-color: #333;
+    color: #fff;
+    padding: 0.5em;
+    border-radius: 5px;
+    white-space: nowrap;
+    z-index: 1;
+    font-size: 0.6em;
+    font-weight: normal;
+}
+
+.card-efficiency:hover .efficiency-label {
+    display: block;
 }
 
 .card-skills {
-    width: 65%;
+    margin-bottom: 1em;
 }
 
-.card-consumables {
-    width: 25%;
-}
 
 @media (max-width: 768px) {
     .top-section {
@@ -548,6 +617,7 @@ select, button {
 .checkbox-wrapper {
     display: flex;
     flex-direction: column;
+    position: relative;
 }
 
 .checkbox-wrapper input[type="checkbox"] {

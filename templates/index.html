@@ -42,14 +42,24 @@
                         </select>
                     </div>
 
+                    <div class="checkbox-wrapper">
+                        <input type="checkbox" name="pill" id="pill">
+                        <label for="pill">Pill</label>
+                    </div>
+
+                    <div class="checkbox-wrapper">
+                        <input type="checkbox" name="max_damage_build" id="max-damage-build">
+                        <label for="max-damage-build">Mythic Set</label>
+                    </div>
+
                     <div class="pill-wrapper">
-                        <label>Pill</label>
-                        <div class="pill-toggle" id="pill-toggle">
+                        <label>Armor/Dodge</label>
+                        <div class="pill-toggle" id="scaling-toggle">
                             <div class="pill-slider"></div>
-                            <span class="pill-label off">OFF</span>
-                            <span class="pill-label on">ON</span>
+                            <span class="pill-label on">Prod</span>
+                            <span class="pill-label off">Dev</span>
                         </div>
-                        <input type="hidden" name="pill" id="pill-input" value="off">
+                        <input type="hidden" name="scaling_mode" id="scaling-mode-input" value="dev">
                     </div>
                 </div>
                 <button type="submit" class="optimize-btn">Optimize</button>

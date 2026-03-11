@@ -31,17 +31,17 @@ SKILL_LEVEL_COST = np.array([lvl * (lvl + 1) // 2 for lvl in range(MAX_SKILL_LEV
 
 # FOOD: regen bonuses and one-time cost (per simulation/day/encounter)
 FOOD = {
-    "bread":  {"regen_bonus": 10, "cost": 0.7},
-    "steak":   {"regen_bonus": 20, "cost": 1.5},
-    "cookedFish":   {"regen_bonus": 30, "cost": 3.4},
+    "bread":  {"regen_bonus": 10, "cost": 1.7},
+    "steak":   {"regen_bonus": 20, "cost": 3.7},
+    "cookedFish":   {"regen_bonus": 30, "cost": 7.6},
 }
 FOOD_NAMES = list(FOOD.keys())
 
 # AMMO: damage bonus multiplier and cost *per attack* (each attack uses one bullet)
 AMMO = {
-    "lightAmmo":  {"dmg_bonus": 0.1, "bullet_cost": 0.1},
-    "ammo":   {"dmg_bonus": 0.2, "bullet_cost": 0.36},
-    "heavyAmmo": {"dmg_bonus": 0.4, "bullet_cost": 1.5},
+    "lightAmmo":  {"dmg_bonus": 0.1, "bullet_cost": 0.2},
+    "ammo":   {"dmg_bonus": 0.2, "bullet_cost": 0.7},
+    "heavyAmmo": {"dmg_bonus": 0.4, "bullet_cost": 2.7},
 }
 AMMO_NAMES = list(AMMO.keys())
 
@@ -50,6 +50,8 @@ AMMO_API_MAPPING = {
     "blue": "ammo",
     "purple": "heavyAmmo"
 }
+
+SCRAP_API_CODE = "scraps"
 
 # GEAR SLOTS and TIERS
 GEAR_SLOTS = ["weapon", "helmet", "gloves", "chest", "pants", "boots"]
@@ -69,51 +71,51 @@ TIER_NUM = {
 # These are *placeholder* numbers so the program runs end-to-end; edit freely.
 GEAR = {
     "weapon": {
-        "knife":   {"mods": {"atk": 36, "critc": 5},   "cost": 2},
-        "gun":  {"mods": {"atk": 68, "critc": 9},   "cost": 8},
-        "rifle":   {"mods": {"atk": 86, "critc": 14},   "cost": 27},
-        "sniper": {"mods": {"atk": 114, "critc": 18},  "cost": 70},
-        "tank":   {"mods": {"atk": 152, "critc": 27},  "cost": 200},
-        "jet":   {"mods": {"atk": 240, "critc": 36},  "cost": 650},
+        "knife":   {"mods": {"atk": 36, "critc": 5},   "cost": 2, "scrap": 6},
+        "gun":  {"mods": {"atk": 68, "critc": 9},   "cost": 8, "scrap": 18},
+        "rifle":   {"mods": {"atk": 86, "critc": 14},   "cost": 27, "scrap": 54},
+        "sniper": {"mods": {"atk": 114, "critc": 18},  "cost": 70, "scrap": 162},
+        "tank":   {"mods": {"atk": 152, "critc": 27},  "cost": 200, "scrap": 486},
+        "jet":   {"mods": {"atk": 240, "critc": 36},  "cost": 650, "scrap": 1458},
     },
     "helmet": {
-        "grey":   {"mods": {"critd": 10},    "cost": 2},
-        "green":  {"mods": {"critd": 18},    "cost": 7},
-        "blue":   {"mods": {"critd": 27},    "cost": 27},
-        "purple": {"mods": {"critd": 36},   "cost": 70},
-        "gold":   {"mods": {"critd": 55},   "cost": 210},
-        "red":   {"mods": {"critd": 74},   "cost": 650},
+        "grey":   {"mods": {"critd": 10},    "cost": 2, "scrap": 6},
+        "green":  {"mods": {"critd": 18},    "cost": 7, "scrap": 18},
+        "blue":   {"mods": {"critd": 27},    "cost": 27, "scrap": 54},
+        "purple": {"mods": {"critd": 36},   "cost": 70, "scrap": 162},
+        "gold":   {"mods": {"critd": 55},   "cost": 210, "scrap": 486},
+        "red":   {"mods": {"critd": 74},   "cost": 650, "scrap": 1458},
     },
     "gloves": {
-        "grey":   {"mods": {"prc": 5},    "cost": 2},
-        "green":  {"mods": {"prc": 9},    "cost": 7},
-        "blue":   {"mods": {"prc": 14},    "cost": 27},
-        "purple": {"mods": {"prc": 18},   "cost": 70},
-        "gold":   {"mods": {"prc": 27},   "cost": 210},
-        "red":   {"mods": {"prc": 36},   "cost": 650},
+        "grey":   {"mods": {"prc": 5},    "cost": 2, "scrap": 6},
+        "green":  {"mods": {"prc": 9},    "cost": 7, "scrap": 18},
+        "blue":   {"mods": {"prc": 14},    "cost": 27, "scrap": 54},
+        "purple": {"mods": {"prc": 18},   "cost": 70, "scrap": 162},
+        "gold":   {"mods": {"prc": 27},   "cost": 210, "scrap": 486},
+        "red":   {"mods": {"prc": 36},   "cost": 650, "scrap": 1458},
     },
     "chest": {
-        "grey":   {"mods": {"arm": 5},    "cost": 2},
-        "green":  {"mods": {"arm": 9},    "cost": 7},
-        "blue":   {"mods": {"arm": 14},    "cost": 27},
-        "purple": {"mods": {"arm": 18},   "cost": 70},
-        "gold":   {"mods": {"arm": 27},   "cost": 230},
-        "red":   {"mods": {"critd": 36},   "cost": 650},
+        "grey":   {"mods": {"arm": 5},    "cost": 2, "scrap": 6},
+        "green":  {"mods": {"arm": 9},    "cost": 7, "scrap": 18},
+        "blue":   {"mods": {"arm": 14},    "cost": 27, "scrap": 54},
+        "purple": {"mods": {"arm": 18},   "cost": 70, "scrap": 162},
+        "gold":   {"mods": {"arm": 27},   "cost": 230, "scrap": 486},
+        "red":   {"mods": {"arm": 36},   "cost": 650, "scrap": 1458},
     },
     "pants": {
-        "grey":   {"mods": {"arm": 5},    "cost": 2},
-        "green":  {"mods": {"arm": 9},    "cost": 7},
-        "blue":   {"mods": {"arm": 14},    "cost": 27},
-        "purple": {"mods": {"arm": 18},   "cost": 70},
-        "gold":   {"mods": {"arm": 27},   "cost": 230},
-        "red":   {"mods": {"critd": 36},   "cost": 650},
+        "grey":   {"mods": {"arm": 5},    "cost": 2, "scrap": 6},
+        "green":  {"mods": {"arm": 9},    "cost": 7, "scrap": 18},
+        "blue":   {"mods": {"arm": 14},    "cost": 27, "scrap": 54},
+        "purple": {"mods": {"arm": 18},   "cost": 70, "scrap": 162},
+        "gold":   {"mods": {"arm": 27},   "cost": 230, "scrap": 486},
+        "red":   {"mods": {"arm": 36},   "cost": 650, "scrap": 1458},
     },
     "boots": {
-        "grey":   {"mods": {"ddg": 5},    "cost": 2},
-        "green":  {"mods": {"ddg": 9},    "cost": 7},
-        "blue":   {"mods": {"ddg": 14},    "cost": 27},
-        "purple": {"mods": {"ddg": 18},   "cost": 70},
-        "gold":   {"mods": {"ddg": 27},   "cost": 240},
-        "red":   {"mods": {"critd": 36},   "cost": 650},
+        "grey":   {"mods": {"ddg": 5},    "cost": 2, "scrap": 6},
+        "green":  {"mods": {"ddg": 9},    "cost": 7, "scrap": 18},
+        "blue":   {"mods": {"ddg": 14},    "cost": 27, "scrap": 54},
+        "purple": {"mods": {"ddg": 18},   "cost": 70, "scrap": 162},
+        "gold":   {"mods": {"ddg": 27},   "cost": 240, "scrap": 486},
+        "red":   {"mods": {"ddg": 36},   "cost": 650, "scrap": 1458},
     },
 }

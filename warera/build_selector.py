@@ -1,6 +1,6 @@
 import numpy as np
 
-def select_builds(details, min_damage=100000, max_damage=1000000, num_builds=10):
+def select_builds(details, min_damage=100000, max_damage=5000000, num_builds=15):
     """
     Selects a specified number of builds from a list of build details,
     based on damage range and efficiency. The builds are chosen as local
@@ -17,6 +17,7 @@ def select_builds(details, min_damage=100000, max_damage=1000000, num_builds=10)
     Returns:
         list: A list of the selected builds.
     """
+
     # Filter builds within the specified damage range
     filtered_builds = [
         d for d in details
@@ -52,4 +53,6 @@ def select_builds(details, min_damage=100000, max_damage=1000000, num_builds=10)
             best_build = max(builds_in_band, key=lambda x: x["efficiency"])
             best_builds_by_band[i] = best_build
 
-    return list(best_builds_by_band.values())
+    selected = list(best_builds_by_band.values())
+
+    return selected

@@ -33,14 +33,13 @@ document.addEventListener("DOMContentLoaded", () => {
     syncSliderAndInput("level-slider", "level-input");
     syncSliderAndInput("rank_bonus-slider", "rank_bonus-input");
 
-    // --- Pill Toggle ---
-    const pillToggle = document.getElementById('pill-toggle');
-    const pillInput = document.getElementById('pill-input');
-
-    if (pillToggle) {
-        pillToggle.addEventListener('click', function() {
+    // --- ARM&DDG Scaling Toggle ---
+    const scalingToggle = document.getElementById('scaling-toggle');
+    const scalingInput = document.getElementById('scaling-mode-input');
+    if (scalingToggle) {
+        scalingToggle.addEventListener('click', function() {
             this.classList.toggle('active');
-            pillInput.value = this.classList.contains('active') ? 'on' : 'off';
+            scalingInput.value = this.classList.contains('active') ? 'prod' : 'dev';
         });
     }
 
@@ -107,9 +106,9 @@ document.addEventListener("DOMContentLoaded", () => {
             `).join("");
 
             return `
-                <div class='card'>
+                <div class='card${d.is_max_damage ? " max-damage-card" : ""}'>
                     <div class='card-damage'>${d.total_damage_formatted} DMG<span class='damage-label'>Average daily damage</span></div>
-                    <div class='card-cost'><svg stroke='currentColor' fill='currentColor' stroke-width='0' viewBox='0 0 24 24' height='1em' width='1em' xmlns='http://www.w3.org/2000/svg' style='width: 1em; height: 1em; paint-order: stroke; stroke-linecap: round; stroke-linejoin: round;'><path d='M12 5C7.031 5 2 6.546 2 9.5S7.031 14 12 14c4.97 0 10-1.546 10-4.5S16.97 5 12 5zm-5 9.938v3c1.237.299 2.605.482 4 .541v-3a21.166 21.166 0 0 1-4-.541zm6 .54v3a20.994 20.994 0 0 0 4-.541v-3a20.994 20.994 0 0 1-4 .541zm6-1.181v3c1.801-.755 3-1.857 3-3.297v-3c0 1.44-1.199 2.542-3 3.297zm-14 3v-3C3.2 13.542 2 12.439 2 11v3c0 1.439 1.2 2.542 3 3.297z'></path></svg> ${d.total_cost_formatted}<span class='cost-label'>Total daily cost</span></div>
+                    <div class='card-cost'><svg stroke='currentColor' fill='currentColor' stroke-width='0' viewBox='0 0 24 24' height='1em' width='1em' xmlns='http://www.w3.org/2000/svg' style='width: 1em; height: 1em; paint-order: stroke; stroke-linecap: round; stroke-linejoin: round;'><path d='M12 5C7.031 5 2 6.546 2 9.5S7.031 14 12 14c4.97 0 10-1.546 10-4.5S16.97 5 12 5zm-5 9.938v3c1.237.299 2.605.482 4 .541v-3a21.166 21.166 0 0 1-4-.541zm6 .54v3a20.994 20.994 0 0 0 4-.541v-3a20.994 20.994 0 0 1-4 .541zm6-1.181v3c1.801-.755 3-1.857 3-3.297v-3c0 1.44-1.199 2.542-3 3.297zm-14 3v-3C3.2 13.542 2 12.439 2 11v3c0 1.439 1.2 2.542 3 3.297z'></path></svg> ${d.total_cost_formatted} (- ${d.monetary_value_from_scrap_formatted} from scrap)<span class='cost-label'>Total daily cost</span></div>
                     <div class='card-sections'>
                         <div class='card-skills'>
                             <h3>Skills</h3>

@@ -543,3 +543,53 @@ select, button {
     outline: none;
     border: 1px solid rgb(160, 0, 0);
 }
+
+/* Custom checkbox */
+.checkbox-wrapper {
+    display: flex;
+    flex-direction: column;
+}
+
+.checkbox-wrapper input[type="checkbox"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.checkbox-wrapper label {
+    display: flex;
+    flex-direction: column;
+	align-items: center;
+    width: 100%;
+    gap: 0.3em;
+    cursor: pointer;
+    color: #e0e0e0;
+    text-transform: uppercase;
+    font-size: 1em;
+    font-weight: bold;
+    user-select: none;
+}
+
+.checkbox-wrapper label::after {
+    content: '';
+    display: flex;
+	align-items: center;
+	justify-content: center;
+    width: 40px;
+    height: 40px;
+    background: #333;
+    border: 1px solid rgb(160, 0, 0);
+    border-radius: 5px;
+    text-align: center;
+    line-height: 40px;
+    font-size: 1.4em;
+    box-sizing: border-box;
+    transition: background 0.2s, color 0.2s;
+}
+
+.checkbox-wrapper input[type="checkbox"]:checked + label::after {
+    content: '✓';
+    background: rgb(160, 0, 0);
+    color: #fff;
+}

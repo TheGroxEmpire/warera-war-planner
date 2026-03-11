@@ -4,10 +4,12 @@ import logging
 import time
 import os
 
-from .config import WEAPON_TIERS, TIER_NUM, GEAR, FOOD_NAMES, AMMO_NAMES, FOOD, AMMO, GEAR_SLOTS, AMMO_API_MAPPING
+from .config import WEAPON_TIERS, TIER_NUM, GEAR, FOOD_NAMES, AMMO_NAMES, FOOD, AMMO, GEAR_SLOTS, AMMO_API_MAPPING, SCRAP_API_CODE
 
 # Configure logging
 logger = logging.getLogger(__name__)
+
+_SCRAP_PRICE = 0
 
 API_KEY = os.environ.get('WARERA_API_KEY', 'wae_df98b2cf737089a80db9f84b435c7cc3ada1ecfb1a5122760a4270eed8b29bf6')
 MIN_REQUEST_INTERVAL = 0.35  # 200 requests per minute = 1 every 0.3s, 0.35s to be safe
@@ -88,37 +90,86 @@ def fetch_equipment_prices(slots=None):
 
 
 def fetch_food_and_bullet_prices():
-    """Fetches food and bullet prices from the WarEra API."""
-    url = "https://api2.warera.io/trpc/itemTrading.getPrices"
-    logger.info("Fetching food and bullet prices...")
+    """Fetches food, bullet, and scrap prices from the WarEra API."""
+    item_codes_to_fetch = list(AMMO_API_MAPPING.values()) + FOOD_NAMES
+    if SCRAP_API_CODE:
+        item_codes_to_fetch.append(SCRAP_API_CODE)
+    
+    batch_input = {str(i): {"itemCode": code} for i, code in enumerate(item_codes_to_fetch)}
+    url = (
+        "https://api2.warera.io/trpc/" +
+        ",".join(["itemTrading.getPrices"] * len(batch_input)) +
+        f"?batch=1&input={requests.utils.quote(json.dumps(batch_input))}"
+    )
+    logger.info("Fetching food, bullet, and scrap prices...")
     data = api_request(url)
     if data:
-        result = data.get("result", {}).get("data", {})
-        for k, v in result.items():
-            logger.debug(f"  - {k}: {v}")
-        return result
+        prices = {}
+        try:
+            # API returns an array when batched, but all items are in the first response
+            # Structure: [{"result": {"data": {"itemCode": price, ...}}}, ...]
+            if isinstance(data, list):
+                # Take the first batch response which contains all items
+                response_data = data[0] if len(data) > 0 else {}
+            else:
+                response_data = data
+            
+            price_data = response_data.get("result", {}).get("data", {})
+            for code in item_codes_to_fetch:
+                if code in price_data:
+                    price = price_data[code]
+                    prices[code] = price
+                    logger.debug(f"  - {code}: {price}")
+                else:
+                    logger.warning(f"  - {code}: not found in API response")
+        except (KeyError, TypeError, IndexError) as e:
+            logger.error(f"Error parsing API response: {e}")
+        return prices
     return {}
 
 
 def update_food_and_ammo_from_api():
-    """Updates food and ammo prices in the config from the API."""
+    """Updates food, ammo, and scrap prices in the config from the API."""
     prices = fetch_food_and_bullet_prices()
 
     for food_name in FOOD_NAMES:
         if food_name in prices:
             old_price = FOOD[food_name]["cost"]
-            new_price = prices[food_name]
+            price_data = prices[food_name]
+            # Handle case where API returns nested dict structure
+            if isinstance(price_data, dict):
+                new_price = price_data.get('price', price_data.get('value', price_data.get('cost', old_price)))
+            else:
+                new_price = price_data
             FOOD[food_name]["cost"] = new_price
             logger.info(f"[FOOD] {food_name}: {old_price} -> {new_price}")
 
     for ammo_name, code in AMMO_API_MAPPING.items():
         if code in prices:
             old_price = AMMO[code]["bullet_cost"]
-            new_price = prices[code]
+            price_data = prices[code]
+            # Handle case where API returns nested dict structure
+            if isinstance(price_data, dict):
+                new_price = price_data.get('price', price_data.get('value', price_data.get('cost', old_price)))
+            else:
+                new_price = price_data
             AMMO[code]["bullet_cost"] = new_price
             logger.info(f"[AMMO] {ammo_name}: {old_price} -> {new_price}")
+    
+    global _SCRAP_PRICE
+    if SCRAP_API_CODE in prices:
+        scrap_data = prices[SCRAP_API_CODE]
+        # Handle case where API returns nested dict structure
+        if isinstance(scrap_data, dict):
+            # Try to extract numeric value from common response structures
+            _SCRAP_PRICE = scrap_data.get('price', scrap_data.get('value', scrap_data.get('cost', 0)))
+        else:
+            _SCRAP_PRICE = scrap_data
+        logger.info(f"[SCRAP] price: {_SCRAP_PRICE}")
+    else:
+        logger.warning(f"[SCRAP] {SCRAP_API_CODE} not found in API response. Defaulting to 0.")
 
-    logger.info("Updated FOOD and AMMO prices from API.")
+    logger.info("Updated FOOD, AMMO, and SCRAP prices from API.")
 
 
 def update_gear_prices_from_api():
@@ -133,3 +184,11 @@ def update_gear_prices_from_api():
             else:
                 logger.warning(f"[GEAR] {slot} {tier}: keeping hardcoded {GEAR[slot][tier]['cost']}")
     logger.info("Updated gear prices from API.")
+
+
+def get_scrap_price():
+    """Returns the fetched scrap price, fetching if not already available."""
+    global _SCRAP_PRICE
+    if _SCRAP_PRICE == 0:
+        update_food_and_ammo_from_api()
+    return _SCRAP_PRICE

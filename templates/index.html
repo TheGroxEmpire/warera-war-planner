@@ -64,6 +64,18 @@
                         <span class="tooltip">If pilled, applies damage bonus and presumes hitting a burst with 100% HP and HUN, plus 7 hourly regens during pill effect.</span>
                     </div>
 
+                    <div class="checkbox-wrapper">
+                        <input type="checkbox" name="overflow_enabled" id="overflow-enabled" checked>
+                        <label for="overflow-enabled">Overflow</label>
+                        <span class="tooltip">When enabled, precision and crit chance above 100% convert to bonus attack and crit damage. Set the multiplier to scale the conversion rate (1.0 = default rate).</span>
+                    </div>
+                    <div id="overflow-mult-wrapper">
+                        <label for="overflow-mult-input" class="step-input-label">Rate ×</label>
+                        <input type="number" id="overflow-mult-input" name="overflow_multiplier"
+                               value="1" min="0" max="10" step="0.1"
+                               class="step-input">
+                    </div>
+
                     <div class="pill-wrapper">
                         <label>ARM/DDG Scaling</label>
                         <div class="pill-toggle active" id="scaling-toggle">
@@ -72,12 +84,12 @@
                             <span class="pill-label on">Prod</span>
                         </div>
                         <input type="hidden" name="scaling_mode" id="scaling-mode-input" value="prod">
-                        <div id="scaling-custom-steps" style="display:none; margin-top:0.4em;">
-                            <div style="display:flex; gap:0.5em; align-items:center;">
-                                <label for="arm-step-input" style="font-size:0.85em; color:#aaa;">ARM</label>
-                                <input type="number" id="arm-step-input" name="arm_step" value="6" min="1" max="99" style="width:3.5em; background:#333; border:1px solid #a00; color:#e0e0e0; border-radius:4px; padding:0.2em 0.4em; text-align:center;">
-                                <label for="ddg-step-input" style="font-size:0.85em; color:#aaa;">DDG</label>
-                                <input type="number" id="ddg-step-input" name="ddg_step" value="5" min="1" max="99" style="width:3.5em; background:#333; border:1px solid #a00; color:#e0e0e0; border-radius:4px; padding:0.2em 0.4em; text-align:center;">
+                        <div id="scaling-custom-steps" class="dev-steps-panel">
+                            <div class="step-input-row">
+                                <label for="arm-step-input" class="step-input-label">ARM</label>
+                                <input type="number" id="arm-step-input" name="arm_step" value="6" min="1" max="99" class="step-input">
+                                <label for="ddg-step-input" class="step-input-label">DDG</label>
+                                <input type="number" id="ddg-step-input" name="ddg_step" value="5" min="1" max="99" class="step-input">
                             </div>
                         </div>
                         <span class="tooltip">Dev: Upcoming linear scaling with K = 40 and 5 stat points per skill level. Prod: Live version, exponential scaling 4 stat points per skill level.</span>
@@ -91,14 +103,14 @@
                             <span class="pill-label on">Prod</span>
                         </div>
                         <input type="hidden" name="health_scaling" id="health-scaling-input" value="prod">
-                        <div id="health-custom-step" style="display:none; margin-top:0.4em;">
-                            <div style="display:flex; gap:0.5em; align-items:center;">
-                                <label for="hp-step-input" style="font-size:0.85em; color:#aaa;">HP step</label>
-                                <input type="number" id="hp-step-input" name="hp_step" value="15" min="1" max="99" style="width:3.5em; background:#333; border:1px solid #a00; color:#e0e0e0; border-radius:4px; padding:0.2em 0.4em; text-align:center;">
+                        <div id="health-custom-step" class="dev-steps-panel">
+                            <div class="step-input-row">
+                                <label for="hp-step-input" class="step-input-label">HP step</label>
+                                <input type="number" id="hp-step-input" name="hp_step" value="15" min="1" max="99" class="step-input">
                             </div>
-                            <div style="display:flex; gap:0.5em; align-items:center; margin-top:0.3em;">
-                                <label for="food-step-input" style="font-size:0.85em; color:#aaa;">Food step %</label>
-                                <input type="number" id="food-step-input" name="food_step" value="10" min="1" max="99" style="width:3.5em; background:#333; border:1px solid #a00; color:#e0e0e0; border-radius:4px; padding:0.2em 0.4em; text-align:center;">
+                            <div class="step-input-row">
+                                <label for="food-step-input" class="step-input-label">Food step %</label>
+                                <input type="number" id="food-step-input" name="food_step" value="10" min="1" max="99" class="step-input">
                             </div>
                         </div>
                         <span class="tooltip">Dev: HP per skill level set by HP step. Food restores % of total HP — bread = food step %, steak = 2×, fish = 3×. Prod: 10 HP per skill level, food gives flat HP.</span>
@@ -136,8 +148,13 @@
                 </div>
             </form>
         </div>
-        <div id="results" class="results-grid"></div>
+        <div id="results"></div>
     </div>
     <script src="/static/script.js"></script>
+    <script>
+        document.getElementById('overflow-enabled').addEventListener('change', function() {
+            document.getElementById('overflow-mult-wrapper').style.display = this.checked ? 'flex' : 'none';
+        });
+    </script>
 </body>
 </html>

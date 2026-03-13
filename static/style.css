@@ -40,11 +40,6 @@ h3 {
     gap: 1em;
 }
 
-.results-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 1em;
-}
 
 .card {
     background-color: #2a2a2a;
@@ -318,7 +313,7 @@ th, td {
 }
 
 .form-controls-row .input-group {
-    flex: 0 1 120px;
+    flex: 0 0 120px;
     min-width: 100px;
 }
 
@@ -327,8 +322,9 @@ th, td {
 }
 
 .form-controls-row .pill-wrapper {
-    flex: 1 1 180px;
-    min-width: 160px;
+    flex: 1 1 160px;
+    min-width: 150px;
+    max-width: 260px;
 }
 
 .input-group {
@@ -349,13 +345,15 @@ th, td {
     background-color: #333;
     border: 1px solid rgb(160, 0, 0);
     color: #e0e0e0;
-    padding: 0.5em;
+    padding: 0 0.5em;
     cursor: pointer;
     border-radius: 5px;
     text-transform: uppercase;
     font-weight: bold;
     font-size: 1em;
     width: 100%;
+    height: 40px;
+    box-sizing: border-box;
 }
 
 .pill-wrapper {
@@ -432,7 +430,7 @@ select, button {
     cursor: pointer;
     border-radius: 5px;
     text-transform: uppercase;
-	margin: 0.25em;
+    margin: 0;
 }
 
 .optimize-btn {
@@ -494,10 +492,54 @@ select, button {
 }
 
 
+/* Overflow mult wrapper */
+#overflow-mult-wrapper {
+    display: flex;
+    gap: 0.5em;
+    align-items: flex-end;
+}
+
+/* Step inputs */
+.step-input {
+    width: 3.5em;
+    background: #333;
+    border: 1px solid rgb(160, 0, 0);
+    color: #e0e0e0;
+    border-radius: 4px;
+    padding: 0.2em 0.4em;
+    text-align: center;
+    font-family: inherit;
+    font-size: 1em;
+    box-sizing: border-box;
+}
+.step-input::-webkit-outer-spin-button,
+.step-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.step-input[type=number] { -moz-appearance: textfield; }
+.step-input:focus { outline: none; border-color: rgb(160, 0, 0); }
+
+.step-input-row {
+    display: flex;
+    gap: 0.5em;
+    align-items: center;
+    margin-top: 0.3em;
+}
+.step-input-row:first-child { margin-top: 0; }
+
+.step-input-label {
+    font-size: 0.85em;
+    color: #aaa;
+    white-space: nowrap;
+}
+
+.dev-steps-panel {
+    display: none;
+    margin-top: 0.4em;
+}
+
 /* Filter row */
 .filter-row {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 0.8em;
     align-items: flex-end;
     margin-top: 0.5em;
@@ -524,7 +566,8 @@ select, button {
 }
 
 .filter-tab {
-    flex: 1 1 80px;
+    flex: 0 0 auto;
+    white-space: nowrap;
     padding: 0.5em;
     background: #333;
     border: 1px solid rgb(160, 0, 0);
@@ -545,8 +588,8 @@ select, button {
 }
 
 .filter-slider-wrapper {
-    flex: 1 1 200px;
-    min-width: 160px;
+    flex: 0 1 220px;
+    min-width: 140px;
     display: flex;
     flex-direction: column;
     gap: 0.3em;
@@ -555,6 +598,12 @@ select, button {
 .filter-display {
     min-width: 60px;
     cursor: default;
+}
+
+@media (max-width: 1024px) {
+    .form-controls-row .pill-wrapper { flex: 1 1 140px; max-width: none; }
+    .filter-row { flex-wrap: wrap; }
+    .filter-tabs { flex-wrap: wrap; }
 }
 
 @media (max-width: 768px) {
@@ -580,12 +629,26 @@ select, button {
         grid-template-columns: repeat(4, 1fr);
         grid-template-rows: repeat(2, 1fr);
     }
+
+    .form-sliders-row { flex-direction: column; align-items: stretch; }
+    .form-sliders-row .slider-container { flex: 1 1 auto; min-width: 0; }
+    .form-controls-row .pill-wrapper { flex: 1 1 100%; max-width: none; }
+    .filter-slider-wrapper { flex: 1 1 100%; }
+    #results { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
 }
 
 @media (max-width: 480px) {
     .form-sliders-row .slider-container {
         flex: 1 1 100%;
     }
+
+    .form-controls-row .input-group,
+    .form-controls-row .checkbox-wrapper,
+    .form-controls-row .pill-wrapper,
+    #overflow-mult-wrapper { flex: 1 1 100%; }
+    .filter-tab { flex: 1 1 40%; }
+    #results { grid-template-columns: 1fr; }
+    .btn-row { flex-direction: column; }
 }
 
 .spinner {
@@ -767,7 +830,6 @@ select, button {
 .btn-row {
     display: flex;
     gap: 0.5em;
-    margin: 0.25em;
 }
 
 .max-damage-btn {

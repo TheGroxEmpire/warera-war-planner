@@ -272,13 +272,21 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         resultsDiv.innerHTML = builds.map(d => {
-            const skillsHtml = d.skill_lvls.map((level, i) => `
-                <div class='skill'>
-                    <svg><use xlink:href='#skill-svg-${i + 1}'></use></svg>
-                    ${level}
-                    <span class='skill-name'>${SKILL_NAMES[i]}</span>
-                </div>
-            `).join("");
+            const skillsHtml = d.skill_lvls.map((level, i) => {
+                const statVal = d.diag && d.diag.skill_stats ? d.diag.skill_stats[i] : null;
+                let tooltipText = SKILL_NAMES[i];
+                if (statVal !== null) {
+                    const isPct = i >= 1 && i <= 3;  // Precision, Crit.Chance, Crit.Dmg are %
+                    tooltipText += `: ${Number(statVal).toFixed(isPct ? 0 : 1)}${isPct ? '%' : ''}`;
+                }
+                return `
+                    <div class='skill'>
+                        <svg><use xlink:href='#skill-svg-${i + 1}'></use></svg>
+                        ${level}
+                        <span class='skill-name'>${tooltipText}</span>
+                    </div>
+                `;
+            }).join("");
 
             const gearHtml = d.gear.map(g => `
                 <div class='gear-item' style='background-color: ${g.color}'>

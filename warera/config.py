@@ -53,14 +53,17 @@ AMMO_API_MAPPING = {
 
 SCRAP_API_CODE = "scraps"
 CASE_API_CODE = "case1"
+PILL_API_CODE = "cocain"
 
 # GEAR SLOTS and TIERS
 GEAR_SLOTS = ["weapon", "helmet", "gloves", "chest", "pants", "boots"]
-GEAR_TIERS = ["grey", "green", "blue", "purple", "gold", "red"]
-WEAPON_TIERS = ["knife", "gun", "rifle", "sniper", "tank", "jet"]
+GEAR_TIERS = [# "grey",
+              "green", "blue", "purple", "gold", "red"]
+WEAPON_TIERS = [# "knife",
+                "gun", "rifle", "sniper", "tank", "jet"]
 
 TIER_NUM = {
-    "grey": 1,
+    # "grey": 1,
     "green": 2,
     "blue": 3,
     "purple": 4,
@@ -72,7 +75,7 @@ TIER_NUM = {
 # These are *placeholder* numbers so the program runs end-to-end; edit freely.
 GEAR = {
     "weapon": {
-        "knife":   {"mods": {"atk": 36, "critc": 5},   "cost": 2, "scrap": 6},
+        # "knife":   {"mods": {"atk": 36, "critc": 5},   "cost": 2, "scrap": 6},
         "gun":  {"mods": {"atk": 68, "critc": 9},   "cost": 8, "scrap": 18},
         "rifle":   {"mods": {"atk": 86, "critc": 14},   "cost": 27, "scrap": 54},
         "sniper": {"mods": {"atk": 114, "critc": 18},  "cost": 70, "scrap": 162},
@@ -80,7 +83,7 @@ GEAR = {
         "jet":   {"mods": {"atk": 280, "critc": 40},  "cost": 650, "scrap": 1458},
     },
     "helmet": {
-        "grey":   {"mods": {"critd": 10},    "cost": 2, "scrap": 6},
+        # "grey":   {"mods": {"critd": 10},    "cost": 2, "scrap": 6},
         "green":  {"mods": {"critd": 18},    "cost": 7, "scrap": 18},
         "blue":   {"mods": {"critd": 27},    "cost": 27, "scrap": 54},
         "purple": {"mods": {"critd": 36},   "cost": 70, "scrap": 162},
@@ -88,7 +91,7 @@ GEAR = {
         "red":   {"mods": {"critd": 80},   "cost": 650, "scrap": 1458},
     },
     "gloves": {
-        "grey":   {"mods": {"prc": 5},    "cost": 2, "scrap": 6},
+        # "grey":   {"mods": {"prc": 5},    "cost": 2, "scrap": 6},
         "green":  {"mods": {"prc": 9},    "cost": 7, "scrap": 18},
         "blue":   {"mods": {"prc": 14},    "cost": 27, "scrap": 54},
         "purple": {"mods": {"prc": 18},   "cost": 70, "scrap": 162},
@@ -96,7 +99,7 @@ GEAR = {
         "red":   {"mods": {"prc": 40},   "cost": 650, "scrap": 1458},
     },
     "chest": {
-        "grey":   {"mods": {"arm": 5},    "cost": 2, "scrap": 6},
+        # "grey":   {"mods": {"arm": 5},    "cost": 2, "scrap": 6},
         "green":  {"mods": {"arm": 9},    "cost": 7, "scrap": 18},
         "blue":   {"mods": {"arm": 14},    "cost": 27, "scrap": 54},
         "purple": {"mods": {"arm": 18},   "cost": 70, "scrap": 162},
@@ -104,7 +107,7 @@ GEAR = {
         "red":   {"mods": {"arm": 40},   "cost": 650, "scrap": 1458},
     },
     "pants": {
-        "grey":   {"mods": {"arm": 5},    "cost": 2, "scrap": 6},
+        # "grey":   {"mods": {"arm": 5},    "cost": 2, "scrap": 6},
         "green":  {"mods": {"arm": 9},    "cost": 7, "scrap": 18},
         "blue":   {"mods": {"arm": 14},    "cost": 27, "scrap": 54},
         "purple": {"mods": {"arm": 18},   "cost": 70, "scrap": 162},
@@ -112,7 +115,7 @@ GEAR = {
         "red":   {"mods": {"arm": 40},   "cost": 650, "scrap": 1458},
     },
     "boots": {
-        "grey":   {"mods": {"ddg": 5},    "cost": 2, "scrap": 6},
+        # "grey":   {"mods": {"ddg": 5},    "cost": 2, "scrap": 6},
         "green":  {"mods": {"ddg": 9},    "cost": 7, "scrap": 18},
         "blue":   {"mods": {"ddg": 14},    "cost": 27, "scrap": 54},
         "purple": {"mods": {"ddg": 18},   "cost": 70, "scrap": 162},

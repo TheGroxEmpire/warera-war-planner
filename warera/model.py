@@ -6,12 +6,13 @@ from .stats import apply_gear_to_baseline, make_skill_tables
 # DAMAGE / ATTACKS / COST MODEL
 # =========================================
 
-def attacks_possible(hp, hun, armor, dodge, food, scaling_mode='dev', health_scaling='prod', food_step=10):
+def attacks_possible(hp, hun, armor, dodge, food, scaling_mode='dev', health_scaling='prod', food_step=10, pill_mode=False):
     """Calculates the number of attacks possible based on health regeneration and attack cost."""
+    hours = 18 if pill_mode else HOURS_PER_DAY
     # HP regenerated per day from baseline health and hunger, including food bonus
-    regen_base = hp * HEALTH_RECOVERY_RATE_PER_HOUR * HOURS_PER_DAY
+    regen_base = hp * HEALTH_RECOVERY_RATE_PER_HOUR * hours
     food_bonus = (food_step / 100) * food["food_multiplier"] * hp if health_scaling == 'dev' else food["regen_bonus"]
-    regen_all = regen_base + hun * HUNGER_RECOVERY_RATE_PER_HOUR * HOURS_PER_DAY * food_bonus
+    regen_all = regen_base + hun * HUNGER_RECOVERY_RATE_PER_HOUR * hours * food_bonus
 
     # Cost per attack, adjusted for armor and dodge
     if scaling_mode == 'dev':
@@ -24,7 +25,7 @@ def attacks_possible(hp, hun, armor, dodge, food, scaling_mode='dev', health_sca
     # Avoid division by zero, though cost_per_attack should be > 0 in practice
     return np.maximum(0.0, regen_all / np.maximum(1e-9, cost_per_attack))
 
-def compute_totals(skill_levels, gear_idx, ammo_idx, food_idx, rank_bonus=1.45, pill_mode=False, tables=None, scaling_mode='dev', health_scaling='prod', arm_step=6, ddg_step=5, hp_step=15, food_step=10):
+def compute_totals(skill_levels, gear_idx, ammo_idx, food_idx, rank_bonus=1.45, pill_mode=False, pill_price=0.0, tables=None, scaling_mode='dev', health_scaling='prod', arm_step=6, ddg_step=5, hp_step=15, food_step=10, overflow_multiplier=1.0):
     """Compute total_damage and total_cost for a single solution."""
 
     if tables is None:
@@ -45,9 +46,21 @@ def compute_totals(skill_levels, gear_idx, ammo_idx, food_idx, rank_bonus=1.45, 
     hp        = tables[6][int(skill_levels[6])]
     hun       = tables[7][int(skill_levels[7])]
 
+    # Raw skill stats (gear-boosted, skill-level-boosted; before overflow/ammo/pill/rank)
+    skill_stats_raw = [
+        float(atk),             # Attack — plain number
+        float(prc_raw * 100),   # Precision — convert fraction → %
+        float(critc_raw * 100), # Crit. Chance — convert fraction → %
+        float(critd * 100),     # Crit. Dmg — convert fraction → %
+        float(arm),             # Armor
+        float(ddg),             # Dodge
+        float(hp),              # Health
+        float(hun),             # Hunger
+    ]
+
     # Overflow mechanic: excess stats above 100% convert to other bonuses
-    prc_overflow_pct   = max(0.0, (prc_raw - 1.0) * 100)   # e.g. 18.0 for 118%
-    critc_overflow_pct = max(0.0, (critc_raw - 1.0) * 100) # e.g. 5.0 for 105%
+    prc_overflow_pct   = max(0.0, (prc_raw - 1.0) * 100) * overflow_multiplier
+    critc_overflow_pct = max(0.0, (critc_raw - 1.0) * 100) * overflow_multiplier
 
     atk   += prc_overflow_pct * 3       # +2 base attack per overflow %
     critd += critc_overflow_pct * 0.03  # +2% crit damage per overflow %
@@ -64,28 +77,30 @@ def compute_totals(skill_levels, gear_idx, ammo_idx, food_idx, rank_bonus=1.45, 
     atk *= pill_bonus * (1.0 + ammo["dmg_bonus"]) * rank_bonus
 
     dmg_per_attack = atk * prc * (1 + critc * critd) + (atk / 2.0) * (1 - prc)
-    n_attacks = attacks_possible(hp, hun, arm, ddg, food, scaling_mode=scaling_mode, health_scaling=health_scaling, food_step=food_step)
+    n_attacks = attacks_possible(hp, hun, arm, ddg, food, scaling_mode=scaling_mode, health_scaling=health_scaling, food_step=food_step, pill_mode=pill_mode)
 
     # Gear costs (weapons don't decay by dodge, others do)
     gear_cost_total = 0.0
     for i, slot in enumerate(GEAR_SLOTS):
         tier = WEAPON_TIERS[int(gear_idx[i])] if slot == "weapon" else GEAR_TIERS[int(gear_idx[i])]
         if scaling_mode == 'dev':
-            decay_multiplier = 1 if slot == "weapon" else (1 - ddg/(ddg+40)*ddg/(ddg+40))
+            decay_multiplier = 1 if slot == "weapon" else (1 - ddg/(ddg+40))
         else:
             decay_multiplier = 1 if slot == "weapon" else (1 - ddg/100)
         gear_cost_total += (GEAR[slot][tier]["cost"] / 100) * n_attacks * decay_multiplier
 
-    day_multiplier = 1.7 if pill_mode else 2.4
+    day_multiplier = 1.8 if pill_mode else 2.4
     food_cost = food["cost"] * hun * day_multiplier
     ammo_cost = ammo["bullet_cost"] * n_attacks
+    pill_cost = pill_price if pill_mode else 0.0
 
-    total_cost = gear_cost_total + food_cost + ammo_cost
+    total_cost = gear_cost_total + food_cost + ammo_cost + pill_cost
     total_damage = dmg_per_attack * n_attacks
 
     return total_damage, total_cost, {
         "atk": atk, "prc": prc, "critc": critc, "critd": critd,
         "arm": arm, "ddg": ddg, "hp": hp, "hun": hun,
         "dmg_per_attack": dmg_per_attack, "n_attacks": n_attacks,
-        "gear_cost": gear_cost_total, "food_cost": food_cost, "ammo_bullet_cost": ammo_cost,
+        "gear_cost": gear_cost_total, "food_cost": food_cost, "ammo_bullet_cost": ammo_cost, "pill_cost": pill_cost,
+        "skill_stats": skill_stats_raw,
     }

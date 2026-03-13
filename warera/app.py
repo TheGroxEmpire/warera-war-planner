@@ -7,7 +7,7 @@ from .model import compute_totals
 from .config import SKILL_LEVEL_COST, SKILL_NAMES, GEAR_SLOTS, WEAPON_TIERS, GEAR_TIERS, AMMO_NAMES, FOOD_NAMES, SKILL_POINTS_PER_LEVEL, GEAR
 from .utils import get_tier_color, get_consumable_color, format_number, convert_numpy_types
 from .build_selector import select_builds, select_builds_near_target
-from .api import get_scrap_price, get_case1_price, update_gear_prices_from_api, update_food_and_ammo_from_api
+from .api import get_scrap_price, get_case1_price, get_pill_price, update_gear_prices_from_api, update_food_and_ammo_from_api
 from collections import Counter
 
 app = Flask(__name__, template_folder="../templates", static_folder="../static")
@@ -24,8 +24,8 @@ def _enrich_build(d, pill, scaling_mode, scrap_price, case1_price):
     d['ammo_name'] = AMMO_NAMES[d['ammo_idx']]
     d['food_name'] = FOOD_NAMES[d['food_idx']]
     d['ammo_quantity'] = int(np.ceil(d['diag']['n_attacks']))
-    day_multiplier = 1.7 if pill else 2.4
-    d['food_quantity'] = int(np.ceil(d['diag']['hun'] * day_multiplier))
+    day_multiplier = 1.8 if pill else 2.4
+    d['food_quantity'] = int(np.floor(d['diag']['hun'] * day_multiplier)) if pill else int(np.ceil(d['diag']['hun'] * day_multiplier))
 
     d['gear'] = []
     for i in range(len(GEAR_SLOTS)):
@@ -100,6 +100,9 @@ def run_optimization():
     ddg_step = int(request.form.get("ddg_step", 5))
     hp_step = int(request.form.get("hp_step", 15))
     food_step = int(request.form.get("food_step", 10))
+    overflow_enabled = request.form.get("overflow_enabled") == "on"
+    overflow_mult_raw = float(request.form.get("overflow_multiplier", 1.0))
+    overflow_multiplier = overflow_mult_raw if overflow_enabled else 0.0
 
     # Calculate skill point cost for companies
     company_cost = 0
@@ -114,18 +117,19 @@ def run_optimization():
     # Fetch prices (needed for all modes)
     scrap_price = get_scrap_price()
     case1_price = get_case1_price()
+    pill_price = get_pill_price() if pill else 0.0
     app.logger.info(f"Scrap price from API: {scrap_price}")
 
     # --- Max damage mode: dedicated single-objective optimization ---
     if mode == "max_damage":
-        md = optimize_max_damage(adjusted_level, rank_bonus=rank_bonus, pill_mode=pill, scaling_mode=scaling_mode, health_scaling=health_scaling, arm_step=arm_step, ddg_step=ddg_step, hp_step=hp_step, food_step=food_step)
+        md = optimize_max_damage(adjusted_level, rank_bonus=rank_bonus, pill_mode=pill, pill_price=pill_price, scaling_mode=scaling_mode, health_scaling=health_scaling, arm_step=arm_step, ddg_step=ddg_step, hp_step=hp_step, food_step=food_step, overflow_multiplier=overflow_multiplier)
         if md is None:
             return jsonify(builds=[])
         md["is_highest_damage"] = True
         md = _enrich_build(md, pill, scaling_mode, scrap_price, case1_price)
         return jsonify(builds=convert_numpy_types([md]))
 
-    res = optimize(adjusted_level, verbose=True, rank_bonus=rank_bonus, pill_mode=pill, scaling_mode=scaling_mode, health_scaling=health_scaling, arm_step=arm_step, ddg_step=ddg_step, hp_step=hp_step, food_step=food_step)
+    res = optimize(adjusted_level, verbose=True, rank_bonus=rank_bonus, pill_mode=pill, pill_price=pill_price, scaling_mode=scaling_mode, health_scaling=health_scaling, arm_step=arm_step, ddg_step=ddg_step, hp_step=hp_step, food_step=food_step, overflow_multiplier=overflow_multiplier)
     X = None
     if hasattr(res, "algorithm") and hasattr(res.algorithm, "pop") and len(res.algorithm.pop) > 0:
         try:
@@ -145,7 +149,7 @@ def run_optimization():
         gear_idx   = row[8:14]
         ammo_idx   = int(row[14])
         food_idx   = int(row[15])
-        total_damage, total_cost, diag = compute_totals(skill_lvls, gear_idx, ammo_idx, food_idx, rank_bonus=rank_bonus, pill_mode=pill, scaling_mode=scaling_mode, health_scaling=health_scaling, arm_step=arm_step, ddg_step=ddg_step, hp_step=hp_step, food_step=food_step)
+        total_damage, total_cost, diag = compute_totals(skill_lvls, gear_idx, ammo_idx, food_idx, rank_bonus=rank_bonus, pill_mode=pill, pill_price=pill_price, scaling_mode=scaling_mode, health_scaling=health_scaling, arm_step=arm_step, ddg_step=ddg_step, hp_step=hp_step, food_step=food_step, overflow_multiplier=overflow_multiplier)
         skill_cost = int(np.sum(SKILL_LEVEL_COST[skill_lvls]))
         details.append({
             "skill_lvls": skill_lvls.tolist(),
@@ -195,7 +199,7 @@ def run_optimization():
 
     # --- Auto mode: always append mythic set build ---
     if filter_type == "none":
-        md = optimize_max_damage(adjusted_level, rank_bonus=rank_bonus, pill_mode=pill, scaling_mode=scaling_mode, health_scaling=health_scaling, arm_step=arm_step, ddg_step=ddg_step, hp_step=hp_step, food_step=food_step)
+        md = optimize_max_damage(adjusted_level, rank_bonus=rank_bonus, pill_mode=pill, pill_price=pill_price, scaling_mode=scaling_mode, health_scaling=health_scaling, arm_step=arm_step, ddg_step=ddg_step, hp_step=hp_step, food_step=food_step, overflow_multiplier=overflow_multiplier)
         if md is not None:
             md = _enrich_build(md, pill, scaling_mode, scrap_price, case1_price)
             builds.append(md)

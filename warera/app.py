@@ -181,30 +181,34 @@ def run_optimization():
         case_value = loot_chance * n_attacks * case1_price
         d["net_cost"] = d["total_cost"] - (total_scrap * scrap_price) - case_value
 
-    # --- Build selection: targeted or auto ---
-    filter_type = request.form.get("filter_type", "none")
-    filter_value_raw = request.form.get("filter_value", "")
-
-    if filter_type != "none" and filter_value_raw:
-        try:
-            filter_value = float(filter_value_raw)
-            pareto_details = select_builds_near_target(details, filter_value, filter_type, num_builds=5)
-        except ValueError:
-            pareto_details = select_builds(details, cost_key="net_cost")
+    # --- Always compute the max damage build for use as upper bound ---
+    md = optimize_max_damage(adjusted_level, rank_bonus=rank_bonus, pill_mode=pill, pill_price=pill_price, scaling_mode=scaling_mode, health_scaling=health_scaling, arm_step=arm_step, ddg_step=ddg_step, hp_step=hp_step, food_step=food_step, overflow_multiplier=overflow_multiplier)
+    if md is not None:
+        md['is_highest_damage'] = True
+        md = _enrich_build(md, pill, scaling_mode, scrap_price, case1_price)
+        max_damage_value = int(md['total_damage'])
+        max_net_cost_value = float(md['net_cost'])
     else:
-        pareto_details = select_builds(details, cost_key="net_cost")
+        max_damage_value = 5000000
+        max_net_cost_value = 5000.0
+
+    # Enrich the full Pareto front (details already spans cheap→expensive)
+    all_builds_enriched = [_enrich_build(d, pill, scaling_mode, scrap_price, case1_price) for d in details]
+
+    # --- Build selection: always 19 builds across damage bands 50k→max ---
+    pareto_details = select_builds(all_builds_enriched, min_damage=50000, max_damage=max_damage_value, num_builds=19, cost_key="net_cost")
     pareto_details = sorted(pareto_details, key=lambda x: x["total_cost"])
+    builds = list(pareto_details)
 
-    builds = [_enrich_build(d, pill, scaling_mode, scrap_price, case1_price) for d in pareto_details]
+    if md is not None:
+        builds.append(md)
 
-    # --- Auto mode: always append mythic set build ---
-    if filter_type == "none":
-        md = optimize_max_damage(adjusted_level, rank_bonus=rank_bonus, pill_mode=pill, pill_price=pill_price, scaling_mode=scaling_mode, health_scaling=health_scaling, arm_step=arm_step, ddg_step=ddg_step, hp_step=hp_step, food_step=food_step, overflow_multiplier=overflow_multiplier)
-        if md is not None:
-            md = _enrich_build(md, pill, scaling_mode, scrap_price, case1_price)
-            builds.append(md)
-
-    return jsonify(builds=convert_numpy_types(builds))
+    return jsonify(
+        builds=convert_numpy_types(builds),
+        all_builds=convert_numpy_types(all_builds_enriched),
+        max_damage_value=max_damage_value,
+        max_net_cost_value=max_net_cost_value
+    )
 
 if __name__ == "__main__":
     app.run(debug=True)

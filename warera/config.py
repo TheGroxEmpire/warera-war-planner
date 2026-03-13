@@ -80,7 +80,7 @@ GEAR = {
         "rifle":   {"mods": {"atk": 86, "critc": 14},   "cost": 27, "scrap": 54},
         "sniper": {"mods": {"atk": 114, "critc": 18},  "cost": 70, "scrap": 162},
         "tank":   {"mods": {"atk": 152, "critc": 27},  "cost": 200, "scrap": 486},
-        "jet":   {"mods": {"atk": 280, "critc": 40},  "cost": 650, "scrap": 1458},
+        "jet":   {"mods": {"atk": 260, "critc": 36},  "cost": 650, "scrap": 1458},
     },
     "helmet": {
         # "grey":   {"mods": {"critd": 10},    "cost": 2, "scrap": 6},
@@ -88,7 +88,7 @@ GEAR = {
         "blue":   {"mods": {"critd": 27},    "cost": 27, "scrap": 54},
         "purple": {"mods": {"critd": 36},   "cost": 70, "scrap": 162},
         "gold":   {"mods": {"critd": 55},   "cost": 210, "scrap": 486},
-        "red":   {"mods": {"critd": 80},   "cost": 650, "scrap": 1458},
+        "red":   {"mods": {"critd": 72},   "cost": 650, "scrap": 1458},
     },
     "gloves": {
         # "grey":   {"mods": {"prc": 5},    "cost": 2, "scrap": 6},
@@ -96,7 +96,7 @@ GEAR = {
         "blue":   {"mods": {"prc": 14},    "cost": 27, "scrap": 54},
         "purple": {"mods": {"prc": 18},   "cost": 70, "scrap": 162},
         "gold":   {"mods": {"prc": 27},   "cost": 210, "scrap": 486},
-        "red":   {"mods": {"prc": 40},   "cost": 650, "scrap": 1458},
+        "red":   {"mods": {"prc": 36},   "cost": 650, "scrap": 1458},
     },
     "chest": {
         # "grey":   {"mods": {"arm": 5},    "cost": 2, "scrap": 6},
@@ -104,7 +104,7 @@ GEAR = {
         "blue":   {"mods": {"arm": 14},    "cost": 27, "scrap": 54},
         "purple": {"mods": {"arm": 18},   "cost": 70, "scrap": 162},
         "gold":   {"mods": {"arm": 27},   "cost": 230, "scrap": 486},
-        "red":   {"mods": {"arm": 40},   "cost": 650, "scrap": 1458},
+        "red":   {"mods": {"arm": 36},   "cost": 650, "scrap": 1458},
     },
     "pants": {
         # "grey":   {"mods": {"arm": 5},    "cost": 2, "scrap": 6},
@@ -112,7 +112,7 @@ GEAR = {
         "blue":   {"mods": {"arm": 14},    "cost": 27, "scrap": 54},
         "purple": {"mods": {"arm": 18},   "cost": 70, "scrap": 162},
         "gold":   {"mods": {"arm": 27},   "cost": 230, "scrap": 486},
-        "red":   {"mods": {"arm": 40},   "cost": 650, "scrap": 1458},
+        "red":   {"mods": {"arm": 36},   "cost": 650, "scrap": 1458},
     },
     "boots": {
         # "grey":   {"mods": {"ddg": 5},    "cost": 2, "scrap": 6},
@@ -120,6 +120,6 @@ GEAR = {
         "blue":   {"mods": {"ddg": 14},    "cost": 27, "scrap": 54},
         "purple": {"mods": {"ddg": 18},   "cost": 70, "scrap": 162},
         "gold":   {"mods": {"ddg": 27},   "cost": 240, "scrap": 486},
-        "red":   {"mods": {"ddg": 40},   "cost": 650, "scrap": 1458},
+        "red":   {"mods": {"ddg": 36},   "cost": 650, "scrap": 1458},
     },
 }

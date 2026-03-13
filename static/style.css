@@ -587,6 +587,25 @@ select, button {
     background: rgb(160, 0, 0);
 }
 
+.filter-apply-btn {
+    flex: 0 0 auto;
+    align-self: flex-end;
+    padding: 0.5em 1.2em;
+    background: rgb(160, 0, 0);
+    border: 1px solid rgb(160, 0, 0);
+    color: #e0e0e0;
+    border-radius: 5px;
+    text-transform: uppercase;
+    font-weight: bold;
+    font-size: 0.9em;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.filter-apply-btn:hover {
+    background-color: rgb(190, 0, 0);
+}
+
 .filter-slider-wrapper {
     flex: 0 1 220px;
     min-width: 140px;

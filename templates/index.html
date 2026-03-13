@@ -72,7 +72,7 @@
                     <div id="overflow-mult-wrapper">
                         <label for="overflow-mult-input" class="step-input-label">Rate ×</label>
                         <input type="number" id="overflow-mult-input" name="overflow_multiplier"
-                               value="1" min="0" max="10" step="0.1"
+                               value="2" min="0" max="10" step="0.1"
                                class="step-input">
                     </div>
 
@@ -117,15 +117,22 @@
                     </div>
                 </div>
 
-                <!-- Row 2: filter tabs + slider -->
-                <div class="filter-row">
+                <input type="hidden" name="mode" id="mode-input" value="optimize">
+                <div class="btn-row">
+                    <button type="submit" class="optimize-btn">Optimize<span class="tooltip">Runs NSGA-II multi-objective optimization to find builds that balance damage vs. cost.</span></button>
+                    <button type="button" id="max-damage-btn" class="max-damage-btn">Max Damage<span class="tooltip">Ignores cost entirely and finds the single build that maximizes total daily damage.</span></button>
+                </div>
+
+                <!-- Filter section removed — server always returns 19+1 builds -->
+                <!--
+                <div class="filter-row" id="filter-section" style="display:none">
                     <div class="filter-tabs-wrapper">
                         <label class="filter-section-label">Filter by</label>
                         <div class="filter-tabs">
                             <button type="button" class="filter-tab" data-filter="net_cost">Net Cost<span class="tooltip">Show builds at or below a target daily net cost (gear + consumables minus scrap and case income), in gold.</span></button>
                             <button type="button" class="filter-tab" data-filter="cost_per_k">Cost / K<span class="tooltip">Show builds at or below a target net cost per 1,000 damage dealt.</span></button>
                             <button type="button" class="filter-tab" data-filter="total_damage">Damage<span class="tooltip">Show builds that reach at least this total daily damage.</span></button>
-                            <button type="button" class="filter-tab active" data-filter="none">Auto<span class="tooltip">Returns up to 20 builds spread evenly across the damage range, one representative per efficiency band.</span></button>
+                            <button type="button" class="filter-tab active" data-filter="none">Auto<span class="tooltip">Returns the most efficient build per damage band across 15 evenly-spaced bands from 100K to the max damage build.</span></button>
                         </div>
                     </div>
                     <input type="hidden" name="filter_type" id="filter-type-input" value="none">
@@ -139,13 +146,9 @@
                                min="0" max="5" step="0.1" value="2.5">
                         <input type="hidden" name="filter_value" id="filter-value-input" value="2.5">
                     </div>
+                    <button type="button" id="filter-btn" class="filter-apply-btn" style="display:none">Filter</button>
                 </div>
-
-                <input type="hidden" name="mode" id="mode-input" value="optimize">
-                <div class="btn-row">
-                    <button type="submit" class="optimize-btn">Optimize<span class="tooltip">Runs NSGA-II multi-objective optimization to find builds that balance damage vs. cost.</span></button>
-                    <button type="button" id="max-damage-btn" class="max-damage-btn">Max Damage<span class="tooltip">Ignores cost entirely and finds the single build that maximizes total daily damage.</span></button>
-                </div>
+                -->
             </form>
         </div>
         <div id="results"></div>

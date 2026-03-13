@@ -1,10 +1,10 @@
 const SKILL_NAMES = ["Attack", "Precision", "Crit. Chance", "Crit. Dmg", "Armor", "Dodge", "Health", "Hunger"];
 
-const FILTER_CONFIGS = {
-    cost_per_k:   { min: 0,       max: 5,       step: 0.1,    default: 2.5,     label: 'Cost / K Target',  fmt: v => parseFloat(v).toFixed(2) },
-    total_damage: { min: 100000,  max: 5000000, step: 100000, default: 1000000, label: 'Damage Target',    fmt: v => (v/1000000).toFixed(2) + 'M' },
-    net_cost:     { min: 50,      max: 5000,    step: 50,     default: 500,     label: 'Net Cost Target',  fmt: v => parseFloat(v).toFixed(0) },
-};
+// const FILTER_CONFIGS = {
+//     cost_per_k:   { min: 0,       max: 5,       step: 0.1,    default: 2.5,     label: 'Cost / K Target',  fmt: v => parseFloat(v).toFixed(2) },
+//     total_damage: { min: 100000,  max: 5000000, step: 100000, default: 1000000, label: 'Damage Target',    fmt: v => (v/1000000).toFixed(2) + 'M' },
+//     net_cost:     { min: 50,      max: 5000,    step: 50,     default: 500,     label: 'Net Cost Target',  fmt: v => parseFloat(v).toFixed(0) },
+// };
 
 document.addEventListener("DOMContentLoaded", () => {
     const resultsDiv = document.getElementById("results");
@@ -12,6 +12,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const optimizeBtn = buildForm.querySelector(".optimize-btn");
 
     let allBuilds = [];
+    // let cachedAllBuilds = []; // removed: no client-side re-filtering
 
     // --- Slider and Input Synchronization ---
     const syncSliderAndInput = (sliderId, inputId) => {
@@ -40,51 +41,7 @@ document.addEventListener("DOMContentLoaded", () => {
     syncSliderAndInput("rank_bonus-slider", "rank_bonus-input");
     syncSliderAndInput("battle_bonus-slider", "battle_bonus-input");
 
-    // --- Filter Tabs ---
-    const filterTabs = document.querySelectorAll('.filter-tab');
-    const filterTypeInput = document.getElementById('filter-type-input');
-    const filterValueWrapper = document.getElementById('filter-value-wrapper');
-    const filterSlider = document.getElementById('filter-value-slider');
-    const filterValueInput = document.getElementById('filter-value-input');
-    const filterValueDisplay = document.getElementById('filter-value-display');
-    const filterSliderLabel = document.getElementById('filter-slider-label');
-
-    function updateFilterSliderBg() {
-        const s = filterSlider;
-        const pct = (s.value - s.min) / (s.max - s.min) * 100;
-        s.style.background = `linear-gradient(to right, rgb(160,0,0) ${pct}%, #333 ${pct}%)`;
-    }
-
-    filterSlider.addEventListener('input', () => {
-        filterValueInput.value = filterSlider.value;
-        const cfg = FILTER_CONFIGS[filterTypeInput.value];
-        filterValueDisplay.textContent = cfg ? cfg.fmt(filterSlider.value) : filterSlider.value;
-        updateFilterSliderBg();
-    });
-
-    filterTabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-            filterTabs.forEach(t => t.classList.remove('active'));
-            tab.classList.add('active');
-            const filterType = tab.dataset.filter;
-            filterTypeInput.value = filterType;
-
-            if (filterType === 'none') {
-                filterValueWrapper.style.display = 'none';
-            } else {
-                const cfg = FILTER_CONFIGS[filterType];
-                filterSlider.min = cfg.min;
-                filterSlider.max = cfg.max;
-                filterSlider.step = cfg.step;
-                filterSlider.value = cfg.default;
-                filterValueInput.value = cfg.default;
-                filterSliderLabel.textContent = cfg.label;
-                filterValueDisplay.textContent = cfg.fmt(cfg.default);
-                updateFilterSliderBg();
-                filterValueWrapper.style.display = 'flex';
-            }
-        });
-    });
+    // Filter tabs/slider/button removed — server returns fixed 19+1 builds
 
     // --- ARM&DDG Scaling Toggle ---
     const scalingToggle = document.getElementById('scaling-toggle');
@@ -95,6 +52,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const isProd = this.classList.contains('active');
             scalingInput.value = isProd ? 'prod' : 'dev';
             document.getElementById('scaling-custom-steps').style.display = isProd ? 'none' : 'block';
+            saveFormState();
         });
     }
 
@@ -107,6 +65,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const isProd = this.classList.contains('active');
             healthScalingInput.value = isProd ? 'prod' : 'dev';
             document.getElementById('health-custom-step').style.display = isProd ? 'none' : 'block';
+            saveFormState();
         });
     }
 
@@ -183,8 +142,10 @@ document.addEventListener("DOMContentLoaded", () => {
         localStorage.setItem('wbt_ddg_step', document.getElementById('ddg-step-input').value);
         localStorage.setItem('wbt_hp_step', document.getElementById('hp-step-input').value);
         localStorage.setItem('wbt_food_step', document.getElementById('food-step-input').value);
-        localStorage.setItem('wbt_filter_type', document.getElementById('filter-type-input').value);
-        localStorage.setItem('wbt_filter_value', document.getElementById('filter-value-input').value);
+        localStorage.setItem('wbt_overflow_enabled', document.getElementById('overflow-enabled').checked);
+        localStorage.setItem('wbt_overflow_mult', document.getElementById('overflow-mult-input').value);
+        // localStorage.setItem('wbt_filter_type', document.getElementById('filter-type-input').value);
+        // localStorage.setItem('wbt_filter_value', document.getElementById('filter-value-input').value);
     }
 
     function restoreFormState() {
@@ -242,16 +203,16 @@ document.addEventListener("DOMContentLoaded", () => {
         const foodStep = localStorage.getItem('wbt_food_step');
         if (foodStep) document.getElementById('food-step-input').value = foodStep;
 
-        const filterType = localStorage.getItem('wbt_filter_type');
-        if (filterType && filterType !== 'none') {
-            document.querySelector(`.filter-tab[data-filter="${filterType}"]`)?.click();
-            const fv = localStorage.getItem('wbt_filter_value');
-            if (fv) {
-                document.getElementById('filter-value-slider').value = fv;
-                document.getElementById('filter-value-input').value = fv;
-                updateFilterSliderBg();
-            }
+        const overflowEnabled = localStorage.getItem('wbt_overflow_enabled');
+        if (overflowEnabled !== null) {
+            const checked = overflowEnabled === 'true';
+            document.getElementById('overflow-enabled').checked = checked;
+            document.getElementById('overflow-mult-wrapper').style.display = checked ? 'flex' : 'none';
         }
+        const overflowMult = localStorage.getItem('wbt_overflow_mult');
+        if (overflowMult) document.getElementById('overflow-mult-input').value = overflowMult;
+
+        // Filter state restore removed
 
         // Re-trigger slider backgrounds after restoring values
         ['level', 'rank_bonus', 'battle_bonus'].forEach(id => {
@@ -263,6 +224,8 @@ document.addEventListener("DOMContentLoaded", () => {
     buildForm.addEventListener('change', saveFormState);
 
     restoreFormState();
+
+    // selectBuildsFromCache removed — server always returns 19+1 builds
 
     // --- Render Builds ---
     function renderBuilds(builds) {

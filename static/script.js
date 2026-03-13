@@ -240,7 +240,19 @@ document.addEventListener("DOMContentLoaded", () => {
                 let tooltipText = SKILL_NAMES[i];
                 if (statVal !== null) {
                     const isPct = i >= 1 && i <= 3;  // Precision, Crit.Chance, Crit.Dmg are %
-                    tooltipText += `: ${Number(statVal).toFixed(isPct ? 0 : 1)}${isPct ? '%' : ''}`;
+                    if (i === 4 || i === 5) {  // Armor or Dodge
+                        const scalingMode = scalingInput ? scalingInput.value : 'prod';
+                        const stat = Number(statVal);
+                        if (scalingMode === 'dev') {
+                            const pct = (stat / (stat + 40) * 100).toFixed(1);
+                            tooltipText += `: ${stat.toFixed(1)} (${pct}%)`;
+                        } else {
+                            const pct = i === 4 ? Math.min(90, stat) : stat;  // armor capped at 90%
+                            tooltipText += `: ${pct.toFixed(0)}%`;
+                        }
+                    } else {
+                        tooltipText += `: ${Number(statVal).toFixed(isPct ? 0 : 1)}${isPct ? '%' : ''}`;
+                    }
                 }
                 return `
                     <div class='skill'>

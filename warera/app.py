@@ -100,6 +100,10 @@ def run_optimization():
     ddg_step = int(request.form.get("ddg_step", 5))
     hp_step = int(request.form.get("hp_step", 15))
     food_step = int(request.form.get("food_step", 10))
+    base_hp_raw = request.form.get("base_hp")
+    base_hun_raw = request.form.get("base_hun")
+    base_hp = int(base_hp_raw) if base_hp_raw else None
+    base_hun = int(base_hun_raw) if base_hun_raw else None
     overflow_enabled = request.form.get("overflow_enabled") == "on"
     overflow_mult_raw = float(request.form.get("overflow_multiplier", 1.0))
     overflow_multiplier = overflow_mult_raw if overflow_enabled else 0.0
@@ -122,14 +126,14 @@ def run_optimization():
 
     # --- Max damage mode: dedicated single-objective optimization ---
     if mode == "max_damage":
-        md = optimize_max_damage(adjusted_level, rank_bonus=rank_bonus, pill_mode=pill, pill_price=pill_price, scaling_mode=scaling_mode, health_scaling=health_scaling, arm_step=arm_step, ddg_step=ddg_step, hp_step=hp_step, food_step=food_step, overflow_multiplier=overflow_multiplier)
+        md = optimize_max_damage(adjusted_level, rank_bonus=rank_bonus, pill_mode=pill, pill_price=pill_price, scaling_mode=scaling_mode, health_scaling=health_scaling, arm_step=arm_step, ddg_step=ddg_step, hp_step=hp_step, food_step=food_step, overflow_multiplier=overflow_multiplier, base_hp=base_hp, base_hun=base_hun)
         if md is None:
             return jsonify(builds=[])
         md["is_highest_damage"] = True
         md = _enrich_build(md, pill, scaling_mode, scrap_price, case1_price)
         return jsonify(builds=convert_numpy_types([md]))
 
-    res = optimize(adjusted_level, verbose=True, rank_bonus=rank_bonus, pill_mode=pill, pill_price=pill_price, scaling_mode=scaling_mode, health_scaling=health_scaling, arm_step=arm_step, ddg_step=ddg_step, hp_step=hp_step, food_step=food_step, overflow_multiplier=overflow_multiplier)
+    res = optimize(adjusted_level, verbose=True, rank_bonus=rank_bonus, pill_mode=pill, pill_price=pill_price, scaling_mode=scaling_mode, health_scaling=health_scaling, arm_step=arm_step, ddg_step=ddg_step, hp_step=hp_step, food_step=food_step, overflow_multiplier=overflow_multiplier, base_hp=base_hp, base_hun=base_hun)
     X = None
     if hasattr(res, "algorithm") and hasattr(res.algorithm, "pop") and len(res.algorithm.pop) > 0:
         try:
@@ -149,7 +153,7 @@ def run_optimization():
         gear_idx   = row[8:14]
         ammo_idx   = int(row[14])
         food_idx   = int(row[15])
-        total_damage, total_cost, diag = compute_totals(skill_lvls, gear_idx, ammo_idx, food_idx, rank_bonus=rank_bonus, pill_mode=pill, pill_price=pill_price, scaling_mode=scaling_mode, health_scaling=health_scaling, arm_step=arm_step, ddg_step=ddg_step, hp_step=hp_step, food_step=food_step, overflow_multiplier=overflow_multiplier)
+        total_damage, total_cost, diag = compute_totals(skill_lvls, gear_idx, ammo_idx, food_idx, rank_bonus=rank_bonus, pill_mode=pill, pill_price=pill_price, scaling_mode=scaling_mode, health_scaling=health_scaling, arm_step=arm_step, ddg_step=ddg_step, hp_step=hp_step, food_step=food_step, overflow_multiplier=overflow_multiplier, base_hp=base_hp, base_hun=base_hun)
         skill_cost = int(np.sum(SKILL_LEVEL_COST[skill_lvls]))
         details.append({
             "skill_lvls": skill_lvls.tolist(),
@@ -182,7 +186,7 @@ def run_optimization():
         d["net_cost"] = d["total_cost"] - (total_scrap * scrap_price) - case_value
 
     # --- Always compute the max damage build for use as upper bound ---
-    md = optimize_max_damage(adjusted_level, rank_bonus=rank_bonus, pill_mode=pill, pill_price=pill_price, scaling_mode=scaling_mode, health_scaling=health_scaling, arm_step=arm_step, ddg_step=ddg_step, hp_step=hp_step, food_step=food_step, overflow_multiplier=overflow_multiplier)
+    md = optimize_max_damage(adjusted_level, rank_bonus=rank_bonus, pill_mode=pill, pill_price=pill_price, scaling_mode=scaling_mode, health_scaling=health_scaling, arm_step=arm_step, ddg_step=ddg_step, hp_step=hp_step, food_step=food_step, overflow_multiplier=overflow_multiplier, base_hp=base_hp, base_hun=base_hun)
     if md is not None:
         md['is_highest_damage'] = True
         md = _enrich_build(md, pill, scaling_mode, scrap_price, case1_price)

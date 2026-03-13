@@ -96,7 +96,7 @@
                     </div>
 
                     <div class="pill-wrapper">
-                        <label>HP Scaling</label>
+                        <label>Food rework</label>
                         <div class="pill-toggle active" id="health-scaling-toggle">
                             <div class="pill-slider"></div>
                             <span class="pill-label off">Dev</span>
@@ -111,6 +111,14 @@
                             <div class="step-input-row">
                                 <label for="food-step-input" class="step-input-label">Food step %</label>
                                 <input type="number" id="food-step-input" name="food_step" value="10" min="1" max="99" class="step-input">
+                            </div>
+                            <div class="step-input-row">
+                                <label for="base-hp-input" class="step-input-label">Base HP</label>
+                                <input type="number" id="base-hp-input" name="base_hp" value="100" min="1" max="9999" class="step-input">
+                            </div>
+                            <div class="step-input-row">
+                                <label for="base-hun-input" class="step-input-label">Base HUN</label>
+                                <input type="number" id="base-hun-input" name="base_hun" value="5" min="1" max="999" class="step-input">
                             </div>
                         </div>
                         <span class="tooltip">Dev: HP per skill level set by HP step. Food restores % of total HP — bread = food step %, steak = 2×, fish = 3×. Prod: 10 HP per skill level, food gives flat HP.</span>

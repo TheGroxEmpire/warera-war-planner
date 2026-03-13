@@ -25,14 +25,14 @@ def attacks_possible(hp, hun, armor, dodge, food, scaling_mode='dev', health_sca
     # Avoid division by zero, though cost_per_attack should be > 0 in practice
     return np.maximum(0.0, regen_all / np.maximum(1e-9, cost_per_attack))
 
-def compute_totals(skill_levels, gear_idx, ammo_idx, food_idx, rank_bonus=1.45, pill_mode=False, pill_price=0.0, tables=None, scaling_mode='dev', health_scaling='prod', arm_step=6, ddg_step=5, hp_step=15, food_step=10, overflow_multiplier=1.0):
+def compute_totals(skill_levels, gear_idx, ammo_idx, food_idx, rank_bonus=1.45, pill_mode=False, pill_price=0.0, tables=None, scaling_mode='dev', health_scaling='prod', arm_step=6, ddg_step=5, hp_step=15, food_step=10, overflow_multiplier=1.0, base_hp=None, base_hun=None):
     """Compute total_damage and total_cost for a single solution."""
 
     if tables is None:
         # Decode gear choices
         gear_choice = {slot: int(gear_idx[i]) for i, slot in enumerate(GEAR_SLOTS)}
         # Baseline with gear mods applied
-        combined_baseline, _ = apply_gear_to_baseline(gear_choice)
+        combined_baseline, _ = apply_gear_to_baseline(gear_choice, base_hp=base_hp, base_hun=base_hun)
         # Extract skill tables
         tables = make_skill_tables(combined_baseline, scaling_mode=scaling_mode, health_scaling=health_scaling, arm_step=arm_step, ddg_step=ddg_step, hp_step=hp_step)
 
@@ -62,8 +62,8 @@ def compute_totals(skill_levels, gear_idx, ammo_idx, food_idx, rank_bonus=1.45, 
     prc_overflow_pct   = max(0.0, (prc_raw - 1.0) * 100) * overflow_multiplier
     critc_overflow_pct = max(0.0, (critc_raw - 1.0) * 100) * overflow_multiplier
 
-    atk   += prc_overflow_pct * 3       # +2 base attack per overflow %
-    critd += critc_overflow_pct * 0.03  # +2% crit damage per overflow %
+    atk   += prc_overflow_pct * 1       # +2 base attack per overflow %
+    critd += critc_overflow_pct * 0.01  # +2% crit damage per overflow %
 
     # Cap for damage formula
     prc   = min(1.0, prc_raw)

@@ -21,8 +21,12 @@ def make_skill_tables(baseline, scaling_mode='dev', health_scaling='prod', arm_s
     hunger = baseline["hun"] + 1 * lvls
     return attack, precision, critc, critd, armor, dodge, health, hunger
 
-def apply_gear_to_baseline(gear_choice):
+def apply_gear_to_baseline(gear_choice, base_hp=None, base_hun=None):
     out = BASELINE.copy()
+    if base_hp is not None:
+        out["hp"] = base_hp
+    if base_hun is not None:
+        out["hun"] = base_hun
     total_gear_cost = 0.0
     for i, slot in enumerate(GEAR_SLOTS):
         tier_idx = gear_choice[slot]

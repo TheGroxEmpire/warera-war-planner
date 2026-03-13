@@ -17,9 +17,6 @@ h3 {
 }
 
 .top-section {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
     margin-bottom: 2em;
 }
 
@@ -27,7 +24,7 @@ h3 {
     display: flex;
     flex-direction: column;
     gap: 0.5em;
-    width: 28%;
+    width: 100%;
 }
 
 .trends {
@@ -227,7 +224,7 @@ h3 {
     border-radius: 5px;
     white-space: normal;
     word-wrap: break-word;
-    max-width: 180px;
+    max-width: 220px;
     width: max-content;
     z-index: 10;
     font-size: 0.75em;
@@ -238,7 +235,11 @@ h3 {
 
 .input-group:hover .tooltip,
 .checkbox-wrapper:hover .tooltip,
-.pill-wrapper:hover .tooltip {
+.pill-wrapper:hover .tooltip,
+.slider-container:hover .tooltip,
+.filter-tab:hover .tooltip,
+.optimize-btn:hover .tooltip,
+.max-damage-btn:hover .tooltip {
     display: block;
 }
 
@@ -294,15 +295,40 @@ th, td {
     text-align: left;
 }
 
-.row-group {
+/* Sliders row: full width, items grow equally, bottom-aligned */
+.form-sliders-row {
     display: flex;
     gap: 0.8em;
-    margin-top: 0.5em;
     align-items: flex-end;
+    margin-top: 0.5em;
 }
 
-.row-group > div {
-    flex: 1;
+.form-sliders-row .slider-container {
+    flex: 1 1 180px;
+    min-width: 150px;
+}
+
+/* Controls row: wraps, top-aligned so sub-inputs expand downward */
+.form-controls-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8em;
+    align-items: flex-start;
+    margin-top: 0.8em;
+}
+
+.form-controls-row .input-group {
+    flex: 0 1 120px;
+    min-width: 100px;
+}
+
+.form-controls-row .checkbox-wrapper {
+    flex: 0 0 auto;
+}
+
+.form-controls-row .pill-wrapper {
+    flex: 1 1 180px;
+    min-width: 160px;
 }
 
 .input-group {
@@ -410,12 +436,15 @@ select, button {
 }
 
 .optimize-btn {
-	display:flex;
+    display: flex;
     justify-content: center;
+    flex: 1;
     background-color: rgb(160, 0, 0);
     font-weight: bold;
     font-size: 1.2em;
     padding: 1em 2em;
+    position: relative;
+    overflow: visible;
 }
 
 .card-damage {
@@ -465,29 +494,98 @@ select, button {
 }
 
 
+/* Filter row */
+.filter-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8em;
+    align-items: flex-end;
+    margin-top: 0.5em;
+}
+
+.filter-tabs-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3em;
+    flex: 0 0 auto;
+}
+
+.filter-section-label {
+    color: #e0e0e0;
+    text-transform: uppercase;
+    font-weight: bold;
+    font-size: 1em;
+}
+
+.filter-tabs {
+    display: flex;
+    gap: 0.4em;
+    flex-wrap: wrap;
+}
+
+.filter-tab {
+    flex: 1 1 80px;
+    padding: 0.5em;
+    background: #333;
+    border: 1px solid rgb(160, 0, 0);
+    color: #e0e0e0;
+    border-radius: 5px;
+    text-transform: uppercase;
+    font-weight: bold;
+    font-size: 0.9em;
+    cursor: pointer;
+    margin: 0;
+    transition: background 0.15s;
+    position: relative;
+    overflow: visible;
+}
+
+.filter-tab.active {
+    background: rgb(160, 0, 0);
+}
+
+.filter-slider-wrapper {
+    flex: 1 1 200px;
+    min-width: 160px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3em;
+}
+
+.filter-display {
+    min-width: 60px;
+    cursor: default;
+}
+
 @media (max-width: 768px) {
+    body {
+        margin: 0.75em;
+    }
+
     .top-section {
         flex-direction: column;
         gap: 1em;
     }
 
-    #build-form,
     .trends {
         width: 100%;
-    }
-
-    .trends {
         flex-direction: column;
     }
 
-	.trend-card {
+    .trend-card {
         width: 95%;
-}
+    }
 
     .trends-grid {
         grid-template-columns: repeat(4, 1fr);
         grid-template-rows: repeat(2, 1fr);
+    }
 }
+
+@media (max-width: 480px) {
+    .form-sliders-row .slider-container {
+        flex: 1 1 100%;
+    }
 }
 
 .spinner {
@@ -527,6 +625,7 @@ select, button {
     display: flex;
     flex-direction: column;
     gap: 0.3em;
+    position: relative;
 }
 
 .slider-container.small .slider-label {
@@ -662,4 +761,46 @@ select, button {
     content: '✓';
     background: rgb(160, 0, 0);
     color: #fff;
+}
+
+/* Button row */
+.btn-row {
+    display: flex;
+    gap: 0.5em;
+    margin: 0.25em;
+}
+
+.max-damage-btn {
+    display: flex;
+    justify-content: center;
+    flex: 1;
+    background-color: rgb(160, 0, 0);
+    font-weight: bold;
+    font-size: 1.2em;
+    padding: 1em 2em;
+    position: relative;
+    overflow: visible;
+}
+
+.max-damage-btn:hover {
+    background-color: rgb(190, 0, 0);
+}
+
+.max-damage-btn:disabled {
+    background-color: #333;
+    font-weight: bold;
+    font-size: 1em;
+    cursor: not-allowed;
+}
+
+/* Mythic set card (auto-mode) */
+.max-damage-card {
+    border-color: #c0a020;
+    box-shadow: 0 0 8px rgba(192, 160, 32, 0.4);
+}
+
+/* Highest damage card (max damage mode) */
+.highest-damage-card {
+    border-color: #ff4400;
+    box-shadow: 0 0 8px rgba(255, 68, 0, 0.5);
 }

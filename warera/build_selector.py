@@ -57,3 +57,29 @@ def select_builds(details, min_damage=100000, max_damage=5000000, num_builds=15,
     selected = list(best_builds_by_band.values())
 
     return selected
+
+
+def select_builds_near_target(details, target_value, target_type, num_builds=5):
+    """
+    Returns the `num_builds` builds whose metric is closest to `target_value`.
+
+    Args:
+        details (list): Build dicts, each with total_damage, total_cost, net_cost pre-computed.
+        target_value (float): The value to match against.
+        target_type (str): One of 'cost_per_k', 'total_damage', 'net_cost'.
+        num_builds (int): How many builds to return.
+
+    Returns:
+        list: Up to `num_builds` builds sorted by proximity to target_value.
+    """
+    def get_metric(d):
+        if target_type == 'cost_per_k':
+            return (d['net_cost'] / d['total_damage'] * 1000) if d['total_damage'] > 0 else float('inf')
+        elif target_type == 'total_damage':
+            return d['total_damage']
+        elif target_type == 'net_cost':
+            return d['net_cost']
+        return 0
+
+    scored = sorted(details, key=lambda d: abs(get_metric(d) - target_value))
+    return scored[:num_builds]

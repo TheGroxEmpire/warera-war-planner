@@ -18,7 +18,7 @@ import os
 # OPTIMIZATION PROBLEM (NSGA-II)
 # =========================================
 class BuildProblem(Problem):
-    def __init__(self, level, rank_bonus=1.0, pill_mode=False, scaling_mode='dev'):
+    def __init__(self, level, rank_bonus=1.0, pill_mode=False, scaling_mode='dev', health_scaling='prod', arm_step=6, ddg_step=5, hp_step=15, food_step=10):
         n_vars = 8 + len(GEAR_SLOTS) + 2
         xl = np.zeros(n_vars, dtype=int)
         xu = np.array(
@@ -32,6 +32,11 @@ class BuildProblem(Problem):
         self.rank_bonus = rank_bonus
         self.pill_mode = pill_mode
         self.scaling_mode = scaling_mode
+        self.health_scaling = health_scaling
+        self.arm_step = arm_step
+        self.ddg_step = ddg_step
+        self.hp_step = hp_step
+        self.food_step = food_step
         self._gear_cache = {}
 
     def _evaluate(self, X, out, *args, **kwargs):
@@ -46,12 +51,12 @@ class BuildProblem(Problem):
             if g_idx not in self._gear_cache:
                 gear_choice = {slot: int(g_idx[j]) for j, slot in enumerate(GEAR_SLOTS)}
                 combined_baseline, _ = apply_gear_to_baseline(gear_choice)
-                self._gear_cache[g_idx] = make_skill_tables(combined_baseline, scaling_mode=self.scaling_mode)
+                self._gear_cache[g_idx] = make_skill_tables(combined_baseline, scaling_mode=self.scaling_mode, health_scaling=self.health_scaling, arm_step=self.arm_step, ddg_step=self.ddg_step, hp_step=self.hp_step)
 
             total_damage, total_cost, _ = compute_totals(
                 row[:8], row[8:14], row[14], row[15],
                 rank_bonus=self.rank_bonus, pill_mode=self.pill_mode,
-                tables=self._gear_cache[g_idx], scaling_mode=self.scaling_mode
+                tables=self._gear_cache[g_idx], scaling_mode=self.scaling_mode, health_scaling=self.health_scaling, arm_step=self.arm_step, ddg_step=self.ddg_step, hp_step=self.hp_step, food_step=self.food_step
             )
             F[i, 0] = -total_damage
             F[i, 1] = total_cost
@@ -69,7 +74,7 @@ class MaxDamageProblem(Problem):
     FIXED_AMMO_IDX = 2
     FIXED_FOOD_IDX = 2
 
-    def __init__(self, level, rank_bonus=1.0, pill_mode=False, scaling_mode='dev'):
+    def __init__(self, level, rank_bonus=1.0, pill_mode=False, scaling_mode='dev', health_scaling='prod', arm_step=6, ddg_step=5, hp_step=15, food_step=10):
         xl = np.zeros(8, dtype=int)
         xu = np.full(8, MAX_SKILL_LEVEL, dtype=int)
         super().__init__(n_var=8, n_obj=1, n_ieq_constr=1, xl=xl, xu=xu)
@@ -77,9 +82,14 @@ class MaxDamageProblem(Problem):
         self.rank_bonus = rank_bonus
         self.pill_mode = pill_mode
         self.scaling_mode = scaling_mode
+        self.health_scaling = health_scaling
+        self.arm_step = arm_step
+        self.ddg_step = ddg_step
+        self.hp_step = hp_step
+        self.food_step = food_step
         gear_choice = {slot: self.FIXED_GEAR_IDX[j] for j, slot in enumerate(GEAR_SLOTS)}
         combined_baseline, _ = apply_gear_to_baseline(gear_choice)
-        self._tables = make_skill_tables(combined_baseline, scaling_mode=scaling_mode)
+        self._tables = make_skill_tables(combined_baseline, scaling_mode=scaling_mode, health_scaling=health_scaling, arm_step=arm_step, ddg_step=ddg_step, hp_step=hp_step)
 
     def _evaluate(self, X, out, *args, **kwargs):
         X = np.round(X).astype(int)
@@ -91,16 +101,16 @@ class MaxDamageProblem(Problem):
             total_damage, _, _ = compute_totals(
                 X[i], self.FIXED_GEAR_IDX, self.FIXED_AMMO_IDX, self.FIXED_FOOD_IDX,
                 rank_bonus=self.rank_bonus, pill_mode=self.pill_mode,
-                tables=self._tables, scaling_mode=self.scaling_mode
+                tables=self._tables, scaling_mode=self.scaling_mode, health_scaling=self.health_scaling, arm_step=self.arm_step, ddg_step=self.ddg_step, hp_step=self.hp_step, food_step=self.food_step
             )
             F[i, 0] = -total_damage
 
         out["F"], out["G"] = F, G.reshape(-1, 1)
 
 
-def optimize_max_damage(level, rank_bonus=1.0, pill_mode=False, scaling_mode='dev'):
+def optimize_max_damage(level, rank_bonus=1.0, pill_mode=False, scaling_mode='dev', health_scaling='prod', arm_step=6, ddg_step=5, hp_step=15, food_step=10):
     """Run a focused single-objective optimization to find the max-damage build."""
-    problem = MaxDamageProblem(level, rank_bonus=rank_bonus, pill_mode=pill_mode, scaling_mode=scaling_mode)
+    problem = MaxDamageProblem(level, rank_bonus=rank_bonus, pill_mode=pill_mode, scaling_mode=scaling_mode, health_scaling=health_scaling, arm_step=arm_step, ddg_step=ddg_step, hp_step=hp_step, food_step=food_step)
     algorithm = NSGA2(
         pop_size=100,
         sampling=IntegerRandomSampling(),
@@ -120,7 +130,7 @@ def optimize_max_damage(level, rank_bonus=1.0, pill_mode=False, scaling_mode='de
     total_damage, total_cost, diag = compute_totals(
         skill_lvls, gear_idx, ammo_idx, food_idx,
         rank_bonus=rank_bonus, pill_mode=pill_mode,
-        tables=problem._tables, scaling_mode=scaling_mode
+        tables=problem._tables, scaling_mode=scaling_mode, health_scaling=health_scaling, arm_step=arm_step, ddg_step=ddg_step, hp_step=hp_step, food_step=food_step
     )
     skill_cost = int(np.sum(SKILL_LEVEL_COST[skill_lvls]))
     return {
@@ -137,8 +147,8 @@ def optimize_max_damage(level, rank_bonus=1.0, pill_mode=False, scaling_mode='de
 
 
 def optimize_worker(args):
-    level, seed, rank_bonus, pill_mode, scaling_mode = args
-    problem = BuildProblem(level, rank_bonus=rank_bonus, pill_mode=pill_mode, scaling_mode=scaling_mode)
+    level, seed, rank_bonus, pill_mode, scaling_mode, health_scaling, arm_step, ddg_step, hp_step, food_step = args
+    problem = BuildProblem(level, rank_bonus=rank_bonus, pill_mode=pill_mode, scaling_mode=scaling_mode, health_scaling=health_scaling, arm_step=arm_step, ddg_step=ddg_step, hp_step=hp_step, food_step=food_step)
     pop_size = int(os.environ.get("POP_SIZE", 200))
     n_gen = int(os.environ.get("N_GEN", 50))
     
@@ -152,11 +162,11 @@ def optimize_worker(args):
     res = minimize(problem, algorithm, get_termination("n_gen", n_gen), seed=seed, verbose=False)
     return res
 
-def optimize(level, verbose=True, rank_bonus=1.20, pill_mode=False, scaling_mode='dev'):
+def optimize(level, verbose=True, rank_bonus=1.20, pill_mode=False, scaling_mode='dev', health_scaling='prod', arm_step=6, ddg_step=5, hp_step=15, food_step=10):
     num_runs = int(os.environ.get("NUM_RUNS", 2))
     pool_size = min(num_runs, int(os.environ.get("POOL_SIZE", 1)))
     seeds = np.random.randint(0, 10000, size=num_runs).tolist()
-    args = [(level, int(seeds[i]), rank_bonus, pill_mode, scaling_mode) for i in range(num_runs)]
+    args = [(level, int(seeds[i]), rank_bonus, pill_mode, scaling_mode, health_scaling, arm_step, ddg_step, hp_step, food_step) for i in range(num_runs)]
     
     results = [optimize_worker(arg) for arg in args] if pool_size <= 1 else Pool(pool_size).map(optimize_worker, args)
     

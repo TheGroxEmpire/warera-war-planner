@@ -13,8 +13,8 @@ BASELINE = {
     "critd": 100,  # base critical damage %
     "arm": 0,     # base armor %
     "ddg": 0,     # base dodge %
-    "hp": 100,     # base health
-    "hun": 5,     # base hunger
+    "hp": 50,     # base health
+    "hun": 4,     # base hunger
 }
 
 # What each *skill* level does (same interpretation as your original script)

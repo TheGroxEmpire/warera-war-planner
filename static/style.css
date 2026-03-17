@@ -233,8 +233,7 @@ h3 {
 .pill-wrapper:hover .tooltip,
 .slider-container:hover .tooltip,
 .filter-tab:hover .tooltip,
-.optimize-btn:hover .tooltip,
-.max-damage-btn:hover .tooltip {
+.optimize-btn:hover .tooltip {
     display: block;
 }
 
@@ -923,28 +922,6 @@ select, button {
     gap: 0.5em;
 }
 
-.max-damage-btn {
-    display: flex;
-    justify-content: center;
-    flex: 1;
-    background-color: rgb(160, 0, 0);
-    font-weight: bold;
-    font-size: 1.2em;
-    padding: 1em 2em;
-    position: relative;
-    overflow: visible;
-}
-
-.max-damage-btn:hover {
-    background-color: rgb(190, 0, 0);
-}
-
-.max-damage-btn:disabled {
-    background-color: #333;
-    font-weight: bold;
-    font-size: 1em;
-    cursor: not-allowed;
-}
 
 /* Mythic set card (auto-mode) */
 .max-damage-card {

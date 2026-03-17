@@ -55,18 +55,6 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    // --- Max Damage Button ---
-    const maxDamageBtn = document.getElementById("max-damage-btn");
-    const modeInput = document.getElementById("mode-input");
-    let currentMode = "optimize";
-
-    maxDamageBtn.addEventListener("click", () => {
-        currentMode = "max_damage";
-        modeInput.value = "max_damage";
-        buildForm.requestSubmit();
-        modeInput.value = "optimize";
-    });
-
     // --- Form Submission ---
     let isOptimizing = false;
 
@@ -75,17 +63,10 @@ document.addEventListener("DOMContentLoaded", () => {
         if (isOptimizing) return;
 
         const data = new FormData(buildForm);
-        const mode = currentMode;
-        currentMode = "optimize";
-
-        const activeBtn = mode === "max_damage" ? maxDamageBtn : optimizeBtn;
-        const inactiveBtn = mode === "max_damage" ? optimizeBtn : maxDamageBtn;
-        const spinnerText = mode === "max_damage" ? "MAXIMIZING" : "OPTIMIZING";
 
         resultsDiv.innerHTML = "";
-        activeBtn.disabled = true;
-        inactiveBtn.disabled = true;
-        activeBtn.innerHTML = `<span class="spinner"></span><span>${spinnerText}</span>`;
+        optimizeBtn.disabled = true;
+        optimizeBtn.innerHTML = `<span class="spinner"></span><span>OPTIMIZING</span>`;
         isOptimizing = true;
 
         try {
@@ -108,9 +89,7 @@ document.addEventListener("DOMContentLoaded", () => {
             resultsDiv.innerHTML = `<p class="error">An error occurred during optimization. Please try again later.</p>`;
         } finally {
             optimizeBtn.disabled = false;
-            maxDamageBtn.disabled = false;
             optimizeBtn.innerHTML = 'Optimize<span class="tooltip">Runs NSGA-II multi-objective optimization to find builds that balance damage vs. cost.</span>';
-            maxDamageBtn.innerHTML = 'Max Damage<span class="tooltip">Ignores cost entirely and finds the single build that maximizes total daily damage.</span>';
             isOptimizing = false;
         }
     });

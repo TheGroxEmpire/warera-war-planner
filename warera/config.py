@@ -32,8 +32,8 @@ SKILL_LEVEL_COST = np.array([lvl * (lvl + 1) // 2 for lvl in range(MAX_SKILL_LEV
 # FOOD: regen bonuses and one-time cost (per simulation/day/encounter)
 FOOD = {
     "bread":      {"regen_bonus": 10, "health_pct": 0.1, "food_multiplier": 1, "cost": 1.7},
-    "steak":      {"regen_bonus": 20, "health_pct": 0.2, "food_multiplier": 2, "cost": 3.7},
-    "cookedFish": {"regen_bonus": 30, "health_pct": 0.3, "food_multiplier": 3, "cost": 7.6},
+    "steak":      {"regen_bonus": 20, "health_pct": 0.15, "food_multiplier": 2, "cost": 3.7},
+    "cookedFish": {"regen_bonus": 30, "health_pct": 0.20, "food_multiplier": 3, "cost": 7.6},
 }
 FOOD_NAMES = list(FOOD.keys())
 
@@ -103,7 +103,7 @@ GEAR = {
         "green":  {"mods": {"arm": 9},    "cost": 7, "scrap": 18},
         "blue":   {"mods": {"arm": 14},    "cost": 27, "scrap": 54},
         "purple": {"mods": {"arm": 18},   "cost": 70, "scrap": 162},
-        "gold":   {"mods": {"arm": 27},   "cost": 230, "scrap": 486},
+        "gold":   {"mods": {"arm": 27},   "cost": 240, "scrap": 486},
         "red":   {"mods": {"arm": 36},   "cost": 650, "scrap": 1458},
     },
     "pants": {
@@ -111,7 +111,7 @@ GEAR = {
         "green":  {"mods": {"arm": 9},    "cost": 7, "scrap": 18},
         "blue":   {"mods": {"arm": 14},    "cost": 27, "scrap": 54},
         "purple": {"mods": {"arm": 18},   "cost": 70, "scrap": 162},
-        "gold":   {"mods": {"arm": 27},   "cost": 230, "scrap": 486},
+        "gold":   {"mods": {"arm": 27},   "cost": 240, "scrap": 486},
         "red":   {"mods": {"arm": 36},   "cost": 650, "scrap": 1458},
     },
     "boots": {

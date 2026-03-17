@@ -43,28 +43,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Filter tabs/slider/button removed — server returns fixed 19+1 builds
 
-    // --- ARM&DDG Scaling Toggle ---
-    const scalingToggle = document.getElementById('scaling-toggle');
-    const scalingInput = document.getElementById('scaling-mode-input');
-    if (scalingToggle) {
-        scalingToggle.addEventListener('click', function() {
+    // --- Dev Mode Toggle ---
+    const devModeToggle = document.getElementById('dev-mode-toggle');
+    const devModeInput = document.getElementById('dev-mode-input');
+    if (devModeToggle) {
+        devModeToggle.addEventListener('click', function() {
             this.classList.toggle('active');
-            const isProd = this.classList.contains('active');
-            scalingInput.value = isProd ? 'prod' : 'dev';
-            document.getElementById('scaling-custom-steps').style.display = isProd ? 'none' : 'block';
-            saveFormState();
-        });
-    }
-
-    // --- HP Scaling Toggle ---
-    const healthScalingToggle = document.getElementById('health-scaling-toggle');
-    const healthScalingInput = document.getElementById('health-scaling-input');
-    if (healthScalingToggle) {
-        healthScalingToggle.addEventListener('click', function() {
-            this.classList.toggle('active');
-            const isProd = this.classList.contains('active');
-            healthScalingInput.value = isProd ? 'prod' : 'dev';
-            document.getElementById('health-custom-step').style.display = isProd ? 'none' : 'block';
+            const isOff = this.classList.contains('active');
+            devModeInput.value = isOff ? 'off' : 'on';
             saveFormState();
         });
     }
@@ -136,16 +122,7 @@ document.addEventListener("DOMContentLoaded", () => {
         localStorage.setItem('wbt_battle_bonus', document.getElementById('battle_bonus-input').value);
         localStorage.setItem('wbt_companies', document.getElementById('companies').value);
         localStorage.setItem('wbt_pill', document.getElementById('pill').checked);
-        localStorage.setItem('wbt_scaling_mode', document.getElementById('scaling-mode-input').value);
-        localStorage.setItem('wbt_health_scaling', document.getElementById('health-scaling-input').value);
-        localStorage.setItem('wbt_arm_step', document.getElementById('arm-step-input').value);
-        localStorage.setItem('wbt_ddg_step', document.getElementById('ddg-step-input').value);
-        localStorage.setItem('wbt_hp_step', document.getElementById('hp-step-input').value);
-        localStorage.setItem('wbt_food_step', document.getElementById('food-step-input').value);
-        localStorage.setItem('wbt_overflow_enabled', document.getElementById('overflow-enabled').checked);
-        localStorage.setItem('wbt_overflow_mult', document.getElementById('overflow-mult-input').value);
-        // localStorage.setItem('wbt_filter_type', document.getElementById('filter-type-input').value);
-        // localStorage.setItem('wbt_filter_value', document.getElementById('filter-value-input').value);
+        localStorage.setItem('wbt_dev_mode', document.getElementById('dev-mode-input').value);
     }
 
     function restoreFormState() {
@@ -173,46 +150,13 @@ document.addEventListener("DOMContentLoaded", () => {
         const pill = localStorage.getItem('wbt_pill');
         if (pill !== null) document.getElementById('pill').checked = pill === 'true';
 
-        const scalingMode = localStorage.getItem('wbt_scaling_mode');
-        if (scalingMode) {
-            document.getElementById('scaling-mode-input').value = scalingMode;
-            const toggle = document.getElementById('scaling-toggle');
-            if (scalingMode === 'prod') toggle.classList.add('active');
-            else {
-                toggle.classList.remove('active');
-                document.getElementById('scaling-custom-steps').style.display = 'block';
-            }
+        const devMode = localStorage.getItem('wbt_dev_mode');
+        if (devMode) {
+            document.getElementById('dev-mode-input').value = devMode;
+            const toggle = document.getElementById('dev-mode-toggle');
+            if (devMode === 'off') toggle.classList.add('active');
+            else toggle.classList.remove('active');
         }
-        const armStep = localStorage.getItem('wbt_arm_step');
-        if (armStep) document.getElementById('arm-step-input').value = armStep;
-        const ddgStep = localStorage.getItem('wbt_ddg_step');
-        if (ddgStep) document.getElementById('ddg-step-input').value = ddgStep;
-
-        const healthScaling = localStorage.getItem('wbt_health_scaling');
-        if (healthScaling) {
-            document.getElementById('health-scaling-input').value = healthScaling;
-            const hToggle = document.getElementById('health-scaling-toggle');
-            if (healthScaling === 'prod') hToggle.classList.add('active');
-            else {
-                hToggle.classList.remove('active');
-                document.getElementById('health-custom-step').style.display = 'block';
-            }
-        }
-        const hpStep = localStorage.getItem('wbt_hp_step');
-        if (hpStep) document.getElementById('hp-step-input').value = hpStep;
-        const foodStep = localStorage.getItem('wbt_food_step');
-        if (foodStep) document.getElementById('food-step-input').value = foodStep;
-
-        const overflowEnabled = localStorage.getItem('wbt_overflow_enabled');
-        if (overflowEnabled !== null) {
-            const checked = overflowEnabled === 'true';
-            document.getElementById('overflow-enabled').checked = checked;
-            document.getElementById('overflow-mult-wrapper').style.display = checked ? 'flex' : 'none';
-        }
-        const overflowMult = localStorage.getItem('wbt_overflow_mult');
-        if (overflowMult) document.getElementById('overflow-mult-input').value = overflowMult;
-
-        // Filter state restore removed
 
         // Re-trigger slider backgrounds after restoring values
         ['level', 'rank_bonus', 'battle_bonus'].forEach(id => {
@@ -241,10 +185,11 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (statVal !== null) {
                     const isPct = i >= 1 && i <= 3;  // Precision, Crit.Chance, Crit.Dmg are %
                     if (i === 4 || i === 5) {  // Armor or Dodge
-                        const scalingMode = scalingInput ? scalingInput.value : 'prod';
+                        const devMode = devModeInput ? devModeInput.value : 'off';
                         const stat = Number(statVal);
-                        if (scalingMode === 'dev') {
-                            const pct = (stat / (stat + 40) * 100).toFixed(1);
+                        if (devMode === 'on') {
+                            const k = 40;
+                            const pct = (stat / (stat + k) * 100).toFixed(1);
                             tooltipText += `: ${stat.toFixed(1)} (${pct}%)`;
                         } else {
                             const pct = i === 4 ? Math.min(90, stat) : stat;  // armor capped at 90%

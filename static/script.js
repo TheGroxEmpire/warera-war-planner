@@ -49,8 +49,8 @@ document.addEventListener("DOMContentLoaded", () => {
     if (devModeToggle) {
         devModeToggle.addEventListener('click', function() {
             this.classList.toggle('active');
-            const isOff = this.classList.contains('active');
-            devModeInput.value = isOff ? 'off' : 'on';
+            const isOn = this.classList.contains('active');
+            devModeInput.value = isOn ? 'on' : 'off';
             saveFormState();
         });
     }
@@ -154,7 +154,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (devMode) {
             document.getElementById('dev-mode-input').value = devMode;
             const toggle = document.getElementById('dev-mode-toggle');
-            if (devMode === 'off') toggle.classList.add('active');
+            if (devMode === 'on') toggle.classList.add('active');
             else toggle.classList.remove('active');
         }
 

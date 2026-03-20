@@ -64,54 +64,11 @@
                         <span class="tooltip">If pilled, applies damage bonus and presumes hitting a burst with 100% HP and HUN, plus 7 hourly regens during pill effect.</span>
                     </div>
 
-                    <div id="dev-mode-wrapper">
-                        <div class="dev-mode-header">
-                            <span class="dev-mode-title">Dev Changes</span>
-                            <div class="dev-toggle" id="dev-mode-toggle">
-                                <div class="dev-toggle-knob"></div>
-                            </div>
-                        </div>
-                        <div class="dev-mode-desc">
-                            <span><b>Attack:</b> +25 per skill level instead of +20.</span>
-                            <span><b>Armor:</b> +6 per skill level instead of +4. You can get up to 60 armor from each armor gear piece (+50% buff).</span>
-                            <span><b>ARM/DDG formula:</b> uses <code>stat / (stat + 40)</code> scaling damage linearly, instead of the direct <code>stat / 100</code> (which scaled exponentially).</span>
-                            <span><b>Overflow:</b> precision and crit chance above 100% convert to bonus attack and crit damage at 4× rate. Disabled in prod.</span>
-                            <span><b>HP &amp; food:</b> base HP is 100 instead of 50. Food restores a % of max HP per hunger (bread 10%, steak 15%, fish 20%) instead of flat amounts.</span>
-                        </div>
-                        <input type="hidden" name="dev_mode" id="dev-mode-input" value="off">
-                    </div>
                 </div>
 
                 <div class="btn-row">
                     <button type="submit" class="optimize-btn">Optimize<span class="tooltip">Runs NSGA-II multi-objective optimization to find builds that balance damage vs. cost.</span></button>
                 </div>
-
-                <!-- Filter section removed — server always returns 19+1 builds -->
-                <!--
-                <div class="filter-row" id="filter-section" style="display:none">
-                    <div class="filter-tabs-wrapper">
-                        <label class="filter-section-label">Filter by</label>
-                        <div class="filter-tabs">
-                            <button type="button" class="filter-tab" data-filter="net_cost">Net Cost<span class="tooltip">Show builds at or below a target daily net cost (gear + consumables minus scrap and case income), in gold.</span></button>
-                            <button type="button" class="filter-tab" data-filter="cost_per_k">Cost / K<span class="tooltip">Show builds at or below a target net cost per 1,000 damage dealt.</span></button>
-                            <button type="button" class="filter-tab" data-filter="total_damage">Damage<span class="tooltip">Show builds that reach at least this total daily damage.</span></button>
-                            <button type="button" class="filter-tab active" data-filter="none">Auto<span class="tooltip">Returns the most efficient build per damage band across 15 evenly-spaced bands from 100K to the max damage build.</span></button>
-                        </div>
-                    </div>
-                    <input type="hidden" name="filter_type" id="filter-type-input" value="none">
-
-                    <div class="filter-slider-wrapper" id="filter-value-wrapper" style="display:none">
-                        <div class="slider-label">
-                            <label id="filter-slider-label">Target</label>
-                            <span id="filter-value-display" class="slider-input filter-display">2.50</span>
-                        </div>
-                        <input type="range" id="filter-value-slider" class="slider"
-                               min="0" max="5" step="0.1" value="2.5">
-                        <input type="hidden" name="filter_value" id="filter-value-input" value="2.5">
-                    </div>
-                    <button type="button" id="filter-btn" class="filter-apply-btn" style="display:none">Filter</button>
-                </div>
-                -->
             </form>
         </div>
         <div id="results"></div>

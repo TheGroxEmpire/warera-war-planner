@@ -13,7 +13,7 @@ BASELINE = {
     "critd": 100,  # base critical damage %
     "arm": 0,     # base armor %
     "ddg": 0,     # base dodge %
-    "hp": 50,     # base health
+    "hp": 100,    # base health
     "hun": 4,     # base hunger
 }
 

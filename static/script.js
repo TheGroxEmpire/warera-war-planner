@@ -6,6 +6,27 @@ document.addEventListener("DOMContentLoaded", () => {
     const optimizeBtn = buildForm.querySelector(".optimize-btn");
 
     let allBuilds = [];
+    let viewMode = 'card';
+    let sortCol = null;
+    let sortDir = 1;
+
+    const viewControls = document.getElementById('view-controls');
+    const viewCardsBtn = document.getElementById('view-cards-btn');
+    const viewTableBtn = document.getElementById('view-table-btn');
+
+    viewCardsBtn.addEventListener('click', () => {
+        viewMode = 'card';
+        viewCardsBtn.classList.add('active');
+        viewTableBtn.classList.remove('active');
+        renderBuilds(allBuilds);
+    });
+
+    viewTableBtn.addEventListener('click', () => {
+        viewMode = 'table';
+        viewTableBtn.classList.add('active');
+        viewCardsBtn.classList.remove('active');
+        renderBuilds(allBuilds);
+    });
 
     // --- Slider and Input Synchronization ---
     const syncSliderAndInput = (sliderId, inputId) => {
@@ -121,7 +142,15 @@ document.addEventListener("DOMContentLoaded", () => {
     // --- Render Builds ---
     function renderBuilds(builds) {
         if (!builds || builds.length === 0) {
+            viewControls.style.display = 'none';
             resultsDiv.innerHTML = "<p>No optimal builds found. Please adjust your parameters and try again.</p>";
+            return;
+        }
+
+        viewControls.style.display = '';
+
+        if (viewMode === 'table') {
+            renderTable(builds);
             return;
         }
 
@@ -181,5 +210,80 @@ document.addEventListener("DOMContentLoaded", () => {
                 </div>
             `;
         }).join("");
+    }
+
+    // --- Render Table ---
+    function getSortValue(d, col) {
+        if (col === 'damage') return d.total_damage;
+        if (col === 'net_cost') return d.net_cost;
+        if (col === 'eff') return d.net_cost / d.total_damage * 1000;
+        if (col === 'ammo') return d.ammo_quantity;
+        if (col === 'food') return d.food_quantity;
+        if (col.startsWith('skill_')) return d.skill_lvls[parseInt(col.split('_')[1])];
+        if (col.startsWith('gear_')) return d.gear[parseInt(col.split('_')[1])].quantity;
+        return 0;
+    }
+
+    function thHtml(label, col) {
+        const active = sortCol === col;
+        const arrow = (active && sortDir === -1) ? '▼' : '▲';
+        return `<th class="sortable-th${active ? ' sort-active' : ''}" data-sort="${col}">${label}<span class="sort-indicator${active ? ' sort-indicator-visible' : ''}">${arrow}</span></th>`;
+    }
+
+    function renderTable(builds) {
+        let sorted = [...builds];
+        if (sortCol) {
+            sorted.sort((a, b) => (getSortValue(a, sortCol) - getSortValue(b, sortCol)) * sortDir);
+        }
+
+        const skillCols = SKILL_NAMES.map((n, i) => thHtml(n, `skill_${i}`)).join("");
+        const gearHeaders = ['Weapon', 'Helmet', 'Chest', 'Gloves', 'Pants', 'Boots']
+            .map((n, i) => thHtml(n, `gear_${i}`)).join("");
+
+        const rows = sorted.map(d => {
+            const skillCells = d.skill_lvls.map(lvl => `<td>${lvl}</td>`).join("");
+            const gearCells = d.gear.map(g => `<td class="td-gear" style="background-color:${g.color}">${g.tier}<br><small>${(Number(g.quantity)*100).toFixed(0)}%</small></td>`).join("");
+            return `
+                <tr class="table-row">
+                    <td class="td-damage">${d.total_damage_formatted}</td>
+                    <td class="td-cost">${d.net_cost_formatted}</td>
+                    <td class="td-eff">${(d.net_cost / d.total_damage * 1000).toFixed(2)}</td>
+                    ${skillCells}
+                    ${gearCells}
+                    <td class="td-gear" style="background-color:${d.ammo_color}">${d.ammo_name}<br><small>×${d.ammo_quantity}</small></td>
+                    <td class="td-gear" style="background-color:${d.food_color}">${d.food_name}<br><small>×${d.food_quantity}</small></td>
+                </tr>`;
+        }).join("");
+
+        resultsDiv.innerHTML = `
+            <div class="table-wrapper">
+                <table class="builds-table">
+                    <thead>
+                        <tr>
+                            ${thHtml('Damage', 'damage')}
+                            ${thHtml('Net Cost', 'net_cost')}
+                            ${thHtml('$/K', 'eff')}
+                            ${skillCols}
+                            ${gearHeaders}
+                            ${thHtml('Ammo', 'ammo')}
+                            ${thHtml('Food', 'food')}
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            </div>`;
+
+        resultsDiv.querySelector('.builds-table').addEventListener('click', e => {
+            const th = e.target.closest('.sortable-th');
+            if (!th) return;
+            const col = th.dataset.sort;
+            if (sortCol === col) {
+                sortDir *= -1;
+            } else {
+                sortCol = col;
+                sortDir = 1;
+            }
+            renderTable(allBuilds);
+        });
     }
 });

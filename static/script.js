@@ -1,11 +1,5 @@
 const SKILL_NAMES = ["Attack", "Precision", "Crit. Chance", "Crit. Dmg", "Armor", "Dodge", "Health", "Hunger"];
 
-// const FILTER_CONFIGS = {
-//     cost_per_k:   { min: 0,       max: 5,       step: 0.1,    default: 2.5,     label: 'Cost / K Target',  fmt: v => parseFloat(v).toFixed(2) },
-//     total_damage: { min: 100000,  max: 5000000, step: 100000, default: 1000000, label: 'Damage Target',    fmt: v => (v/1000000).toFixed(2) + 'M' },
-//     net_cost:     { min: 50,      max: 5000,    step: 50,     default: 500,     label: 'Net Cost Target',  fmt: v => parseFloat(v).toFixed(0) },
-// };
-
 document.addEventListener("DOMContentLoaded", () => {
     const resultsDiv = document.getElementById("results");
     const buildForm = document.getElementById("build-form");
@@ -61,20 +55,6 @@ document.addEventListener("DOMContentLoaded", () => {
     syncSliderAndInput("rank_bonus-slider", "rank_bonus-input");
     syncSliderAndInput("battle_bonus-slider", "battle_bonus-input");
 
-    // Filter tabs/slider/button removed — server returns fixed 19+1 builds
-
-    // --- Dev Mode Toggle ---
-    const devModeToggle = document.getElementById('dev-mode-toggle');
-    const devModeInput = document.getElementById('dev-mode-input');
-    if (devModeToggle) {
-        devModeToggle.addEventListener('click', function() {
-            this.classList.toggle('active');
-            const isOn = this.classList.contains('active');
-            devModeInput.value = isOn ? 'on' : 'off';
-            saveFormState();
-        });
-    }
-
     // --- Form Submission ---
     let isOptimizing = false;
 
@@ -121,7 +101,6 @@ document.addEventListener("DOMContentLoaded", () => {
         localStorage.setItem('wbt_battle_bonus', document.getElementById('battle_bonus-input').value);
         localStorage.setItem('wbt_companies', document.getElementById('companies').value);
         localStorage.setItem('wbt_pill', document.getElementById('pill').checked);
-        localStorage.setItem('wbt_dev_mode', document.getElementById('dev-mode-input').value);
     }
 
     function restoreFormState() {
@@ -149,14 +128,6 @@ document.addEventListener("DOMContentLoaded", () => {
         const pill = localStorage.getItem('wbt_pill');
         if (pill !== null) document.getElementById('pill').checked = pill === 'true';
 
-        const devMode = localStorage.getItem('wbt_dev_mode');
-        if (devMode) {
-            document.getElementById('dev-mode-input').value = devMode;
-            const toggle = document.getElementById('dev-mode-toggle');
-            if (devMode === 'on') toggle.classList.add('active');
-            else toggle.classList.remove('active');
-        }
-
         // Re-trigger slider backgrounds after restoring values
         ['level', 'rank_bonus', 'battle_bonus'].forEach(id => {
             document.getElementById(`${id}-slider`).dispatchEvent(new Event('input'));
@@ -167,8 +138,6 @@ document.addEventListener("DOMContentLoaded", () => {
     buildForm.addEventListener('change', saveFormState);
 
     restoreFormState();
-
-    // selectBuildsFromCache removed — server always returns 19+1 builds
 
     // --- Render Builds ---
     function renderBuilds(builds) {
@@ -192,16 +161,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (statVal !== null) {
                     const isPct = i >= 1 && i <= 3;  // Precision, Crit.Chance, Crit.Dmg are %
                     if (i === 4 || i === 5) {  // Armor or Dodge
-                        const devMode = devModeInput ? devModeInput.value : 'off';
                         const stat = Number(statVal);
-                        if (devMode === 'on') {
-                            const k = 40;
-                            const pct = (stat / (stat + k) * 100).toFixed(1);
-                            tooltipText += `: ${stat.toFixed(1)} (${pct}%)`;
-                        } else {
-                            const pct = i === 4 ? Math.min(90, stat) : stat;  // armor capped at 90%
-                            tooltipText += `: ${pct.toFixed(0)}%`;
-                        }
+                        const pct = (stat / (stat + 40) * 100).toFixed(1);
+                        tooltipText += `: ${stat.toFixed(1)} (${pct}%)`;
                     } else {
                         tooltipText += `: ${Number(statVal).toFixed(isPct ? 0 : 1)}${isPct ? '%' : ''}`;
                     }

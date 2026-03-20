@@ -13,7 +13,7 @@ BASELINE = {
     "critd": 100,  # base critical damage %
     "arm": 0,     # base armor %
     "ddg": 0,     # base dodge %
-    "hp": 50,     # base health
+    "hp": 100,    # base health
     "hun": 4,     # base hunger
 }
 
@@ -101,18 +101,18 @@ GEAR = {
     "chest": {
         # "grey":   {"mods": {"arm": 5},    "cost": 2, "scrap": 6},
         "green":  {"mods": {"arm": 9},    "cost": 7, "scrap": 18},
-        "blue":   {"mods": {"arm": 14},    "cost": 27, "scrap": 54},
-        "purple": {"mods": {"arm": 18},   "cost": 70, "scrap": 162},
-        "gold":   {"mods": {"arm": 27},   "cost": 240, "scrap": 486},
-        "red":   {"mods": {"arm": 36},   "cost": 650, "scrap": 1458},
+        "blue":   {"mods": {"arm": 18},    "cost": 27, "scrap": 54},
+        "purple": {"mods": {"arm": 27},   "cost": 70, "scrap": 162},
+        "gold":   {"mods": {"arm": 41},   "cost": 240, "scrap": 486},
+        "red":   {"mods": {"arm": 55},   "cost": 650, "scrap": 1458},
     },
     "pants": {
         # "grey":   {"mods": {"arm": 5},    "cost": 2, "scrap": 6},
         "green":  {"mods": {"arm": 9},    "cost": 7, "scrap": 18},
-        "blue":   {"mods": {"arm": 14},    "cost": 27, "scrap": 54},
-        "purple": {"mods": {"arm": 18},   "cost": 70, "scrap": 162},
-        "gold":   {"mods": {"arm": 27},   "cost": 240, "scrap": 486},
-        "red":   {"mods": {"arm": 36},   "cost": 650, "scrap": 1458},
+        "blue":   {"mods": {"arm": 18},    "cost": 27, "scrap": 54},
+        "purple": {"mods": {"arm": 27},   "cost": 70, "scrap": 162},
+        "gold":   {"mods": {"arm": 41},   "cost": 240, "scrap": 486},
+        "red":   {"mods": {"arm": 55},   "cost": 650, "scrap": 1458},
     },
     "boots": {
         # "grey":   {"mods": {"ddg": 5},    "cost": 2, "scrap": 6},

@@ -19,7 +19,7 @@ update_gear_prices_from_api()
 update_food_and_ammo_from_api()
 
 
-def _enrich_build(d, pill, scaling_mode, scrap_price, case1_price):
+def _enrich_build(d, pill, scrap_price, case1_price):
     """Enrich a build dict with names, quantities, colors, scrap, cases, and formatted numbers."""
     d['ammo_name'] = AMMO_NAMES[d['ammo_idx']]
     d['food_name'] = FOOD_NAMES[d['food_idx']]
@@ -34,10 +34,7 @@ def _enrich_build(d, pill, scaling_mode, scrap_price, case1_price):
         image_name = WEAPON_TIERS[d['gear_idx'][i]] if i == 0 else GEAR_SLOTS[i]
         ddg = d['diag']['ddg']
         n_attacks = d['diag']['n_attacks']
-        if scaling_mode == 'dev':
-            decay_multiplier = 1 if slot == "weapon" else (1 - ddg / (ddg + 40))
-        else:
-            decay_multiplier = 1 if slot == "weapon" else (1 - ddg / 100)
+        decay_multiplier = 1 if slot == "weapon" else (1 - ddg / (ddg + 40))
         total_decay_percent = float(n_attacks) * decay_multiplier
         quantity = round(total_decay_percent / 100, 2)
         d['gear'].append({
@@ -94,18 +91,6 @@ def run_optimization():
     rank_bonus = 1 + (float(request.form.get("rank_bonus", 0)) / 100)
     battle_bonus = 1 + (float(request.form.get("battle_bonus", 0)) / 100)
     rank_bonus = rank_bonus * battle_bonus
-    dev_mode = request.form.get("dev_mode") == "on"
-    scaling_mode          = "dev" if dev_mode else "prod"
-    health_scaling        = "dev" if dev_mode else "prod"
-    overflow_multiplier   = 4.0  if dev_mode else 0.0
-    armor_gear_multiplier = 1.5  if dev_mode else 1.0
-    hp_step    = 10
-    bread_pct  = 10
-    steak_pct  = 15
-    fish_pct   = 20
-    base_hp    = 100 if dev_mode else None
-    base_hun   = None
-
     # Calculate skill point cost for companies
     company_cost = 0
     if companies > 2:
@@ -124,14 +109,14 @@ def run_optimization():
 
     # --- Max damage mode: dedicated single-objective optimization ---
     if mode == "max_damage":
-        md = optimize_max_damage(adjusted_level, rank_bonus=rank_bonus, pill_mode=pill, pill_price=pill_price, scaling_mode=scaling_mode, health_scaling=health_scaling, hp_step=hp_step, bread_pct=bread_pct, steak_pct=steak_pct, fish_pct=fish_pct, overflow_multiplier=overflow_multiplier, base_hp=base_hp, base_hun=base_hun, armor_gear_multiplier=armor_gear_multiplier)
+        md = optimize_max_damage(adjusted_level, rank_bonus=rank_bonus, pill_mode=pill, pill_price=pill_price)
         if md is None:
             return jsonify(builds=[])
         md["is_highest_damage"] = True
-        md = _enrich_build(md, pill, scaling_mode, scrap_price, case1_price)
+        md = _enrich_build(md, pill, scrap_price, case1_price)
         return jsonify(builds=convert_numpy_types([md]))
 
-    res = optimize(adjusted_level, verbose=True, rank_bonus=rank_bonus, pill_mode=pill, pill_price=pill_price, scaling_mode=scaling_mode, health_scaling=health_scaling, hp_step=hp_step, bread_pct=bread_pct, steak_pct=steak_pct, fish_pct=fish_pct, overflow_multiplier=overflow_multiplier, base_hp=base_hp, base_hun=base_hun, armor_gear_multiplier=armor_gear_multiplier)
+    res = optimize(adjusted_level, verbose=True, rank_bonus=rank_bonus, pill_mode=pill, pill_price=pill_price)
     X = None
     if hasattr(res, "algorithm") and hasattr(res.algorithm, "pop") and len(res.algorithm.pop) > 0:
         try:
@@ -151,7 +136,7 @@ def run_optimization():
         gear_idx   = row[8:14]
         ammo_idx   = int(row[14])
         food_idx   = int(row[15])
-        total_damage, total_cost, diag = compute_totals(skill_lvls, gear_idx, ammo_idx, food_idx, rank_bonus=rank_bonus, pill_mode=pill, pill_price=pill_price, scaling_mode=scaling_mode, health_scaling=health_scaling, hp_step=hp_step, bread_pct=bread_pct, steak_pct=steak_pct, fish_pct=fish_pct, overflow_multiplier=overflow_multiplier, base_hp=base_hp, base_hun=base_hun, armor_gear_multiplier=armor_gear_multiplier)
+        total_damage, total_cost, diag = compute_totals(skill_lvls, gear_idx, ammo_idx, food_idx, rank_bonus=rank_bonus, pill_mode=pill, pill_price=pill_price)
         skill_cost = int(np.sum(SKILL_LEVEL_COST[skill_lvls]))
         details.append({
             "skill_lvls": skill_lvls.tolist(),
@@ -174,9 +159,7 @@ def run_optimization():
         for i in range(len(GEAR_SLOTS)):
             slot = GEAR_SLOTS[i]
             tier = WEAPON_TIERS[d['gear_idx'][i]] if i == 0 else GEAR_TIERS[d['gear_idx'][i]]
-            decay_multiplier = 1 if slot == "weapon" else (
-                (1 - ddg / (ddg + 40)) if scaling_mode == 'dev' else (1 - ddg / 100)
-            )
+            decay_multiplier = 1 if slot == "weapon" else (1 - ddg / (ddg + 40))
             quantity = round(float(n_attacks) * decay_multiplier / 100, 2)
             total_scrap += (GEAR[slot][tier]["scrap"] / 3) * quantity
         loot_chance = 0.05 + 0.05 * (d["diag"]["dmg_per_attack"] / 1000.0)
@@ -184,10 +167,10 @@ def run_optimization():
         d["net_cost"] = d["total_cost"] - (total_scrap * scrap_price) - case_value
 
     # --- Always compute the max damage build for use as upper bound ---
-    md = optimize_max_damage(adjusted_level, rank_bonus=rank_bonus, pill_mode=pill, pill_price=pill_price, scaling_mode=scaling_mode, health_scaling=health_scaling, hp_step=hp_step, bread_pct=bread_pct, steak_pct=steak_pct, fish_pct=fish_pct, overflow_multiplier=overflow_multiplier, base_hp=base_hp, base_hun=base_hun, armor_gear_multiplier=armor_gear_multiplier)
+    md = optimize_max_damage(adjusted_level, rank_bonus=rank_bonus, pill_mode=pill, pill_price=pill_price)
     if md is not None:
         md['is_highest_damage'] = True
-        md = _enrich_build(md, pill, scaling_mode, scrap_price, case1_price)
+        md = _enrich_build(md, pill, scrap_price, case1_price)
         max_damage_value = int(md['total_damage'])
         max_net_cost_value = float(md['net_cost'])
     else:
@@ -195,7 +178,7 @@ def run_optimization():
         max_net_cost_value = 5000.0
 
     # Enrich the full Pareto front (details already spans cheap→expensive)
-    all_builds_enriched = [_enrich_build(d, pill, scaling_mode, scrap_price, case1_price) for d in details]
+    all_builds_enriched = [_enrich_build(d, pill, scrap_price, case1_price) for d in details]
 
     # --- Build selection: always 19 builds across damage bands 50k→max ---
     pareto_details = select_builds(all_builds_enriched, min_damage=50000, max_damage=max_damage_value, num_builds=19, cost_key="net_cost")

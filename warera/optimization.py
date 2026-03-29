@@ -18,43 +18,51 @@ import os
 # OPTIMIZATION PROBLEM (NSGA-II)
 # =========================================
 class BuildProblem(Problem):
-    def __init__(self, level, rank_bonus=1.0, pill_mode=False, pill_price=0.0):
-        n_vars = 8 + len(GEAR_SLOTS) + 2
+    def __init__(self, level, rank_bonus=1.0, pill_mode=False, pill_price=0.0, case1_price=0.0, case2_price=0.0, objective="damage"):
+        n_vars = 9 + len(GEAR_SLOTS) + 2
         xl = np.zeros(n_vars, dtype=int)
         xu = np.array(
-            [MAX_SKILL_LEVEL]*8 +
+            [MAX_SKILL_LEVEL]*9 +
             [len(WEAPON_TIERS)-1] + [len(GEAR_TIERS)-1] * (len(GEAR_SLOTS) - 1) +
             [len(AMMO_NAMES)-1] +
             [len(FOOD_NAMES)-1]
         )
-        super().__init__(n_var=n_vars, n_obj=2, n_constr=1, xl=xl, xu=xu)
+        super().__init__(n_var=n_vars, n_obj=2, n_constr=2, xl=xl, xu=xu)
         self.skill_points = int(level * SKILL_POINTS_PER_LEVEL)
         self.rank_bonus = rank_bonus
         self.pill_mode = pill_mode
         self.pill_price = pill_price
+        self.case1_price = case1_price
+        self.case2_price = case2_price
+        self.objective = objective
         self._gear_cache = {}
 
     def _evaluate(self, X, out, *args, **kwargs):
         X = np.round(X).astype(int)
         n_pop = X.shape[0]
         F = np.zeros((n_pop, 2))
-        G = np.sum(SKILL_LEVEL_COST[X[:, :8]], axis=1) - self.skill_points
+        g_skill = np.sum(SKILL_LEVEL_COST[X[:, :9]], axis=1) - self.skill_points
+        weapon_idx = X[:, 9]
+        ammo_idx   = X[:, 15]
+        # weapon none/knife (idx<=1) must use noAmmo (idx==0); gun+ (idx>=2) must use ammo (idx>0)
+        g_ammo = np.where(weapon_idx <= 1, ammo_idx.astype(float), (ammo_idx == 0).astype(float))
+        G = np.column_stack([g_skill, g_ammo])
 
         for i in range(n_pop):
             row = X[i]
-            g_idx = tuple(row[8:14])
+            g_idx = tuple(row[9:15])
             if g_idx not in self._gear_cache:
                 gear_choice = {slot: int(g_idx[j]) for j, slot in enumerate(GEAR_SLOTS)}
                 combined_baseline, _ = apply_gear_to_baseline(gear_choice)
                 self._gear_cache[g_idx] = make_skill_tables(combined_baseline)
 
-            total_damage, total_cost, _ = compute_totals(
-                row[:8], row[8:14], row[14], row[15],
+            total_damage, total_cost, diag = compute_totals(
+                row[:9], row[9:15], row[15], row[16],
                 rank_bonus=self.rank_bonus, pill_mode=self.pill_mode, pill_price=self.pill_price,
-                tables=self._gear_cache[g_idx]
+                tables=self._gear_cache[g_idx],
             )
-            F[i, 0] = -total_damage
-            F[i, 1] = total_cost
+            F[i, 0] = -diag['cases_per_day'] if self.objective == "cases" else -total_damage
+            F[i, 1] = total_cost - diag['cases_per_day'] * self.case1_price - diag['elite_cases_per_day'] * self.case2_price
 
         if len(self._gear_cache) > 1000:
             self._gear_cache.clear()
@@ -70,9 +78,9 @@ class MaxDamageProblem(Problem):
     FIXED_FOOD_IDX = len(FOOD_NAMES) - 1
 
     def __init__(self, level, rank_bonus=1.0, pill_mode=False, pill_price=0.0):
-        xl = np.zeros(8, dtype=int)
-        xu = np.full(8, MAX_SKILL_LEVEL, dtype=int)
-        super().__init__(n_var=8, n_obj=1, n_ieq_constr=1, xl=xl, xu=xu)
+        xl = np.zeros(9, dtype=int)
+        xu = np.full(9, MAX_SKILL_LEVEL, dtype=int)
+        super().__init__(n_var=9, n_obj=1, n_ieq_constr=1, xl=xl, xu=xu)
         self.skill_points = int(level * SKILL_POINTS_PER_LEVEL)
         self.rank_bonus = rank_bonus
         self.pill_mode = pill_mode
@@ -85,7 +93,7 @@ class MaxDamageProblem(Problem):
         X = np.round(X).astype(int)
         n_pop = X.shape[0]
         F = np.zeros((n_pop, 1))
-        G = np.sum(SKILL_LEVEL_COST[X[:, :8]], axis=1) - self.skill_points
+        G = np.sum(SKILL_LEVEL_COST[X[:, :9]], axis=1) - self.skill_points
 
         for i in range(n_pop):
             total_damage, _, _ = compute_totals(
@@ -137,8 +145,8 @@ def optimize_max_damage(level, rank_bonus=1.0, pill_mode=False, pill_price=0.0):
 
 
 def optimize_worker(args):
-    level, seed, rank_bonus, pill_mode, pill_price = args
-    problem = BuildProblem(level, rank_bonus=rank_bonus, pill_mode=pill_mode, pill_price=pill_price)
+    level, seed, rank_bonus, pill_mode, pill_price, case1_price, case2_price, objective = args
+    problem = BuildProblem(level, rank_bonus=rank_bonus, pill_mode=pill_mode, pill_price=pill_price, case1_price=case1_price, case2_price=case2_price, objective=objective)
     pop_size = int(os.environ.get("POP_SIZE", 200))
     n_gen = int(os.environ.get("N_GEN", 50))
     
@@ -152,11 +160,11 @@ def optimize_worker(args):
     res = minimize(problem, algorithm, get_termination("n_gen", n_gen), seed=seed, verbose=False)
     return res
 
-def optimize(level, verbose=True, rank_bonus=1.20, pill_mode=False, pill_price=0.0):
+def optimize(level, verbose=True, rank_bonus=1.20, pill_mode=False, pill_price=0.0, case1_price=0.0, case2_price=0.0, objective="damage"):
     num_runs = int(os.environ.get("NUM_RUNS", 2))
     pool_size = min(num_runs, int(os.environ.get("POOL_SIZE", 1)))
     seeds = np.random.randint(0, 10000, size=num_runs).tolist()
-    args = [(level, int(seeds[i]), rank_bonus, pill_mode, pill_price) for i in range(num_runs)]
+    args = [(level, int(seeds[i]), rank_bonus, pill_mode, pill_price, case1_price, case2_price, objective) for i in range(num_runs)]
     
     results = [optimize_worker(arg) for arg in args] if pool_size <= 1 else Pool(pool_size).map(optimize_worker, args)
     

@@ -12,7 +12,7 @@ def attacks_possible(hp, hun, armor, dodge, food, pill_mode=False):
     # HP regenerated per day from baseline health and hunger, including food bonus
     regen_base = hp * HEALTH_RECOVERY_RATE_PER_HOUR * hours
     _pcts = {1: 10, 2: 15, 3: 20}
-    food_bonus = (_pcts[food["food_multiplier"]] / 100) * hp
+    food_bonus = (_pcts.get(food["food_multiplier"], 0) / 100) * hp
     regen_all = regen_base + hun * HUNGER_RECOVERY_RATE_PER_HOUR * hours * food_bonus
 
     cost_per_attack = 10 * (1 - armor/(armor+40)) * (1 - dodge/(dodge+40))
@@ -40,6 +40,7 @@ def compute_totals(skill_levels, gear_idx, ammo_idx, food_idx, rank_bonus=1.45, 
     ddg       = tables[5][int(skill_levels[5])]
     hp        = tables[6][int(skill_levels[6])]
     hun       = tables[7][int(skill_levels[7])]
+    loot      = 0.02 + 0.02 * int(skill_levels[8])
 
     # Raw skill stats (gear-boosted, skill-level-boosted; before overflow/ammo/pill/rank)
     skill_stats_raw = [
@@ -51,6 +52,7 @@ def compute_totals(skill_levels, gear_idx, ammo_idx, food_idx, rank_bonus=1.45, 
         float(ddg),             # Dodge
         float(hp),              # Health
         float(hun),             # Hunger
+        float(loot * 100),      # Loot — convert fraction → %
     ]
 
     # Overflow mechanic: excess stats above 100% convert to other bonuses
@@ -74,6 +76,8 @@ def compute_totals(skill_levels, gear_idx, ammo_idx, food_idx, rank_bonus=1.45, 
 
     dmg_per_attack = atk * prc * (1 + critc * critd) + (atk / 2.0) * (1 - prc)
     n_attacks = attacks_possible(hp, hun, arm, ddg, food, pill_mode=pill_mode)
+    cases_per_day = loot * n_attacks * prc
+    elite_cases_per_day = (loot / 100) * n_attacks * prc
 
     # Gear costs (weapons don't decay by dodge, others do)
     gear_cost_total = 0.0
@@ -92,8 +96,8 @@ def compute_totals(skill_levels, gear_idx, ammo_idx, food_idx, rank_bonus=1.45, 
 
     return total_damage, total_cost, {
         "atk": atk, "prc": prc, "critc": critc, "critd": critd,
-        "arm": arm, "ddg": ddg, "hp": hp, "hun": hun,
-        "dmg_per_attack": dmg_per_attack, "n_attacks": n_attacks,
+        "arm": arm, "ddg": ddg, "hp": hp, "hun": hun, "loot": float(loot * 100),
+        "dmg_per_attack": dmg_per_attack, "n_attacks": n_attacks, "cases_per_day": cases_per_day, "elite_cases_per_day": elite_cases_per_day,
         "gear_cost": gear_cost_total, "food_cost": food_cost, "ammo_bullet_cost": ammo_cost, "pill_cost": pill_cost,
         "skill_stats": skill_stats_raw,
     }

@@ -66,8 +66,9 @@
 
                 </div>
 
-                <div class="btn-row">
-                    <button type="submit" class="optimize-btn">Optimize<span class="tooltip">Runs NSGA-II multi-objective optimization to find builds that balance damage vs. cost.</span></button>
+<div class="btn-row">
+                    <button type="submit" name="objective" value="damage" class="optimize-btn">Optimize Damage<span class="tooltip">Runs NSGA-II multi-objective optimization to find builds that balance damage vs. cost.</span></button>
+                    <button type="submit" name="objective" value="cases" class="optimize-btn">Optimize Cases<span class="tooltip">Optimizes builds for maximum cases per day instead of raw damage.</span></button>
                 </div>
             </form>
         </div>

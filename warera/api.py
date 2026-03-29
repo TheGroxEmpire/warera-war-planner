@@ -4,13 +4,14 @@ import logging
 import time
 import os
 
-from .config import WEAPON_TIERS, TIER_NUM, GEAR, FOOD_NAMES, AMMO_NAMES, FOOD, AMMO, GEAR_SLOTS, AMMO_API_MAPPING, SCRAP_API_CODE, CASE_API_CODE, PILL_API_CODE
+from .config import WEAPON_TIERS, TIER_NUM, GEAR, FOOD_NAMES, AMMO_NAMES, FOOD, AMMO, GEAR_SLOTS, AMMO_API_MAPPING, SCRAP_API_CODE, CASE_API_CODE, CASE2_API_CODE, PILL_API_CODE
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
 _SCRAP_PRICE = 0
 _CASE1_PRICE = 0
+_CASE2_PRICE = 0
 _PILL_PRICE = 0
 
 API_KEY = os.environ.get('WARERA_API_KEY', 'wae_df98b2cf737089a80db9f84b435c7cc3ada1ecfb1a5122760a4270eed8b29bf6')
@@ -98,6 +99,8 @@ def fetch_food_and_bullet_prices():
         item_codes_to_fetch.append(SCRAP_API_CODE)
     if CASE_API_CODE:
         item_codes_to_fetch.append(CASE_API_CODE)
+    if CASE2_API_CODE:
+        item_codes_to_fetch.append(CASE2_API_CODE)
     if PILL_API_CODE:
         item_codes_to_fetch.append(PILL_API_CODE)
     
@@ -186,6 +189,17 @@ def update_food_and_ammo_from_api():
     else:
         logger.warning(f"[CASE1] {CASE_API_CODE} not found in API response. Defaulting to 0.")
 
+    global _CASE2_PRICE
+    if CASE2_API_CODE in prices:
+        case2_data = prices[CASE2_API_CODE]
+        if isinstance(case2_data, dict):
+            _CASE2_PRICE = case2_data.get('price', case2_data.get('value', case2_data.get('cost', 0)))
+        else:
+            _CASE2_PRICE = case2_data
+        logger.info(f"[CASE2] price: {_CASE2_PRICE}")
+    else:
+        logger.warning(f"[CASE2] {CASE2_API_CODE} not found in API response. Defaulting to 0.")
+
     global _PILL_PRICE
     if PILL_API_CODE in prices:
         pill_data = prices[PILL_API_CODE]
@@ -236,3 +250,11 @@ def get_case1_price():
     if _CASE1_PRICE == 0:
         update_food_and_ammo_from_api()
     return _CASE1_PRICE
+
+
+def get_case2_price():
+    """Returns the fetched case2 price, fetching if not already available."""
+    global _CASE2_PRICE
+    if _CASE2_PRICE == 0:
+        update_food_and_ammo_from_api()
+    return _CASE2_PRICE

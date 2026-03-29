@@ -107,4 +107,4 @@ venv.bak/
 .mypy_cache/
 
 # Scenario comparison tool
-tools
+/tools

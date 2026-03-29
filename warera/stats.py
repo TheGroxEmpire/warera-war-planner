@@ -16,7 +16,8 @@ def make_skill_tables(baseline, hp_step=10):
     dodge = baseline["ddg"] + 4 * lvls
     health = baseline["hp"] + hp_step * lvls
     hunger = baseline["hun"] + 1 * lvls
-    return attack, precision, critc, critd, armor, dodge, health, hunger
+    loot   = baseline["loot"] / 100 + 0.01 * lvls
+    return attack, precision, critc, critd, armor, dodge, health, hunger, loot
 
 def apply_gear_to_baseline(gear_choice):
     out = BASELINE.copy()

@@ -1,9 +1,9 @@
-const SKILL_NAMES = ["Attack", "Precision", "Crit. Chance", "Crit. Dmg", "Armor", "Dodge", "Health", "Hunger"];
+const SKILL_NAMES = ["Attack", "Precision", "Crit. Chance", "Crit. Dmg", "Armor", "Dodge", "Health", "Hunger", "Loot"];
 
 document.addEventListener("DOMContentLoaded", () => {
     const resultsDiv = document.getElementById("results");
     const buildForm = document.getElementById("build-form");
-    const optimizeBtn = buildForm.querySelector(".optimize-btn");
+    const optimizeBtns = buildForm.querySelectorAll(".optimize-btn");
 
     let allBuilds = [];
 
@@ -41,11 +41,14 @@ document.addEventListener("DOMContentLoaded", () => {
         event.preventDefault();
         if (isOptimizing) return;
 
+        const submitter = event.submitter;
         const data = new FormData(buildForm);
+        data.set('objective', submitter.value);
+        const submitterLabel = submitter.innerHTML;
 
         resultsDiv.innerHTML = "";
-        optimizeBtn.disabled = true;
-        optimizeBtn.innerHTML = `<span class="spinner"></span><span>OPTIMIZING</span>`;
+        optimizeBtns.forEach(b => b.disabled = true);
+        submitter.innerHTML = `<span class="spinner"></span><span>OPTIMIZING</span>`;
         isOptimizing = true;
 
         try {
@@ -61,14 +64,14 @@ document.addEventListener("DOMContentLoaded", () => {
             const results = await response.json();
             allBuilds = results.builds;
 
-            renderBuilds(allBuilds);
+            renderBuilds(allBuilds, submitter.value);
 
         } catch (error) {
             console.error("Optimization error:", error);
             resultsDiv.innerHTML = `<p class="error">An error occurred during optimization. Please try again later.</p>`;
         } finally {
-            optimizeBtn.disabled = false;
-            optimizeBtn.innerHTML = 'Optimize<span class="tooltip">Runs NSGA-II multi-objective optimization to find builds that balance damage vs. cost.</span>';
+            optimizeBtns.forEach(b => b.disabled = false);
+            submitter.innerHTML = submitterLabel;
             isOptimizing = false;
         }
     });
@@ -118,8 +121,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     restoreFormState();
 
+
     // --- Render Builds ---
-    function renderBuilds(builds) {
+    function renderBuilds(builds, objective = 'damage') {
         if (!builds || builds.length === 0) {
             resultsDiv.innerHTML = "<p>No optimal builds found. Please adjust your parameters and try again.</p>";
             return;
@@ -130,7 +134,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 const statVal = d.diag && d.diag.skill_stats ? d.diag.skill_stats[i] : null;
                 let tooltipText = SKILL_NAMES[i];
                 if (statVal !== null) {
-                    const isPct = i >= 1 && i <= 3;  // Precision, Crit.Chance, Crit.Dmg are %
+                    const isPct = (i >= 1 && i <= 3) || i === 8;  // Precision, Crit.Chance, Crit.Dmg, Loot are %
                     if (i === 4 || i === 5) {  // Armor or Dodge
                         const stat = Number(statVal);
                         const pct = (stat / (stat + 40) * 100).toFixed(1);
@@ -148,18 +152,26 @@ document.addEventListener("DOMContentLoaded", () => {
                 `;
             }).join("");
 
-            const gearHtml = d.gear.map(g => `
+            const gearHtml = d.gear.filter(g => !g.is_none).map(g => `
                 <div class='gear-item' style='background-color: ${g.color}'>
                     <img src='/static/images/${g.image_name}.png' alt='${g.slot}'>
                     <span class='quantity-label'>x ${(Number(g.quantity)*100).toFixed(0)} %</span>
                 </div>
             `).join("");
 
+            const isCasesMode = objective === 'cases';
+            const primaryStatHtml = isCasesMode
+                ? `${d.cases_per_day_formatted} Cases<span class='damage-label'>Cases per day</span><span class='damage-secondary'>${d.total_damage_formatted} DMG<span class='damage-label'>Daily damage</span></span>`
+                : `${d.total_damage_formatted} DMG<span class='damage-label'>Average daily damage</span>`;
+            const efficiencyHtml = isCasesMode
+                ? `${d.cases_per_day > 0 ? (d.net_cost / d.cases_per_day).toFixed(2) : '\u221e'} $/Case<span class='efficiency-label'>Net cost per case</span>`
+                : `${(d.net_cost / d.total_damage * 1000).toFixed(2)} $/K<span class='efficiency-label'>Net cost per 1K damage</span>`;
+
             const cardClass = d.is_highest_damage ? " highest-damage-card" : (d.is_max_damage ? " max-damage-card" : "");
             return `
                 <div class='card${cardClass}'>
-                    <div class='card-damage'>${d.total_damage_formatted} DMG<span class='damage-label'>Average daily damage</span></div>
-                    <div class='card-cost'><div class='cost-left'><svg stroke='currentColor' fill='currentColor' stroke-width='0' viewBox='0 0 24 24' height='1em' width='1em' xmlns='http://www.w3.org/2000/svg' style='width: 1em; height: 1em; paint-order: stroke; stroke-linecap: round; stroke-linejoin: round;'><path d='M12 5C7.031 5 2 6.546 2 9.5S7.031 14 12 14c4.97 0 10-1.546 10-4.5S16.97 5 12 5zm-5 9.938v3c1.237.299 2.605.482 4 .541v-3a21.166 21.166 0 0 1-4-.541zm6 .54v3a20.994 20.994 0 0 0 4-.541v-3a20.994 20.994 0 0 1-4 .541zm6-1.181v3c1.801-.755 3-1.857 3-3.297v-3c0 1.44-1.199 2.542-3 3.297zm-14 3v-3C3.2 13.542 2 12.439 2 11v3c0 1.439 1.2 2.542 3 3.297z'></path></svg><span class='net-cost-value'>${d.net_cost_formatted}</span><div class='cost-label'>Daily net cost<div class='cost-breakdown'><span class='cost-line negative'>- ${d.total_cost_formatted} gear and consumables</span><span class='cost-line positive'>+ ${d.monetary_value_from_scrap_formatted} from scrap</span><span class='cost-line positive'>+ ${d.case_value_formatted} from ${d.cases_per_day_formatted} cases</span></div></div></div><span class='card-efficiency'>${(d.net_cost / d.total_damage * 1000).toFixed(2)} $/K<span class='efficiency-label'>Net cost per 1K damage</span></span></div>
+                    <div class='card-damage'>${primaryStatHtml}</div>
+                    <div class='card-cost'><div class='cost-left'><svg stroke='currentColor' fill='currentColor' stroke-width='0' viewBox='0 0 24 24' height='1em' width='1em' xmlns='http://www.w3.org/2000/svg' style='width: 1em; height: 1em; paint-order: stroke; stroke-linecap: round; stroke-linejoin: round;'><path d='M12 5C7.031 5 2 6.546 2 9.5S7.031 14 12 14c4.97 0 10-1.546 10-4.5S16.97 5 12 5zm-5 9.938v3c1.237.299 2.605.482 4 .541v-3a21.166 21.166 0 0 1-4-.541zm6 .54v3a20.994 20.994 0 0 0 4-.541v-3a20.994 20.994 0 0 1-4 .541zm6-1.181v3c1.801-.755 3-1.857 3-3.297v-3c0 1.44-1.199 2.542-3 3.297zm-14 3v-3C3.2 13.542 2 12.439 2 11v3c0 1.439 1.2 2.542 3 3.297z'></path></svg><span class='net-cost-value'>${d.net_cost_formatted}</span><div class='cost-label'>Daily net cost<div class='cost-breakdown'><span class='cost-line negative'>- ${d.total_cost_formatted} gear and consumables</span><span class='cost-line positive'>+ ${d.monetary_value_from_scrap_formatted} from scrap</span><span class='cost-line positive'>+ ${d.case_value_formatted} from ${d.cases_per_day_formatted} cases</span>${d.elite_cases_per_day > 0 ? `<span class='cost-line positive'>+ ${d.elite_case_value_formatted} from ${d.elite_cases_per_day_formatted} elite cases</span>` : ''}</div></div></div><span class='card-efficiency'>${efficiencyHtml}</span></div>
                     <div class='card-skills'>
                         <h3>Skills</h3>
                         <div class='skills-grid'>${skillsHtml}</div>
@@ -168,14 +180,14 @@ document.addEventListener("DOMContentLoaded", () => {
                         <h3>Gear &amp; Consumables</h3>
                         <div class='items-grid'>
                             ${gearHtml}
-                            <div class='gear-item' style='background-color: ${d.ammo_color}'>
+                            ${d.ammo_name !== 'noAmmo' ? `<div class='gear-item' style='background-color: ${d.ammo_color}'>
                                 <img src='/static/images/${d.ammo_name}.png' alt='${d.ammo_name}'>
                                 <span class='quantity-label'>${d.ammo_quantity}</span>
-                            </div>
-                            <div class='gear-item' style='background-color: ${d.food_color}'>
+                            </div>` : ''}
+                            ${d.food_name !== 'noFood' ? `<div class='gear-item' style='background-color: ${d.food_color}'>
                                 <img src='/static/images/${d.food_name}.png' alt='${d.food_name}'>
                                 <span class='quantity-label'>${d.food_quantity}</span>
-                            </div>
+                            </div>` : ''}
                         </div>
                     </div>
                 </div>

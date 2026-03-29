@@ -63,7 +63,7 @@ h3 {
 
 .skills-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: 1em;
     margin-bottom: 1em;
 }
@@ -103,6 +103,14 @@ h3 {
 
 .card-damage:hover .damage-label {
     display: block;
+}
+
+.damage-secondary {
+    display: block;
+    font-size: 0.55em;
+    opacity: 0.7;
+    font-weight: normal;
+    position: relative;
 }
 
 .card-cost {
@@ -773,6 +781,7 @@ select, button {
 #skill-svg-6 { color: #9dadbb; } /* dodge */
 #skill-svg-7 { color: #2f804d; } /* health */
 #skill-svg-8 { color: #974035; } /* hunger */
+#skill-svg-9 { color: #f0c040; } /* loot */
 
 .slider-container {
     display: flex;
@@ -934,3 +943,4 @@ select, button {
     border-color: #ff4400;
     box-shadow: 0 0 8px rgba(255, 68, 0, 0.5);
 }
+

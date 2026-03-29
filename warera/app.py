@@ -196,19 +196,12 @@ def run_optimization():
     builds = list(pareto_details)
 
     if objective == "cases":
-        # In cases mode, the "top" build is the best money-maker (lowest net_cost)
-        if md is not None:
-            md["is_highest_damage"] = False
-            builds.append(md)
+        # In cases mode, show the best money-maker (lowest net_cost) first; skip max damage build
         if all_builds_enriched:
             best_money = min(all_builds_enriched, key=lambda x: x["net_cost"])
-            # Mark it; add to builds if not already present
-            if not any(b is best_money for b in builds):
-                builds.append(best_money)
-            for b in builds:
-                if b is best_money:
-                    b["is_highest_damage"] = True
-                    break
+            best_money["is_highest_damage"] = True
+            builds = [b for b in builds if b is not best_money]
+            builds.insert(0, best_money)
     else:
         if md is not None:
             builds.append(md)

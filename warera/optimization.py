@@ -2,7 +2,7 @@ import numpy as np
 from pymoo.core.problem import Problem
 from pymoo.algorithms.moo.nsga2 import NSGA2
 from pymoo.optimize import minimize
-from pymoo.termination import get_termination
+from pymoo.termination.default import DefaultMultiObjectiveTermination, DefaultSingleObjectiveTermination
 from pymoo.operators.sampling.rnd import IntegerRandomSampling
 from pymoo.operators.crossover.sbx import SBX
 from pymoo.operators.mutation.pm import PM
@@ -64,8 +64,6 @@ class BuildProblem(Problem):
             F[i, 0] = -diag['cases_per_day'] if self.objective == "cases" else -total_damage
             F[i, 1] = total_cost - diag['cases_per_day'] * self.case1_price - diag['elite_cases_per_day'] * self.case2_price
 
-        if len(self._gear_cache) > 1000:
-            self._gear_cache.clear()
         out["F"], out["G"] = F, G.reshape(-1, 1)
 
 # =========================================
@@ -116,7 +114,7 @@ def optimize_max_damage(level, rank_bonus=1.0, pill_mode=False, pill_price=0.0):
         mutation=PM(prob=0.1, eta=20, repair=RoundingRepair()),
         eliminate_duplicates=True
     )
-    res = minimize(problem, algorithm, get_termination("n_gen", 30), seed=42, verbose=False)
+    res = minimize(problem, algorithm, DefaultSingleObjectiveTermination(period=20, n_max_gen=50), seed=42, verbose=False)
 
     if res.X is None:
         return None
@@ -147,8 +145,8 @@ def optimize_max_damage(level, rank_bonus=1.0, pill_mode=False, pill_price=0.0):
 def optimize_worker(args):
     level, seed, rank_bonus, pill_mode, pill_price, case1_price, case2_price, objective = args
     problem = BuildProblem(level, rank_bonus=rank_bonus, pill_mode=pill_mode, pill_price=pill_price, case1_price=case1_price, case2_price=case2_price, objective=objective)
-    pop_size = int(os.environ.get("POP_SIZE", 300))
-    n_gen = int(os.environ.get("N_GEN", 100))
+    pop_size = int(os.environ.get("POP_SIZE", 250))
+    n_gen = int(os.environ.get("N_GEN", 150))
     
     algorithm = NSGA2(
         pop_size=pop_size,
@@ -157,11 +155,11 @@ def optimize_worker(args):
         mutation=PM(prob=0.1, eta=20, repair=RoundingRepair()),
         eliminate_duplicates=True
     )
-    res = minimize(problem, algorithm, get_termination("n_gen", n_gen), seed=seed, verbose=False)
+    res = minimize(problem, algorithm, DefaultMultiObjectiveTermination(n_max_gen=n_gen), seed=seed, verbose=False)
     return res
 
 def optimize(level, verbose=True, rank_bonus=1.20, pill_mode=False, pill_price=0.0, case1_price=0.0, case2_price=0.0, objective="damage"):
-    num_runs = int(os.environ.get("NUM_RUNS", 2))
+    num_runs = int(os.environ.get("NUM_RUNS", 3))
     pool_size = min(num_runs, int(os.environ.get("POOL_SIZE", 1)))
     seeds = np.random.randint(0, 10000, size=num_runs).tolist()
     args = [(level, int(seeds[i]), rank_bonus, pill_mode, pill_price, case1_price, case2_price, objective) for i in range(num_runs)]

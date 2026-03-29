@@ -147,8 +147,8 @@ def optimize_max_damage(level, rank_bonus=1.0, pill_mode=False, pill_price=0.0):
 def optimize_worker(args):
     level, seed, rank_bonus, pill_mode, pill_price, case1_price, case2_price, objective = args
     problem = BuildProblem(level, rank_bonus=rank_bonus, pill_mode=pill_mode, pill_price=pill_price, case1_price=case1_price, case2_price=case2_price, objective=objective)
-    pop_size = int(os.environ.get("POP_SIZE", 200))
-    n_gen = int(os.environ.get("N_GEN", 50))
+    pop_size = int(os.environ.get("POP_SIZE", 300))
+    n_gen = int(os.environ.get("N_GEN", 100))
     
     algorithm = NSGA2(
         pop_size=pop_size,

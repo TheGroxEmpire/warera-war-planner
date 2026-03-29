@@ -6,7 +6,7 @@ services:
       - "10000:10000"
     environment:
       - PORT=10000
-      - POP_SIZE=200
-      - N_GEN=50
+      - POP_SIZE=300
+      - N_GEN=100
     volumes:
       - .:/app

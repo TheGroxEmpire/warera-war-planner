@@ -4,16 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Warera Build Tool</title>
-    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="static/style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@300;400;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div style="background:#b45309;color:#fff;text-align:center;padding:10px 16px;font-size:14px;">
-        This version of the app is outdated and will be deprecated soon. It will continue to be updated at
-        <a href="https://intel.warera.wiki/" target="_blank" rel="noopener" style="color:#fef3c7;font-weight:bold;text-decoration:underline;">intel.warera.wiki</a>
-    </div>
     {% include 'skill_svgs.html' %}
     <div class="container">
         <header class="site-header">
@@ -22,6 +18,46 @@
         </header>
         <div class="top-section">
             <form id="build-form">
+                <div class="campaign-panel">
+                    <div class="campaign-header">
+                        <div>
+                            <h2>Eco Simulator Import</h2>
+                            <p>In Eco Simulator, set Scenario A as your eco factory config and Scenario B as your war factory config. Export Configuration, copy the link, then paste it here.</p>
+                        </div>
+                        <a href="../eco-simulator/" class="campaign-link">Open Eco Simulator</a>
+                    </div>
+                    <div class="campaign-import-row">
+                        <div class="input-group campaign-url-group">
+                            <label for="eco-export-url">Export Link</label>
+                            <textarea id="eco-export-url" spellcheck="false" placeholder="Paste Eco Simulator export link"></textarea>
+                        </div>
+                        <button type="button" id="import-eco-link-btn" class="import-link-btn">Import Link</button>
+                    </div>
+                    <p id="eco-import-status" class="campaign-status">No eco simulator export imported.</p>
+                    <div class="campaign-grid">
+                        <div class="input-group">
+                            <label for="eco_days">Eco Days</label>
+                            <input type="number" id="eco_days" name="eco_days" min="0" step="1" value="0">
+                        </div>
+                        <div class="input-group">
+                            <label for="war_days">War Days</label>
+                            <input type="number" id="war_days" name="war_days" min="1" step="1" value="1">
+                        </div>
+                        <div class="input-group">
+                            <label for="eco_profit_day">Eco Profit / Day</label>
+                            <input type="number" id="eco_profit_day" name="eco_profit_day" step="0.01" value="0">
+                        </div>
+                        <div class="input-group">
+                            <label for="war_profit_day">War Profit / Day</label>
+                            <input type="number" id="war_profit_day" name="war_profit_day" step="0.01" value="0">
+                        </div>
+                        <div class="input-group">
+                            <label for="reserved_skill_points">War Eco Skill Points</label>
+                            <input type="number" id="reserved_skill_points" name="reserved_skill_points" min="0" step="1" value="0">
+                        </div>
+                    </div>
+                    <p id="war-skill-summary" class="campaign-status">War eco skills reserve 0 skill points before combat optimization.</p>
+                </div>
 
                 <!-- Row 1: sliders -->
                 <div class="form-sliders-row">
@@ -55,14 +91,20 @@
 
                 <!-- Row 2: controls -->
                 <div class="form-controls-row">
+                    <div class="input-group api-key-group">
+                        <label for="warera_api_key">API Key</label>
+                        <input type="password" id="warera_api_key" name="warera_api_key" autocomplete="off" spellcheck="false" placeholder="Required" required>
+                        <span class="tooltip">Saved locally in this browser and used for market prices.</span>
+                    </div>
+
                     <div class="input-group">
-                        <label for="companies">Companies</label>
+                        <label for="companies">War Companies</label>
                         <select id="companies" name="companies">
                             {% for i in range(2, 13) %}
                             <option value="{{ i }}">{{ i }}</option>
                             {% endfor %}
                         </select>
-                        <span class="tooltip">Active companies. Reduces available skill points.</span>
+                        <span class="tooltip">Active companies during war. Imported war eco skill points override the old company-only reserve.</span>
                     </div>
 
                     <div class="checkbox-wrapper">
@@ -73,18 +115,38 @@
 
                 </div>
 
+                <details id="advanced-config" class="advanced-config">
+                    <summary>Advanced Configuration</summary>
+                    <div class="advanced-controls">
+                        <div class="input-group">
+                            <label for="samples">Sample Override</label>
+                            <input type="number" id="samples" name="samples" min="1000" step="1000" placeholder="Auto">
+                            <span class="tooltip">Leave empty to let the app choose the local search budget.</span>
+                        </div>
+
+                        <div class="input-group">
+                            <label for="workers">Thread Override</label>
+                            <input type="number" id="workers" name="workers" min="1" step="1" placeholder="Auto">
+                            <span class="tooltip">Leave empty to use every logical CPU thread reported by this browser.</span>
+                        </div>
+                    </div>
+                </details>
+
 <div class="btn-row">
                     <button type="submit" name="objective" value="damage" class="optimize-btn">Optimize Damage<span class="tooltip">Runs NSGA-II multi-objective optimization to find builds that balance damage vs. cost.</span></button>
                     <button type="submit" name="objective" value="cases" class="optimize-btn">Optimize Cases<span class="tooltip">Optimizes builds for maximum cases per day instead of raw damage.</span></button>
                 </div>
             </form>
         </div>
+        <div id="campaign-results" class="campaign-results" style="display:none"></div>
         <div id="view-controls" style="display:none">
             <button type="button" id="view-cards-btn" class="view-btn active">Cards</button>
             <button type="button" id="view-table-btn" class="view-btn">Table</button>
         </div>
         <div id="results"></div>
     </div>
-    <script src="/static/script.js"></script>
+    <script src="static/optimizer-core.js"></script>
+    <script src="static/browser-optimizer.js"></script>
+    <script src="static/script.js"></script>
 </body>
 </html>

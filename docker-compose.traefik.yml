@@ -1,0 +1,22 @@
+services:
+  web:
+    ports: !reset []
+    networks:
+      - default
+      - proxy
+    labels:
+      - "traefik.enable=${TRAEFIK_ENABLE:-true}"
+      - "traefik.docker.network=${PROXY_NETWORK:-proxy}"
+      - "traefik.http.routers.${TRAEFIK_ROUTER_NAME:-warera-war-planner}.rule=Host(`${WARERA_HOST:-warera.xorgress.com}`) && (Path(`${APP_BASE_PATH:-/war-planner}`) || PathPrefix(`${APP_BASE_PATH:-/war-planner}/`))"
+      - "traefik.http.routers.${TRAEFIK_ROUTER_NAME:-warera-war-planner}.entrypoints=${TRAEFIK_ENTRYPOINT:-https}"
+      - "traefik.http.routers.${TRAEFIK_ROUTER_NAME:-warera-war-planner}.tls=${TRAEFIK_TLS:-true}"
+      - "traefik.http.routers.${TRAEFIK_ROUTER_NAME:-warera-war-planner}.priority=${TRAEFIK_PRIORITY:-100}"
+      - "traefik.http.routers.${TRAEFIK_ROUTER_NAME:-warera-war-planner}.middlewares=${TRAEFIK_ROUTER_NAME:-warera-war-planner}-strip-prefix"
+      - "traefik.http.routers.${TRAEFIK_ROUTER_NAME:-warera-war-planner}.service=${TRAEFIK_SERVICE_NAME:-warera-war-planner}"
+      - "traefik.http.middlewares.${TRAEFIK_ROUTER_NAME:-warera-war-planner}-strip-prefix.stripprefix.prefixes=${APP_BASE_PATH:-/war-planner}"
+      - "traefik.http.services.${TRAEFIK_SERVICE_NAME:-warera-war-planner}.loadbalancer.server.port=${WEB_PORT:-10000}"
+
+networks:
+  proxy:
+    external: true
+    name: ${PROXY_NETWORK:-proxy}

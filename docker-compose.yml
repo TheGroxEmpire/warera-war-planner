@@ -1,12 +1,24 @@
-version: "3.8"
 services:
   web:
+    image: warera-war-planner:local
     build: .
     ports:
-      - "10000:10000"
+      - "${WEB_PUBLISHED_PORT:-10000}:${WEB_PORT:-10000}"
     environment:
-      - PORT=10000
-      - POP_SIZE=300
-      - N_GEN=100
-    volumes:
-      - .:/app
+      PORT: ${WEB_PORT:-10000}
+      FLASK_DEBUG: ${FLASK_DEBUG:-false}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    healthcheck:
+      test: ["CMD-SHELL", "python - <<'PY'\nimport os\nimport urllib.request\nport = os.getenv('PORT') or '10000'\nurllib.request.urlopen(f'http://127.0.0.1:{port}/healthz', timeout=5)\nPY"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  test:
+    image: warera-war-planner:local
+    build: .
+    environment:
+      FLASK_DEBUG: "false"
+      LOG_LEVEL: INFO
+    command: ["python", "-m", "unittest", "discover", "-s", "tests"]

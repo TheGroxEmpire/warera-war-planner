@@ -143,6 +143,89 @@ h1 {
     width: 100%;
 }
 
+.campaign-panel {
+    background: var(--bg-base);
+    border: 1px solid var(--border-subtle);
+    border-left: 2px solid var(--accent-amber);
+    border-radius: 4px;
+    padding: 0.9em;
+    margin-bottom: 0.4em;
+}
+
+.campaign-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1em;
+    margin-bottom: 0.8em;
+}
+
+.campaign-header h2 {
+    margin: 0 0 0.25em;
+    color: var(--text-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-size: 1em;
+}
+
+.campaign-header p,
+.campaign-status {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.82em;
+    line-height: 1.45;
+}
+
+.campaign-link {
+    flex: 0 0 auto;
+    color: var(--accent-amber);
+    border: 1px solid var(--border-strong);
+    background: var(--bg-raised);
+    border-radius: 4px;
+    padding: 0.45em 0.8em;
+    text-decoration: none;
+    text-transform: uppercase;
+    font-size: 0.8em;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+}
+
+.campaign-link:hover {
+    border-color: var(--accent-amber);
+    color: var(--text-primary);
+}
+
+.campaign-import-row {
+    display: flex;
+    gap: 0.8em;
+    align-items: flex-end;
+    margin-bottom: 0.6em;
+}
+
+.campaign-url-group {
+    flex: 1 1 auto;
+}
+
+.import-link-btn {
+    flex: 0 0 160px;
+    height: 40px;
+    background: var(--accent-red-dim);
+    border-color: var(--accent-red);
+    font-weight: 700;
+}
+
+.campaign-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 0.8em;
+    margin: 0.8em 0 0.6em;
+}
+
+#eco-import-status.imported,
+#war-skill-summary.imported {
+    color: var(--accent-green);
+}
+
 .trends {
     width: 68%;
     display: flex;
@@ -154,6 +237,37 @@ h1 {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
     gap: 1.2em;
+}
+
+.campaign-results {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-strong);
+    border-top: 2px solid var(--accent-amber);
+    border-radius: 0 0 6px 6px;
+    padding: 0.9em 1.1em;
+    margin-bottom: 1em;
+}
+
+.campaign-results-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 0.7em;
+}
+
+.campaign-results-label {
+    display: block;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-size: 0.72em;
+}
+
+.campaign-results-value {
+    display: block;
+    color: var(--text-primary);
+    font-family: 'Share Tech Mono', 'Courier New', monospace;
+    font-size: 1em;
+    margin-top: 0.15em;
 }
 
 /* ============================================================
@@ -379,6 +493,48 @@ h1 {
     margin-bottom: 0.7em;
 }
 
+.card-campaign {
+    padding: 1em 1.5em;
+    border-top: 1px solid var(--border-subtle);
+    background: rgba(76, 175, 110, 0.08);
+}
+
+.card-campaign.unsustainable {
+    background: rgba(204, 26, 26, 0.08);
+}
+
+.card-campaign h3 {
+    margin-bottom: 0.7em;
+}
+
+.campaign-card-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.55em;
+}
+
+.campaign-card-grid span {
+    display: grid;
+    gap: 0.1em;
+    background: var(--bg-raised);
+    border: 1px solid var(--border-subtle);
+    border-radius: 3px;
+    padding: 0.45em 0.55em;
+}
+
+.campaign-card-grid b {
+    color: var(--text-primary);
+    font-family: 'Share Tech Mono', 'Courier New', monospace;
+    font-size: 0.9em;
+}
+
+.campaign-card-grid small {
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 0.68em;
+}
+
 /* ============================================================
    SKILLS GRID
    ============================================================ */
@@ -592,6 +748,11 @@ th, td {
     min-width: 100px;
 }
 
+.form-controls-row .api-key-group {
+    flex: 1 1 280px;
+    min-width: 240px;
+}
+
 .form-controls-row .checkbox-wrapper {
     flex: 0 0 auto;
 }
@@ -600,6 +761,41 @@ th, td {
     flex: 1 1 160px;
     min-width: 150px;
     max-width: 260px;
+}
+
+.advanced-config {
+    margin-top: 0.6em;
+    border: 1px solid var(--border-subtle);
+    border-radius: 4px;
+    background: var(--bg-base);
+}
+
+.advanced-config summary {
+    cursor: pointer;
+    padding: 0.65em 0.8em;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    font-weight: 700;
+    font-size: 0.85em;
+    letter-spacing: 0.1em;
+    user-select: none;
+}
+
+.advanced-config summary:hover {
+    color: var(--text-primary);
+}
+
+.advanced-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8em;
+    padding: 0 0.8em 0.8em;
+    border-top: 1px solid var(--border-subtle);
+}
+
+.advanced-controls .input-group {
+    flex: 0 0 180px;
+    min-width: 160px;
 }
 
 /* ============================================================
@@ -702,7 +898,10 @@ th, td {
     letter-spacing: 0.1em;
 }
 
-.input-group select {
+.input-group select,
+.input-group input[type="password"],
+.input-group input[type="number"],
+.input-group textarea {
     background-color: var(--bg-raised);
     border: 1px solid var(--border-strong);
     color: var(--text-primary);
@@ -719,10 +918,29 @@ th, td {
     transition: border-color 0.2s, box-shadow 0.2s;
 }
 
-.input-group select:focus {
+.input-group select:focus,
+.input-group input[type="password"]:focus,
+.input-group input[type="number"]:focus,
+.input-group textarea:focus {
     outline: none;
     border-color: var(--accent-red);
     box-shadow: 0 0 0 2px var(--accent-red-glow);
+}
+
+.input-group input[type="password"],
+.input-group input[type="number"],
+.input-group textarea {
+    cursor: text;
+    text-transform: none;
+}
+
+.input-group textarea {
+    height: 78px;
+    padding: 0.55em 0.65em;
+    resize: vertical;
+    font-family: 'Share Tech Mono', 'Courier New', monospace;
+    font-size: 0.82em;
+    line-height: 1.35;
 }
 
 /* ============================================================
@@ -1047,7 +1265,12 @@ select, button {
 
     .form-sliders-row { flex-direction: column; align-items: stretch; }
     .form-sliders-row .slider-container { flex: 1 1 auto; min-width: 0; }
+    .campaign-header,
+    .campaign-import-row { flex-direction: column; align-items: stretch; }
+    .campaign-link,
+    .import-link-btn { flex: 1 1 auto; width: 100%; box-sizing: border-box; text-align: center; }
     .form-controls-row .pill-wrapper { flex: 1 1 100%; max-width: none; }
+    .advanced-controls .input-group { flex: 1 1 100%; }
     .filter-slider-wrapper { flex: 1 1 100%; }
     #results { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
 }
@@ -1060,6 +1283,62 @@ select, button {
     .filter-tab { flex: 1 1 40%; }
     #results { grid-template-columns: 1fr; }
     .btn-row { flex-direction: column; }
+}
+
+/* ============================================================
+   OPTIMIZER PROGRESS
+   ============================================================ */
+.optimizer-progress {
+    grid-column: 1 / -1;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-strong);
+    border-top: 2px solid var(--accent-red);
+    border-radius: 0 0 6px 6px;
+    padding: 1em 1.2em;
+}
+
+.progress-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1em;
+    color: var(--text-secondary);
+    font-family: 'Share Tech Mono', 'Courier New', monospace;
+    font-size: 0.9em;
+    text-transform: uppercase;
+}
+
+.progress-track {
+    height: 8px;
+    margin-top: 0.8em;
+    overflow: hidden;
+    background: var(--bg-raised);
+    border: 1px solid var(--border-subtle);
+    border-radius: 4px;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent-red-dim), var(--accent-red), var(--accent-amber));
+    transition: width 0.18s ease;
+}
+
+.progress-fill.indeterminate {
+    width: 35%;
+    animation: progress-slide 1s ease-in-out infinite alternate;
+}
+
+.progress-note {
+    margin-top: 0.5em;
+    color: var(--text-muted);
+    font-size: 0.85em;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+@keyframes progress-slide {
+    from { transform: translateX(-60%); }
+    to { transform: translateX(230%); }
 }
 
 /* ============================================================
@@ -1275,6 +1554,12 @@ select, button {
     box-shadow: 0 0 0 1px var(--orange-border), 0 0 20px var(--orange-glow);
 }
 
+.recommended-card {
+    border-color: var(--accent-green);
+    border-top-color: var(--accent-green);
+    box-shadow: 0 0 0 1px rgba(76, 175, 110, 0.65), 0 0 20px rgba(76, 175, 110, 0.25);
+}
+
 /* ============================================================
    VIEW TOGGLE
    ============================================================ */
@@ -1381,7 +1666,8 @@ select, button {
 }
 
 .builds-table .td-cost,
-.builds-table .td-eff {
+.builds-table .td-eff,
+.builds-table .td-campaign {
     color: var(--accent-amber);
     font-weight: bold;
     font-family: 'Share Tech Mono', monospace;
@@ -1402,4 +1688,8 @@ select, button {
 
 .builds-table tr.highest-damage-card td {
     border-color: var(--orange-border);
+}
+
+.builds-table tr.recommended-card td {
+    border-color: var(--accent-green);
 }

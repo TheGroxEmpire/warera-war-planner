@@ -4,11 +4,9 @@ setup(
     name="warera_build_tool",
     version="0.1.0",
     packages=find_packages(),
+    python_requires=">=3.9",
     install_requires=[
-        "numpy",
-        "pandas",
-        "plotly",
-        "flask",
+        "flask>=3.0",
     ],
     entry_points={
         "console_scripts": [

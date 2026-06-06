@@ -86,6 +86,8 @@ celerybeat-schedule
 
 # Environments
 .env
+.env.*
+!.env.example
 .venv
 env/
 venv/
@@ -108,3 +110,6 @@ venv.bak/
 
 # Scenario comparison tool
 /tools
+
+# Local assistant/tooling settings
+.claude/

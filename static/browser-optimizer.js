@@ -21,15 +21,6 @@
         return parsed;
     }
 
-    function estimateAutoSamples({ level, workers, objective }) {
-        const levelFactor = level <= 15 ? 0.6 : level <= 30 ? 1.0 : level <= 40 ? 1.6 : 2.4;
-        const workerFactor = Math.min(4.0, Math.max(1.0, Math.sqrt(Math.max(1, workers) / 4)));
-        const objectiveFactor = objective === "cases" ? 1.15 : 1.0;
-        const estimate = 250000 * levelFactor * workerFactor * objectiveFactor;
-        const rounded = Math.round(estimate / 50000) * 50000;
-        return Math.min(3000000, Math.max(100000, rounded));
-    }
-
     function parseOptimizationRequest(formData) {
         const objective = formData.get("objective") || "damage";
         if (!["damage", "cases"].includes(objective)) {
@@ -45,10 +36,6 @@
         const workers = rawWorkers === "" || rawWorkers === "auto"
             ? hardwareConcurrency
             : parseIntOption(rawWorkers, "workers", hardwareConcurrency, 1);
-        const rawSamples = String(formData.get("samples") || "").trim().toLowerCase();
-        const samples = rawSamples === "" || rawSamples === "auto"
-            ? estimateAutoSamples({ level, workers, objective })
-            : parseIntOption(rawSamples, "samples", 250000, 1000);
         const apiKey = String(formData.get("warera_api_key") || "").trim();
         if (!apiKey) {
             throw new Error("WarEra API key is required.");
@@ -64,8 +51,7 @@
             pill: formData.get("pill") === "on",
             objective,
             rankBonus: rankBonus * battleBonus,
-            samples,
-            workers: Math.min(workers, samples),
+            workers,
             apiKey,
         };
     }
@@ -220,27 +206,39 @@
         }
     }
 
-    function splitIterations(total, workerCount) {
-        const base = Math.floor(total / workerCount);
-        const remainder = total % workerCount;
-        return Array.from({ length: workerCount }, (_, index) => base + (index < remainder ? 1 : 0))
-            .filter((count) => count > 0);
+    function splitRanges(total, workerCount) {
+        const count = Math.max(1, Math.min(workerCount, total));
+        const base = Math.floor(total / count);
+        const remainder = total % count;
+        const ranges = [];
+        let start = 0;
+        for (let index = 0; index < count; index += 1) {
+            const size = base + (index < remainder ? 1 : 0);
+            ranges.push([start, start + size]);
+            start += size;
+        }
+        return ranges;
     }
 
-    function runOnMainThread(options, onProgress) {
-        const result = WareraOptimizer.runSearch({ ...options, workerId: 0 }, (evaluated) => {
-            if (onProgress) onProgress({ evaluated, total: options.samples, workers: 1 });
+    function runOnMainThread(options, plan, onProgress) {
+        const result = WareraOptimizer.runSearch({
+            ...options,
+            workerId: 0,
+            sustainStart: 0,
+            sustainEnd: plan.sustainCount,
+        }, (evaluated) => {
+            if (onProgress) onProgress({ evaluated, total: plan.checks, workers: 1 });
         });
         return WareraOptimizer.prepareResponse([result], options);
     }
 
-    function runWorkerPool(options, onProgress) {
+    function runWorkerPool(options, plan, onProgress) {
         if (!global.Worker) {
-            return Promise.resolve(runOnMainThread(options, onProgress));
+            return Promise.resolve(runOnMainThread(options, plan, onProgress));
         }
 
-        const iterationCounts = splitIterations(options.samples, options.workers);
-        const progressByWorker = Array(iterationCounts.length).fill(0);
+        const ranges = splitRanges(plan.sustainCount, options.workers);
+        const progressByWorker = Array(ranges.length).fill(0);
         const results = [];
         const workers = [];
 
@@ -252,9 +250,10 @@
                 for (const worker of workers) worker.terminate();
             }
 
-            iterationCounts.forEach((iterations, workerId) => {
+            ranges.forEach(([sustainStart, sustainEnd], workerId) => {
                 const worker = new Worker(WORKER_URL);
                 workers.push(worker);
+                const workerTotal = (sustainEnd - sustainStart) * plan.combatCount * (plan.budget + 1);
 
                 worker.onmessage = (event) => {
                     const message = event.data || {};
@@ -263,16 +262,16 @@
                         if (onProgress) {
                             onProgress({
                                 evaluated: progressByWorker.reduce((sum, value) => sum + value, 0),
-                                total: options.samples,
-                                workers: iterationCounts.length,
+                                total: plan.checks,
+                                workers: ranges.length,
                             });
                         }
                     } else if (message.type === "result") {
-                        progressByWorker[workerId] = iterations;
+                        progressByWorker[workerId] = workerTotal;
                         results[workerId] = message.result;
                         worker.terminate();
                         finished += 1;
-                        if (finished === iterationCounts.length && !failed) {
+                        if (finished === ranges.length && !failed) {
                             resolve(WareraOptimizer.prepareResponse(results, options));
                         }
                     } else if (message.type === "error") {
@@ -292,9 +291,9 @@
                     type: "run",
                     options: {
                         ...options,
-                        iterations,
+                        sustainStart,
+                        sustainEnd,
                         workerId,
-                        seed: ((Date.now() & 0xffffffff) + workerId * 2654435761) >>> 0,
                     },
                 });
             });
@@ -309,21 +308,22 @@
             ...options,
             priceOverrides,
         };
+        const plan = WareraOptimizer.getSearchPlan(runOptions);
+        runOptions.workers = Math.min(runOptions.workers, plan.sustainCount);
 
         if (onProgress) {
             onProgress({
                 evaluated: 0,
-                total: runOptions.samples,
+                total: plan.checks,
                 workers: runOptions.workers,
             });
         }
 
-        return runWorkerPool(runOptions, onProgress);
+        return runWorkerPool(runOptions, plan, onProgress);
     }
 
     global.WareraBrowserOptimizer = {
         run,
         parseOptimizationRequest,
-        estimateAutoSamples,
     };
 })(window);

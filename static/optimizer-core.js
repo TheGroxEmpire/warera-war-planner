@@ -358,70 +358,7 @@
         };
     }
 
-    function mulberry32(seed) {
-        let value = seed >>> 0;
-        return function () {
-            value += 0x6D2B79F5;
-            let t = value;
-            t = Math.imul(t ^ (t >>> 15), t | 1);
-            t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-            return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-        };
-    }
-
-    function randomInt(rand, maxExclusive) {
-        return Math.floor(rand() * maxExclusive);
-    }
-
-    function randomSkillLevels(rand, skillPoints) {
-        const skillLevels = Array(9).fill(0);
-        let remaining = Math.max(0, Math.floor(skillPoints));
-
-        for (let step = 0; step < 90; step += 1) {
-            const possible = [];
-            for (let i = 0; i < skillLevels.length; i += 1) {
-                if (skillLevels[i] >= MAX_SKILL_LEVEL) continue;
-                const nextLevel = skillLevels[i] + 1;
-                const delta = SKILL_LEVEL_COST[nextLevel] - SKILL_LEVEL_COST[skillLevels[i]];
-                if (delta <= remaining) {
-                    possible.push([i, delta]);
-                }
-            }
-            if (!possible.length) break;
-            if (step > 0 && rand() < 0.045) break;
-
-            const [skillIndex, costDelta] = possible[randomInt(rand, possible.length)];
-            skillLevels[skillIndex] += 1;
-            remaining -= costDelta;
-        }
-
-        return skillLevels;
-    }
-
-    function randomGear(rand) {
-        return [
-            randomInt(rand, WEAPON_TIERS.length),
-            randomInt(rand, GEAR_TIERS.length),
-            randomInt(rand, GEAR_TIERS.length),
-            randomInt(rand, GEAR_TIERS.length),
-            randomInt(rand, GEAR_TIERS.length),
-            randomInt(rand, GEAR_TIERS.length),
-        ];
-    }
-
-    function randomCandidate(rand, skillPoints) {
-        const skillLevels = randomSkillLevels(rand, skillPoints);
-        const gearIdx = randomGear(rand);
-        const weaponIdx = gearIdx[0];
-        const ammoIdx = weaponIdx <= 1 ? 0 : 1 + randomInt(rand, AMMO_NAMES.length - 1);
-        const foodIdx = randomInt(rand, FOOD_NAMES.length);
-        return { skillLevels, gearIdx, ammoIdx, foodIdx };
-    }
-
-    function metricBin(primary, objective) {
-        const scale = objective === "cases" ? 0.25 : 10000;
-        return Math.max(0, Math.min(2047, Math.floor(primary / scale)));
-    }
+    const EXACT_TIE_EPSILON = 1e-10;
 
     function rawBuildKey(build) {
         return [
@@ -453,57 +390,349 @@
         };
     }
 
+    function modValue(item, stat) {
+        return item && item.mods && Number.isFinite(item.mods[stat]) ? item.mods[stat] : 0;
+    }
+
+    function skillBudget(options) {
+        return Math.max(0, Math.floor((options.adjustedLevel || 0) * SKILL_POINTS_PER_LEVEL));
+    }
+
+    function damageCombatConfigCount() {
+        const ammoChoices = WEAPON_TIERS.reduce((sum, _, weaponIdx) => {
+            return sum + (weaponIdx <= 1 ? 1 : AMMO_NAMES.length - 1);
+        }, 0);
+        return ammoChoices * GEAR_TIERS.length * GEAR_TIERS.length;
+    }
+
+    function getSearchPlan(options) {
+        const budget = skillBudget(options);
+        const combatCount = options.objective === "cases" ? GEAR_TIERS.length : damageCombatConfigCount();
+        const sustainCount = GEAR_TIERS.length * GEAR_TIERS.length * GEAR_TIERS.length * FOOD_NAMES.length;
+        return {
+            budget,
+            combatCount,
+            sustainCount,
+            checks: combatCount * sustainCount * (budget + 1),
+        };
+    }
+
+    function makeDamageCombatPatterns(budget) {
+        const patterns = [];
+        for (let atk = 0; atk <= MAX_SKILL_LEVEL; atk += 1) {
+            for (let prc = 0; prc <= MAX_SKILL_LEVEL; prc += 1) {
+                for (let critc = 0; critc <= MAX_SKILL_LEVEL; critc += 1) {
+                    for (let critd = 0; critd <= MAX_SKILL_LEVEL; critd += 1) {
+                        const cost = SKILL_LEVEL_COST[atk] + SKILL_LEVEL_COST[prc] + SKILL_LEVEL_COST[critc] + SKILL_LEVEL_COST[critd];
+                        if (cost <= budget) patterns.push({ cost, levels: [atk, prc, critc, critd] });
+                    }
+                }
+            }
+        }
+        return patterns;
+    }
+
+    function makeCaseCombatPatterns(budget) {
+        const patterns = [];
+        for (let prc = 0; prc <= MAX_SKILL_LEVEL; prc += 1) {
+            for (let loot = 0; loot <= MAX_SKILL_LEVEL; loot += 1) {
+                const cost = SKILL_LEVEL_COST[prc] + SKILL_LEVEL_COST[loot];
+                if (cost <= budget) patterns.push({ cost, levels: [prc, loot] });
+            }
+        }
+        return patterns;
+    }
+
+    function makeSustainPatterns(budget) {
+        const patterns = [];
+        for (let arm = 0; arm <= MAX_SKILL_LEVEL; arm += 1) {
+            for (let ddg = 0; ddg <= MAX_SKILL_LEVEL; ddg += 1) {
+                for (let hp = 0; hp <= MAX_SKILL_LEVEL; hp += 1) {
+                    for (let hun = 0; hun <= MAX_SKILL_LEVEL; hun += 1) {
+                        const cost = SKILL_LEVEL_COST[arm] + SKILL_LEVEL_COST[ddg] + SKILL_LEVEL_COST[hp] + SKILL_LEVEL_COST[hun];
+                        if (cost <= budget) patterns.push({ cost, levels: [arm, ddg, hp, hun] });
+                    }
+                }
+            }
+        }
+        return patterns;
+    }
+
+    function makeDamageCombatConfigs(ctx) {
+        const configs = [];
+        for (let weaponIdx = 0; weaponIdx < WEAPON_TIERS.length; weaponIdx += 1) {
+            const weapon = ctx.gear.weapon[WEAPON_TIERS[weaponIdx]];
+            const ammoIndexes = weaponIdx <= 1 ? [0] : [1, 2, 3];
+            for (let helmetIdx = 0; helmetIdx < GEAR_TIERS.length; helmetIdx += 1) {
+                const helmet = ctx.gear.helmet[GEAR_TIERS[helmetIdx]];
+                for (let glovesIdx = 0; glovesIdx < GEAR_TIERS.length; glovesIdx += 1) {
+                    const gloves = ctx.gear.gloves[GEAR_TIERS[glovesIdx]];
+                    for (const ammoIdx of ammoIndexes) {
+                        configs.push({
+                            weaponIdx,
+                            helmetIdx,
+                            glovesIdx,
+                            ammoIdx,
+                            baseAtk: BASELINE.atk + modValue(weapon, "atk"),
+                            basePrc: BASELINE.prc + modValue(gloves, "prc"),
+                            baseCritc: BASELINE.critc + modValue(weapon, "critc"),
+                            baseCritd: BASELINE.critd + modValue(helmet, "critd"),
+                            ammoBonus: ctx.ammo[AMMO_NAMES[ammoIdx]].dmg_bonus,
+                        });
+                    }
+                }
+            }
+        }
+        return configs;
+    }
+
+    function makeCaseCombatConfigs(ctx) {
+        const configs = [];
+        for (let glovesIdx = 0; glovesIdx < GEAR_TIERS.length; glovesIdx += 1) {
+            const gloves = ctx.gear.gloves[GEAR_TIERS[glovesIdx]];
+            configs.push({
+                weaponIdx: 0,
+                helmetIdx: 0,
+                glovesIdx,
+                ammoIdx: 0,
+                basePrc: BASELINE.prc + modValue(gloves, "prc"),
+            });
+        }
+        return configs;
+    }
+
+    function makeSustainConfigs(ctx) {
+        const configs = [];
+        for (let chestIdx = 0; chestIdx < GEAR_TIERS.length; chestIdx += 1) {
+            const chest = ctx.gear.chest[GEAR_TIERS[chestIdx]];
+            for (let pantsIdx = 0; pantsIdx < GEAR_TIERS.length; pantsIdx += 1) {
+                const pants = ctx.gear.pants[GEAR_TIERS[pantsIdx]];
+                for (let bootsIdx = 0; bootsIdx < GEAR_TIERS.length; bootsIdx += 1) {
+                    const boots = ctx.gear.boots[GEAR_TIERS[bootsIdx]];
+                    for (let foodIdx = 0; foodIdx < FOOD_NAMES.length; foodIdx += 1) {
+                        configs.push({
+                            chestIdx,
+                            pantsIdx,
+                            bootsIdx,
+                            foodIdx,
+                            baseArm: BASELINE.arm + modValue(chest, "arm") + modValue(pants, "arm"),
+                            baseDdg: BASELINE.ddg + modValue(boots, "ddg"),
+                            food: ctx.food[FOOD_NAMES[foodIdx]],
+                        });
+                    }
+                }
+            }
+        }
+        return configs;
+    }
+
+    function damageCombatValue(config, levels, options) {
+        let atk = config.baseAtk + 25 * levels[0];
+        const prcRaw = config.basePrc / 100 + 0.05 * levels[1];
+        const critcRaw = config.baseCritc / 100 + 0.05 * levels[2];
+        let critd = config.baseCritd / 100 + 0.20 * levels[3];
+        const overflowMultiplier = 4.0;
+        const prcOverflowPct = Math.max(0.0, (prcRaw - 1.0) * 100) * overflowMultiplier;
+        const critcOverflowPct = Math.max(0.0, (critcRaw - 1.0) * 100) * overflowMultiplier;
+
+        atk += prcOverflowPct;
+        critd += critcOverflowPct * 0.01;
+
+        const prc = Math.min(1.0, prcRaw);
+        const critc = Math.min(1.0, critcRaw);
+        const pillBonus = options.pill ? 1.6 : 1.0;
+        atk *= pillBonus * (1.0 + config.ammoBonus) * options.rankBonus;
+        return atk * prc * (1 + critc * critd) + (atk / 2.0) * (1 - prc);
+    }
+
+    function caseCombatValue(config, levels) {
+        const prc = Math.min(1.0, config.basePrc / 100 + 0.05 * levels[0]);
+        const loot = 0.02 + 0.02 * levels[1];
+        return prc * loot;
+    }
+
+    function sustainValue(config, levels, options) {
+        const arm = config.baseArm + 6 * levels[0];
+        const ddg = config.baseDdg + 4 * levels[1];
+        const hp = BASELINE.hp + 10 * levels[2];
+        const hun = BASELINE.hun + levels[3];
+        return attacksPossible(hp, hun, arm, ddg, config.food, options.pill);
+    }
+
+    function makeValueTable(config, patterns, budget, valueFn) {
+        const values = new Float64Array(budget + 1);
+        const patternIndexes = new Int32Array(budget + 1);
+        for (let i = 0; i <= budget; i += 1) {
+            values[i] = Number.NEGATIVE_INFINITY;
+            patternIndexes[i] = -1;
+        }
+
+        for (let i = 0; i < patterns.length; i += 1) {
+            const pattern = patterns[i];
+            if (pattern.cost > budget) continue;
+            const value = valueFn(config, pattern.levels);
+            if (Number.isFinite(value) && value > values[pattern.cost] + EXACT_TIE_EPSILON) {
+                values[pattern.cost] = value;
+                patternIndexes[pattern.cost] = i;
+            }
+        }
+
+        for (let cost = 1; cost <= budget; cost += 1) {
+            if (values[cost - 1] > values[cost] + EXACT_TIE_EPSILON) {
+                values[cost] = values[cost - 1];
+                patternIndexes[cost] = patternIndexes[cost - 1];
+            }
+        }
+
+        return { config, values, patternIndexes };
+    }
+
+    function exactPrimary(build, objective) {
+        return objective === "cases" ? build.cases_per_day : build.total_damage;
+    }
+
+    function betterExactBuild(candidate, incumbent, objective) {
+        if (!candidate) return false;
+        if (!incumbent) return true;
+        const candidatePrimary = exactPrimary(candidate, objective);
+        const incumbentPrimary = exactPrimary(incumbent, objective);
+        const epsilon = Math.max(1, Math.abs(incumbentPrimary)) * EXACT_TIE_EPSILON;
+        if (candidatePrimary > incumbentPrimary + epsilon) return true;
+        if (Math.abs(candidatePrimary - incumbentPrimary) <= epsilon) {
+            return candidate.net_cost < incumbent.net_cost - EXACT_TIE_EPSILON;
+        }
+        return false;
+    }
+
+    function createExactRawBuild(combatTable, sustainTable, combatPatterns, sustainPatterns, combatBudget, sustainBudget, objective, options, ctx) {
+        const combatPattern = combatPatterns[combatTable.patternIndexes[combatBudget]];
+        const sustainPattern = sustainPatterns[sustainTable.patternIndexes[sustainBudget]];
+        if (!combatPattern || !sustainPattern) return null;
+
+        let skillLevels;
+        let gearIdx;
+        let ammoIdx;
+        if (objective === "cases") {
+            skillLevels = [
+                0,
+                combatPattern.levels[0],
+                0,
+                0,
+                sustainPattern.levels[0],
+                sustainPattern.levels[1],
+                sustainPattern.levels[2],
+                sustainPattern.levels[3],
+                combatPattern.levels[1],
+            ];
+            gearIdx = [
+                0,
+                0,
+                combatTable.config.glovesIdx,
+                sustainTable.config.chestIdx,
+                sustainTable.config.pantsIdx,
+                sustainTable.config.bootsIdx,
+            ];
+            ammoIdx = 0;
+        } else {
+            skillLevels = [
+                combatPattern.levels[0],
+                combatPattern.levels[1],
+                combatPattern.levels[2],
+                combatPattern.levels[3],
+                sustainPattern.levels[0],
+                sustainPattern.levels[1],
+                sustainPattern.levels[2],
+                sustainPattern.levels[3],
+                0,
+            ];
+            gearIdx = [
+                combatTable.config.weaponIdx,
+                combatTable.config.helmetIdx,
+                combatTable.config.glovesIdx,
+                sustainTable.config.chestIdx,
+                sustainTable.config.pantsIdx,
+                sustainTable.config.bootsIdx,
+            ];
+            ammoIdx = combatTable.config.ammoIdx;
+        }
+
+        const candidate = {
+            skillLevels,
+            gearIdx,
+            ammoIdx,
+            foodIdx: sustainTable.config.foodIdx,
+        };
+        const totals = computeTotals(candidate.skillLevels, candidate.gearIdx, candidate.ammoIdx, candidate.foodIdx, options, ctx);
+        const econ = computeEconomics(candidate.skillLevels, candidate.gearIdx, totals.totalCost, totals.diag, ctx);
+        const primary = objective === "cases" ? econ.cases_per_day : totals.totalDamage;
+        const denominator = Math.max(primary, objective === "cases" ? 0.001 : 1);
+        return createRawBuild(candidate, totals, econ, econ.net_cost / denominator);
+    }
+
     function runSearch(options, onProgress) {
         const ctx = createModelContext(options.priceOverrides);
-        const iterations = Math.max(1, Math.floor(options.iterations || 100000));
-        const skillPoints = Math.max(0, Math.floor(options.adjustedLevel * SKILL_POINTS_PER_LEVEL));
-        const rand = mulberry32(options.seed || 1);
-        const bins = new Map();
-        const progressEvery = Math.max(1000, Math.floor(iterations / 100));
-        let bestDamageBuild = null;
-        let bestMoneyBuild = null;
-        let bestMetricBuild = null;
+        const plan = getSearchPlan(options);
+        const budget = plan.budget;
+        const combatConfigs = options.objective === "cases" ? makeCaseCombatConfigs(ctx) : makeDamageCombatConfigs(ctx);
+        const sustainConfigs = makeSustainConfigs(ctx);
+        const combatPatterns = options.objective === "cases" ? makeCaseCombatPatterns(budget) : makeDamageCombatPatterns(budget);
+        const sustainPatterns = makeSustainPatterns(budget);
+        const combatValueFn = options.objective === "cases"
+            ? (config, levels) => caseCombatValue(config, levels)
+            : (config, levels) => damageCombatValue(config, levels, options);
+        const sustainValueFn = (config, levels) => sustainValue(config, levels, options);
+        const combatTables = combatConfigs.map((config) => makeValueTable(config, combatPatterns, budget, combatValueFn));
+        const sustainStart = Math.max(0, Math.min(sustainConfigs.length, Math.floor(options.sustainStart || 0)));
+        const sustainEnd = Math.max(sustainStart, Math.min(sustainConfigs.length, Math.floor(options.sustainEnd == null ? sustainConfigs.length : options.sustainEnd)));
+        const totalChecks = (sustainEnd - sustainStart) * combatTables.length * (budget + 1);
+        const progressEvery = Math.max(1000, Math.floor(totalChecks / 100));
+        let nextProgress = progressEvery;
+        let evaluated = 0;
+        let bestValue = Number.NEGATIVE_INFINITY;
+        let bestBuild = null;
 
-        for (let i = 0; i < iterations; i += 1) {
-            const candidate = randomCandidate(rand, skillPoints);
-            const totals = computeTotals(candidate.skillLevels, candidate.gearIdx, candidate.ammoIdx, candidate.foodIdx, options, ctx);
-            const econ = computeEconomics(candidate.skillLevels, candidate.gearIdx, totals.totalCost, totals.diag, ctx);
-            const primary = options.objective === "cases" ? econ.cases_per_day : totals.totalDamage;
-            if (!Number.isFinite(primary) || primary <= 0) continue;
+        for (let sustainIndex = sustainStart; sustainIndex < sustainEnd; sustainIndex += 1) {
+            const sustainTable = makeValueTable(sustainConfigs[sustainIndex], sustainPatterns, budget, sustainValueFn);
+            for (const combatTable of combatTables) {
+                for (let combatBudget = 0; combatBudget <= budget; combatBudget += 1) {
+                    const sustainBudget = budget - combatBudget;
+                    const value = combatTable.values[combatBudget] * sustainTable.values[sustainBudget];
+                    if (Number.isFinite(value) && value > 0) {
+                        const epsilon = Math.max(1, Math.abs(bestValue)) * EXACT_TIE_EPSILON;
+                        if (value > bestValue + epsilon || Math.abs(value - bestValue) <= epsilon) {
+                            const raw = createExactRawBuild(
+                                combatTable,
+                                sustainTable,
+                                combatPatterns,
+                                sustainPatterns,
+                                combatBudget,
+                                sustainBudget,
+                                options.objective,
+                                options,
+                                ctx
+                            );
+                            if (value > bestValue + epsilon || betterExactBuild(raw, bestBuild, options.objective)) {
+                                bestValue = value;
+                                bestBuild = raw;
+                            }
+                        }
+                    }
+                }
 
-            const scoreDenominator = Math.max(primary, options.objective === "cases" ? 0.001 : 1);
-            const selectionScore = econ.net_cost / scoreDenominator;
-            const bin = metricBin(primary, options.objective);
-            const current = bins.get(bin);
-            const shouldKeepBin = !current || selectionScore < current._selection_score;
-            const shouldKeepDamage = !bestDamageBuild || totals.totalDamage > bestDamageBuild.total_damage;
-            const shouldKeepMoney = !bestMoneyBuild || econ.net_cost < bestMoneyBuild.net_cost;
-            const shouldKeepMetric = !bestMetricBuild || primary > (options.objective === "cases" ? bestMetricBuild.cases_per_day : bestMetricBuild.total_damage);
-
-            if (shouldKeepBin || shouldKeepDamage || shouldKeepMoney || shouldKeepMetric) {
-                const raw = createRawBuild(candidate, totals, econ, selectionScore);
-                if (shouldKeepBin) bins.set(bin, raw);
-                if (shouldKeepDamage) bestDamageBuild = raw;
-                if (shouldKeepMoney) bestMoneyBuild = raw;
-                if (shouldKeepMetric) bestMetricBuild = raw;
-            }
-
-            if (onProgress && (i + 1) % progressEvery === 0) {
-                onProgress(i + 1);
+                evaluated += budget + 1;
+                if (onProgress && evaluated >= nextProgress) {
+                    onProgress(evaluated);
+                    nextProgress += progressEvery;
+                }
             }
         }
 
-        if (onProgress) onProgress(iterations);
-
-        const unique = new Map();
-        for (const build of bins.values()) unique.set(rawBuildKey(build), build);
-        for (const build of [bestDamageBuild, bestMoneyBuild, bestMetricBuild]) {
-            if (build) unique.set(rawBuildKey(build), build);
-        }
+        if (onProgress) onProgress(totalChecks);
 
         return {
-            builds: Array.from(unique.values()),
-            evaluated: iterations,
+            builds: bestBuild ? [bestBuild] : [],
+            evaluated: totalChecks,
+            total: totalChecks,
         };
     }
 
@@ -663,7 +892,10 @@
 
         const allBuilds = Array.from(unique.values())
             .map((build) => finalizeBuild(build, options.pill, ctx))
-            .sort((a, b) => a.total_cost - b.total_cost || b.total_damage - a.total_damage);
+            .sort((a, b) => {
+                const primaryDelta = exactPrimary(b, options.objective) - exactPrimary(a, options.objective);
+                return primaryDelta || a.net_cost - b.net_cost;
+            });
 
         if (!allBuilds.length) {
             return {
@@ -674,36 +906,17 @@
             };
         }
 
+        const bestBuild = allBuilds.reduce((best, build) => betterExactBuild(build, best, options.objective) ? build : best, null);
+        bestBuild.is_highest_damage = true;
+        bestBuild.is_max_damage = true;
         const maxDamageBuild = allBuilds.reduce((best, build) => build.total_damage > best.total_damage ? build : best);
-        maxDamageBuild.is_highest_damage = true;
-        maxDamageBuild.is_max_damage = true;
         const maxDamageValue = Math.floor(maxDamageBuild.total_damage);
 
-        let builds = selectBuilds(allBuilds, {
-            minDamage: 50000,
-            maxDamage: maxDamageValue,
-            numBuilds: 19,
-            costKey: "net_cost",
-            metric: options.objective,
-        }).sort((a, b) => a.total_cost - b.total_cost);
-
-        if (options.objective === "cases") {
-            const bestMoneyBuild = allBuilds.reduce((best, build) => build.net_cost < best.net_cost ? build : best);
-            bestMoneyBuild.is_highest_damage = true;
-            const bestMoneyKey = rawBuildKey(bestMoneyBuild);
-            builds = builds.filter((build) => rawBuildKey(build) !== bestMoneyKey);
-            builds.unshift(bestMoneyBuild);
-        } else {
-            const maxDamageKey = rawBuildKey(maxDamageBuild);
-            builds = builds.filter((build) => rawBuildKey(build) !== maxDamageKey);
-            builds.push(maxDamageBuild);
-        }
-
         return {
-            builds,
+            builds: [bestBuild],
             all_builds: allBuilds,
             max_damage_value: maxDamageValue,
-            max_net_cost_value: maxDamageBuild.net_cost,
+            max_net_cost_value: bestBuild.net_cost,
         };
     }
 
@@ -725,6 +938,7 @@
         },
         createModelContext,
         computeTotals,
+        getSearchPlan,
         runSearch,
         prepareResponse,
         formatNumber,

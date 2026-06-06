@@ -6,7 +6,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const buildForm = document.getElementById("build-form");
     const optimizeBtns = buildForm.querySelectorAll(".optimize-btn");
     const workersInput = document.getElementById("workers");
-    const samplesInput = document.getElementById("samples");
     const advancedConfig = document.getElementById("advanced-config");
     const importEcoLinkBtn = document.getElementById("import-eco-link-btn");
     const ecoExportUrlInput = document.getElementById("eco-export-url");
@@ -461,7 +460,7 @@ document.addEventListener("DOMContentLoaded", () => {
         resultsDiv.innerHTML = `
             <div class="optimizer-progress">
                 <div class="progress-header">
-                    <span>${formatProgressNumber(evaluated)} / ${formatProgressNumber(total)} configs</span>
+                    <span>${formatProgressNumber(evaluated)} / ${formatProgressNumber(total)} checks</span>
                     <span>${workerLabel}</span>
                 </div>
                 <div class="progress-track"><div class="progress-fill" style="width:${percent.toFixed(1)}%"></div></div>
@@ -482,7 +481,6 @@ document.addEventListener("DOMContentLoaded", () => {
             ['wbt_rank_bonus', 'rank_bonus-input'],
             ['wbt_battle_bonus', 'battle_bonus-input'],
             ['wbt_warera_api_key', 'warera_api_key'],
-            ['wbt_samples', 'samples'],
             ['wbt_workers', 'workers'],
             ['wbt_eco_days', 'eco_days'],
             ['wbt_war_days', 'war_days'],
@@ -538,11 +536,6 @@ document.addEventListener("DOMContentLoaded", () => {
         const advancedOpen = localStorage.getItem('wbt_advanced_open');
         const shouldRestoreAdvancedOverrides = advancedOpen !== null;
 
-        const samples = localStorage.getItem('wbt_samples');
-        if (shouldRestoreAdvancedOverrides && samples && samples !== 'auto') {
-            setFormControlValue('samples', samples);
-        }
-
         const workers = localStorage.getItem('wbt_workers');
         if (shouldRestoreAdvancedOverrides && workers && workers !== 'auto') {
             setFormControlValue('workers', workers);
@@ -560,17 +553,6 @@ document.addEventListener("DOMContentLoaded", () => {
     function updateAdvancedPlaceholders() {
         const hardwareConcurrency = navigator.hardwareConcurrency || 4;
         if (workersInput) workersInput.placeholder = `Auto (${hardwareConcurrency})`;
-        if (!samplesInput || !window.WareraBrowserOptimizer) return;
-
-        const level = Number.parseInt(getFormControlValue("level-input", "1") || "1", 10);
-        const manualWorkers = workersInput ? Number.parseInt(workersInput.value || "", 10) : NaN;
-        const workers = Number.isFinite(manualWorkers) && manualWorkers > 0 ? manualWorkers : hardwareConcurrency;
-        const autoSamples = window.WareraBrowserOptimizer.estimateAutoSamples({
-            level: Number.isFinite(level) ? level : 1,
-            workers,
-            objective: "damage",
-        });
-        samplesInput.placeholder = `Auto (~${formatProgressNumber(autoSamples)})`;
     }
 
     buildForm.addEventListener('input', saveFormState);
@@ -605,7 +587,7 @@ document.addEventListener("DOMContentLoaded", () => {
         viewControls.style.display = '';
 
         if (viewMode === 'table') {
-            renderTable(builds);
+            renderTable(builds, objective);
             return;
         }
 
@@ -689,12 +671,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // --- Render Table ---
     function getSortValue(d, col) {
-        if (col === 'damage') return d.total_damage;
+        if (col === 'damage') return currentObjective === 'cases' ? d.cases_per_day : d.total_damage;
         if (col === 'net_cost') return d.net_cost;
         if (col === 'campaign_sustainable') return d.campaign && d.campaign.sustainable ? 1 : 0;
         if (col === 'campaign_remaining') return d.campaign ? d.campaign.remainingBudget : 0;
         if (col === 'campaign_cost') return d.campaign ? d.campaign.warTotalCost : 0;
-        if (col === 'eff') return d.net_cost / d.total_damage * 1000;
+        if (col === 'eff') return currentObjective === 'cases' ? d.net_cost / d.cases_per_day : d.net_cost / d.total_damage * 1000;
         if (col === 'ammo') return d.ammo_quantity;
         if (col === 'food') return d.food_quantity;
         if (col.startsWith('skill_')) return d.skill_lvls[parseInt(col.split('_')[1])];
@@ -708,15 +690,16 @@ document.addEventListener("DOMContentLoaded", () => {
         return `<th class="sortable-th${active ? ' sort-active' : ''}" data-sort="${col}">${label}<span class="sort-indicator${active ? ' sort-indicator-visible' : ''}">${arrow}</span></th>`;
     }
 
-    function renderTable(builds) {
+    function renderTable(builds, objective = 'damage') {
         let sorted = [...builds];
+        const isCasesMode = objective === 'cases';
         const hasCampaign = sorted.some(d => d.campaign);
         if (sortCol) {
             sorted.sort((a, b) => (getSortValue(a, sortCol) - getSortValue(b, sortCol)) * sortDir);
         }
 
         const skillCols = SKILL_NAMES.map((n, i) => thHtml(n, `skill_${i}`)).join("");
-        const gearHeaders = ['Weapon', 'Helmet', 'Chest', 'Gloves', 'Pants', 'Boots']
+        const gearHeaders = ['Weapon', 'Helmet', 'Gloves', 'Chest', 'Pants', 'Boots']
             .map((n, i) => thHtml(n, `gear_${i}`)).join("");
 
         const rows = sorted.map(d => {
@@ -726,12 +709,16 @@ document.addEventListener("DOMContentLoaded", () => {
                 ? `<td class="td-campaign">${d.campaign?.sustainable ? "Yes" : "No"}</td><td class="td-campaign">${d.campaign ? formatMoney(d.campaign.remainingBudget) : "-"}</td>`
                 : "";
             const rowClass = `${d.is_recommended ? " recommended-card" : ""}${d.is_highest_damage ? " highest-damage-card" : (d.is_max_damage ? " max-damage-card" : "")}`;
+            const primaryValue = isCasesMode ? d.cases_per_day_formatted : d.total_damage_formatted;
+            const efficiencyValue = isCasesMode
+                ? (d.net_cost / d.cases_per_day).toFixed(2)
+                : (d.net_cost / d.total_damage * 1000).toFixed(2);
             return `
                 <tr class="table-row${rowClass}">
-                    <td class="td-damage">${d.total_damage_formatted}</td>
+                    <td class="td-damage">${primaryValue}</td>
                     <td class="td-cost">${d.net_cost_formatted}</td>
                     ${campaignCells}
-                    <td class="td-eff">${(d.net_cost / d.total_damage * 1000).toFixed(2)}</td>
+                    <td class="td-eff">${efficiencyValue}</td>
                     ${skillCells}
                     ${gearCells}
                     <td class="td-gear" style="background-color:${d.ammo_color}">${d.ammo_name}<br><small>×${d.ammo_quantity}</small></td>
@@ -744,10 +731,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 <table class="builds-table">
                     <thead>
                         <tr>
-                            ${thHtml('Damage', 'damage')}
+                            ${thHtml(isCasesMode ? 'Cases' : 'Damage', 'damage')}
                             ${thHtml('Net Cost', 'net_cost')}
                             ${hasCampaign ? `${thHtml('Sustain', 'campaign_sustainable')}${thHtml('Remaining', 'campaign_remaining')}` : ""}
-                            ${thHtml('$/K', 'eff')}
+                            ${thHtml(isCasesMode ? '$/Case' : '$/K', 'eff')}
                             ${skillCols}
                             ${gearHeaders}
                             ${thHtml('Ammo', 'ammo')}
@@ -768,7 +755,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 sortCol = col;
                 sortDir = 1;
             }
-            renderTable(allBuilds);
+            renderTable(allBuilds, currentObjective);
         });
     }
 });

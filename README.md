@@ -2,6 +2,8 @@
 
 Browser app for planning WarEra eco and war durations.
 
+The optimizer runs entirely in the browser. It uses Web Workers to split a deterministic exact search across local CPU threads and returns the highest-scoring build for the selected objective.
+
 ## Configuration
 
 Runtime configuration is read from environment variables. Start from the sample file:
@@ -10,7 +12,7 @@ Runtime configuration is read from environment variables. Start from the sample 
 cp .env.example .env
 ```
 
-Users must enter a WarEra API key in the web form when running an optimization.
+Users must enter a WarEra API key in the web form when running an optimization. The key stays in browser storage and is used by the browser to refresh market prices.
 
 Useful variables:
 

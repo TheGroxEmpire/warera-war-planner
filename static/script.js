@@ -50,6 +50,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const syncSliderAndInput = (sliderId, inputId) => {
         const slider = document.getElementById(sliderId);
         const input = document.getElementById(inputId);
+        if (!slider || !input) return;
 
         const updateSliderBackground = () => {
             const value = (slider.value - slider.min) / (slider.max - slider.min) * 100;
@@ -80,11 +81,13 @@ document.addEventListener("DOMContentLoaded", () => {
         event.preventDefault();
         if (isOptimizing) return;
 
-        const submitter = event.submitter;
+        const submitter = event.submitter || buildForm.querySelector(".optimize-btn");
+        if (!submitter) return;
         const data = new FormData(buildForm);
-        data.set('objective', submitter.value);
+        const objective = submitter.value || 'damage';
+        data.set('objective', objective);
         const submitterLabel = submitter.innerHTML;
-        currentObjective = submitter.value;
+        currentObjective = objective;
 
         resultsDiv.innerHTML = "";
         renderCampaignResults({ active: false }, []);
@@ -102,10 +105,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 onProgress: renderProgress,
             });
             const campaign = getCampaignSettings();
-            allBuilds = applyCampaignToBuilds(results.builds || [], campaign, submitter.value);
+            allBuilds = applyCampaignToBuilds(results.builds || [], campaign, objective);
             renderCampaignResults(campaign, allBuilds);
 
-            renderBuilds(allBuilds, submitter.value);
+            renderBuilds(allBuilds, objective);
 
         } catch (error) {
             console.error("Optimization error:", error);
@@ -140,8 +143,32 @@ document.addEventListener("DOMContentLoaded", () => {
         return Number.isFinite(value) ? value : fallback;
     }
 
+    function getFormControl(id) {
+        return document.getElementById(id);
+    }
+
+    function getFormControlValue(id, fallback = "") {
+        const input = getFormControl(id);
+        return input ? input.value : fallback;
+    }
+
+    function setFormControlValue(id, value) {
+        const input = getFormControl(id);
+        if (input && value !== undefined && value !== null) input.value = String(value);
+    }
+
+    function setFormControlChecked(id, checked) {
+        const input = getFormControl(id);
+        if (input) input.checked = Boolean(checked);
+    }
+
+    function saveStoredValue(storageKey, inputId) {
+        const input = getFormControl(inputId);
+        if (input) localStorage.setItem(storageKey, input.value);
+    }
+
     function setInputValue(id, value) {
-        const input = document.getElementById(id);
+        const input = getFormControl(id);
         if (!input || value === undefined || value === null) return;
         input.value = String(value);
         input.dispatchEvent(new Event("input", { bubbles: true }));
@@ -275,7 +302,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     async function importEcoSimulatorLink() {
         try {
-            const imported = await parseEcoSimulatorExport(ecoExportUrlInput.value);
+            const imported = await parseEcoSimulatorExport(getFormControlValue("eco-export-url"));
             if (!imported.eco && !imported.war) {
                 throw new Error("The export does not include eco or war scenario data.");
             }
@@ -450,18 +477,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // --- localStorage Persistence ---
     function saveFormState() {
-        localStorage.setItem('wbt_level', document.getElementById('level-input').value);
-        localStorage.setItem('wbt_rank_bonus', document.getElementById('rank_bonus-input').value);
-        localStorage.setItem('wbt_battle_bonus', document.getElementById('battle_bonus-input').value);
-        localStorage.setItem('wbt_warera_api_key', document.getElementById('warera_api_key').value);
-        localStorage.setItem('wbt_pill', document.getElementById('pill').checked);
-        localStorage.setItem('wbt_samples', document.getElementById('samples').value);
-        localStorage.setItem('wbt_workers', document.getElementById('workers').value);
-        localStorage.setItem('wbt_eco_days', document.getElementById('eco_days').value);
-        localStorage.setItem('wbt_war_days', document.getElementById('war_days').value);
-        localStorage.setItem('wbt_eco_profit_day', document.getElementById('eco_profit_day').value);
-        localStorage.setItem('wbt_war_profit_day', document.getElementById('war_profit_day').value);
-        localStorage.setItem('wbt_reserved_skill_points', document.getElementById('reserved_skill_points').value);
+        [
+            ['wbt_level', 'level-input'],
+            ['wbt_rank_bonus', 'rank_bonus-input'],
+            ['wbt_battle_bonus', 'battle_bonus-input'],
+            ['wbt_warera_api_key', 'warera_api_key'],
+            ['wbt_samples', 'samples'],
+            ['wbt_workers', 'workers'],
+            ['wbt_eco_days', 'eco_days'],
+            ['wbt_war_days', 'war_days'],
+            ['wbt_eco_profit_day', 'eco_profit_day'],
+            ['wbt_war_profit_day', 'war_profit_day'],
+            ['wbt_reserved_skill_points', 'reserved_skill_points'],
+        ].forEach(([storageKey, inputId]) => saveStoredValue(storageKey, inputId));
+        const pillInput = getFormControl('pill');
+        if (pillInput) localStorage.setItem('wbt_pill', pillInput.checked);
         localStorage.setItem('wbt_eco_export_imported', hasEcoSimulatorImport ? 'true' : 'false');
         if (advancedConfig) localStorage.setItem('wbt_advanced_open', advancedConfig.open);
     }
@@ -469,27 +499,27 @@ document.addEventListener("DOMContentLoaded", () => {
     function restoreFormState() {
         const level = localStorage.getItem('wbt_level');
         if (level) {
-            document.getElementById('level-input').value = level;
-            document.getElementById('level-slider').value = level;
+            setFormControlValue('level-input', level);
+            setFormControlValue('level-slider', level);
         }
 
         const rankBonus = localStorage.getItem('wbt_rank_bonus');
         if (rankBonus) {
-            document.getElementById('rank_bonus-input').value = rankBonus;
-            document.getElementById('rank_bonus-slider').value = rankBonus;
+            setFormControlValue('rank_bonus-input', rankBonus);
+            setFormControlValue('rank_bonus-slider', rankBonus);
         }
 
         const battleBonus = localStorage.getItem('wbt_battle_bonus');
         if (battleBonus) {
-            document.getElementById('battle_bonus-input').value = battleBonus;
-            document.getElementById('battle_bonus-slider').value = battleBonus;
+            setFormControlValue('battle_bonus-input', battleBonus);
+            setFormControlValue('battle_bonus-slider', battleBonus);
         }
 
         const apiKey = localStorage.getItem('wbt_warera_api_key');
-        if (apiKey) document.getElementById('warera_api_key').value = apiKey;
+        if (apiKey) setFormControlValue('warera_api_key', apiKey);
 
         const pill = localStorage.getItem('wbt_pill');
-        if (pill !== null) document.getElementById('pill').checked = pill === 'true';
+        if (pill !== null) setFormControlChecked('pill', pill === 'true');
 
         const campaignFields = [
             ['wbt_eco_days', 'eco_days'],
@@ -500,7 +530,8 @@ document.addEventListener("DOMContentLoaded", () => {
         ];
         campaignFields.forEach(([storageKey, inputId]) => {
             const value = localStorage.getItem(storageKey);
-            if (value !== null) document.getElementById(inputId).value = value;
+            const input = getFormControl(inputId);
+            if (value !== null && input) input.value = value;
         });
         setEcoSimulatorImportState(localStorage.getItem('wbt_eco_export_imported') === 'true');
 
@@ -509,19 +540,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const samples = localStorage.getItem('wbt_samples');
         if (shouldRestoreAdvancedOverrides && samples && samples !== 'auto') {
-            document.getElementById('samples').value = samples;
+            setFormControlValue('samples', samples);
         }
 
         const workers = localStorage.getItem('wbt_workers');
         if (shouldRestoreAdvancedOverrides && workers && workers !== 'auto') {
-            document.getElementById('workers').value = workers;
+            setFormControlValue('workers', workers);
         }
 
         if (advancedConfig && advancedOpen !== null) advancedConfig.open = advancedOpen === 'true';
 
         // Re-trigger slider backgrounds after restoring values
         ['level', 'rank_bonus', 'battle_bonus'].forEach(id => {
-            document.getElementById(`${id}-slider`).dispatchEvent(new Event('input'));
+            const slider = getFormControl(`${id}-slider`);
+            if (slider) slider.dispatchEvent(new Event('input'));
         });
     }
 
@@ -530,7 +562,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (workersInput) workersInput.placeholder = `Auto (${hardwareConcurrency})`;
         if (!samplesInput || !window.WareraBrowserOptimizer) return;
 
-        const level = Number.parseInt(document.getElementById("level-input").value || "1", 10);
+        const level = Number.parseInt(getFormControlValue("level-input", "1") || "1", 10);
         const manualWorkers = workersInput ? Number.parseInt(workersInput.value || "", 10) : NaN;
         const workers = Number.isFinite(manualWorkers) && manualWorkers > 0 ? manualWorkers : hardwareConcurrency;
         const autoSamples = window.WareraBrowserOptimizer.estimateAutoSamples({

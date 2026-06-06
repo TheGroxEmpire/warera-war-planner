@@ -221,6 +221,45 @@ h1 {
     margin: 0.8em 0 0.6em;
 }
 
+.imported-economy-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 0.7em;
+    margin: 0.8em 0;
+}
+
+.imported-economy-summary span {
+    display: block;
+    background: var(--bg-raised);
+    border: 1px solid var(--border-subtle);
+    border-radius: 4px;
+    padding: 0.55em 0.7em;
+}
+
+.imported-economy-summary b {
+    display: block;
+    color: var(--text-primary);
+    font-family: "Share Tech Mono", monospace;
+    font-size: 1.05em;
+    font-weight: 400;
+}
+
+.imported-economy-summary small {
+    display: block;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 0.68em;
+}
+
+.imported-economy-summary.imported span {
+    border-color: var(--border-strong);
+}
+
+.imported-economy-summary.imported b {
+    color: var(--accent-green);
+}
+
 #eco-import-status.imported,
 #war-skill-summary.imported {
     color: var(--accent-green);

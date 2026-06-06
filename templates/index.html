@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Warera Build Tool</title>
+    <title>Warera War Planner</title>
     <link rel="stylesheet" href="static/style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -13,7 +13,7 @@
     {% include 'skill_svgs.html' %}
     <div class="container">
         <header class="site-header">
-            <h1>Warera Build Tool</h1>
+            <h1>Warera War Planner</h1>
             <p class="site-tagline">Multi-Objective Build Optimizer - Updated for 0.24.1</p>
         </header>
         <div class="top-section">
@@ -22,18 +22,23 @@
                     <div class="campaign-header">
                         <div>
                             <h2>Eco Simulator Import</h2>
-                            <p>In Eco Simulator, set Scenario A as your eco factory config and Scenario B as your war factory config. Export Configuration, copy the link, then paste it here.</p>
+                            <p>In Eco Simulator, set Scenario A as your eco factory config and Scenario B as your war factory config. Click <strong>War Planner Export</strong>, copy the link, then paste it here.</p>
                         </div>
-                        <a href="../eco-simulator/" class="campaign-link">Open Eco Simulator</a>
+                        <a href="../eco-simulator/" class="campaign-link" target="_blank" rel="noopener noreferrer">Open Eco Simulator</a>
                     </div>
                     <div class="campaign-import-row">
                         <div class="input-group campaign-url-group">
-                            <label for="eco-export-url">Export Link</label>
-                            <textarea id="eco-export-url" spellcheck="false" placeholder="Paste Eco Simulator export link"></textarea>
+                            <label for="eco-export-url">War Planner Export Link</label>
+                            <textarea id="eco-export-url" spellcheck="false" placeholder="Paste War Planner Export link from Eco Simulator"></textarea>
                         </div>
                         <button type="button" id="import-eco-link-btn" class="import-link-btn">Import Link</button>
                     </div>
-                    <p id="eco-import-status" class="campaign-status">No eco simulator export imported.</p>
+                    <p id="eco-import-status" class="campaign-status">No War Planner Export imported.</p>
+                    <div id="imported-economy-summary" class="imported-economy-summary" aria-live="polite">
+                        <span><b id="imported-eco-profit-day">0.00</b><small>Eco Profit / Day</small></span>
+                        <span><b id="imported-war-profit-day">0.00</b><small>War Profit / Day</small></span>
+                        <span><b id="imported-war-skill-points">0</b><small>War Eco Skill Points</small></span>
+                    </div>
                     <div class="campaign-grid">
                         <div class="input-group">
                             <label for="eco_days">Eco Days</label>
@@ -43,19 +48,11 @@
                             <label for="war_days">War Days</label>
                             <input type="number" id="war_days" name="war_days" min="1" step="1" value="1">
                         </div>
-                        <div class="input-group">
-                            <label for="eco_profit_day">Eco Profit / Day</label>
-                            <input type="number" id="eco_profit_day" name="eco_profit_day" step="0.01" value="0">
-                        </div>
-                        <div class="input-group">
-                            <label for="war_profit_day">War Profit / Day</label>
-                            <input type="number" id="war_profit_day" name="war_profit_day" step="0.01" value="0">
-                        </div>
-                        <div class="input-group">
-                            <label for="reserved_skill_points">War Eco Skill Points</label>
-                            <input type="number" id="reserved_skill_points" name="reserved_skill_points" min="0" step="1" value="0">
-                        </div>
                     </div>
+                    <input type="hidden" id="eco_profit_day" name="eco_profit_day" value="0">
+                    <input type="hidden" id="war_profit_day" name="war_profit_day" value="0">
+                    <input type="hidden" id="reserved_skill_points" name="reserved_skill_points" value="0">
+                    <input type="hidden" id="eco_export_imported" name="eco_export_imported" value="0">
                     <p id="war-skill-summary" class="campaign-status">War eco skills reserve 0 skill points before combat optimization.</p>
                 </div>
 
@@ -95,16 +92,6 @@
                         <label for="warera_api_key">API Key</label>
                         <input type="password" id="warera_api_key" name="warera_api_key" autocomplete="off" spellcheck="false" placeholder="Required" required>
                         <span class="tooltip">Saved locally in this browser and used for market prices.</span>
-                    </div>
-
-                    <div class="input-group">
-                        <label for="companies">War Companies</label>
-                        <select id="companies" name="companies">
-                            {% for i in range(2, 13) %}
-                            <option value="{{ i }}">{{ i }}</option>
-                            {% endfor %}
-                        </select>
-                        <span class="tooltip">Active companies during war. Imported war eco skill points override the old company-only reserve.</span>
                     </div>
 
                     <div class="checkbox-wrapper">

@@ -12,6 +12,11 @@ document.addEventListener("DOMContentLoaded", () => {
     const ecoExportUrlInput = document.getElementById("eco-export-url");
     const ecoImportStatus = document.getElementById("eco-import-status");
     const warSkillSummary = document.getElementById("war-skill-summary");
+    const ecoExportImportedInput = document.getElementById("eco_export_imported");
+    const importedEcoProfitDay = document.getElementById("imported-eco-profit-day");
+    const importedWarProfitDay = document.getElementById("imported-war-profit-day");
+    const importedWarSkillPoints = document.getElementById("imported-war-skill-points");
+    const importedEconomySummary = document.getElementById("imported-economy-summary");
 
     updateAdvancedPlaceholders();
 
@@ -20,6 +25,8 @@ document.addEventListener("DOMContentLoaded", () => {
     let sortCol = null;
     let sortDir = 1;
     let currentObjective = 'damage';
+    let hasEcoSimulatorImport = false;
+    let importedWarScenario = null;
 
     const viewControls = document.getElementById('view-controls');
     const viewCardsBtn = document.getElementById('view-cards-btn');
@@ -232,20 +239,33 @@ document.addEventListener("DOMContentLoaded", () => {
         };
     }
 
-    function clampSelectValue(select, value) {
-        if (!select) return;
-        const values = Array.from(select.options).map((option) => Number(option.value));
-        const min = Math.min(...values);
-        const max = Math.max(...values);
-        const clamped = Math.min(max, Math.max(min, Math.floor(Number(value) || min)));
-        select.value = String(clamped);
+    function setEcoSimulatorImportState(imported) {
+        hasEcoSimulatorImport = Boolean(imported);
+        if (ecoExportImportedInput) {
+            ecoExportImportedInput.value = hasEcoSimulatorImport ? "1" : "0";
+        }
+    }
+
+    function updateImportedEconomySummary() {
+        if (importedEcoProfitDay) importedEcoProfitDay.textContent = formatMoney(parseNumericInput("eco_profit_day", 0));
+        if (importedWarProfitDay) importedWarProfitDay.textContent = formatMoney(parseNumericInput("war_profit_day", 0));
+        if (importedWarSkillPoints) importedWarSkillPoints.textContent = String(Math.max(0, Math.floor(parseNumericInput("reserved_skill_points", 0))));
+        if (importedEconomySummary) importedEconomySummary.classList.toggle("imported", hasEcoSimulatorImport);
     }
 
     function updateWarSkillSummary(warScenario) {
+        if (!hasEcoSimulatorImport) {
+            if (warSkillSummary) {
+                warSkillSummary.textContent = "Eco profit, war profit, and war eco skill points will be filled from Eco Simulator's War Planner Export.";
+                warSkillSummary.classList.remove("imported");
+            }
+            updateImportedEconomySummary();
+            return;
+        }
         const reserved = Math.max(0, Math.floor(parseNumericInput("reserved_skill_points", 0)));
         const companiesLevel = warScenario?.skillLevels?.companies || 0;
         const managementLevel = warScenario?.skillLevels?.management || 0;
-        const activeCompanies = warScenario?.companiesActive || Number(document.getElementById("companies")?.value || 2);
+        const activeCompanies = warScenario?.companiesActive || 0;
         const text = `War eco skills reserve ${reserved} skill points before combat optimization. Companies skill ${companiesLevel}, management skill ${managementLevel}, active war companies ${activeCompanies}.`;
         if (warSkillSummary) {
             warSkillSummary.textContent = text;
@@ -260,17 +280,18 @@ document.addEventListener("DOMContentLoaded", () => {
                 throw new Error("The export does not include eco or war scenario data.");
             }
 
+            setEcoSimulatorImportState(true);
+            importedWarScenario = imported.war || null;
             const level = imported.war?.level || imported.eco?.level;
             if (level) setSliderPair("level", level);
             if (imported.eco) setInputValue("eco_profit_day", imported.eco.profitDay.toFixed(2));
             if (imported.war) {
                 setInputValue("war_profit_day", imported.war.profitDay.toFixed(2));
                 setInputValue("reserved_skill_points", imported.war.reservedSkillPoints);
-                clampSelectValue(document.getElementById("companies"), imported.war.companiesActive || imported.war.companiesConfigured);
             }
 
             saveFormState();
-            updateWarSkillSummary(imported.war);
+            updateWarSkillSummary(importedWarScenario);
 
             const userLabel = imported.war?.user?.username || imported.eco?.user?.username || "";
             const generatedLabel = imported.generatedAt ? ` Exported ${new Date(imported.generatedAt).toLocaleString()}.` : "";
@@ -304,7 +325,7 @@ document.addEventListener("DOMContentLoaded", () => {
             ecoBudget,
             warIncome,
             totalBudget,
-            active: ecoDays > 0 || warDays > 0 || ecoProfitDay !== 0 || warProfitDay !== 0 || reservedSkillPoints > 0,
+            active: hasEcoSimulatorImport && (ecoDays > 0 || warDays > 0),
         };
     }
 
@@ -433,7 +454,6 @@ document.addEventListener("DOMContentLoaded", () => {
         localStorage.setItem('wbt_rank_bonus', document.getElementById('rank_bonus-input').value);
         localStorage.setItem('wbt_battle_bonus', document.getElementById('battle_bonus-input').value);
         localStorage.setItem('wbt_warera_api_key', document.getElementById('warera_api_key').value);
-        localStorage.setItem('wbt_companies', document.getElementById('companies').value);
         localStorage.setItem('wbt_pill', document.getElementById('pill').checked);
         localStorage.setItem('wbt_samples', document.getElementById('samples').value);
         localStorage.setItem('wbt_workers', document.getElementById('workers').value);
@@ -442,6 +462,7 @@ document.addEventListener("DOMContentLoaded", () => {
         localStorage.setItem('wbt_eco_profit_day', document.getElementById('eco_profit_day').value);
         localStorage.setItem('wbt_war_profit_day', document.getElementById('war_profit_day').value);
         localStorage.setItem('wbt_reserved_skill_points', document.getElementById('reserved_skill_points').value);
+        localStorage.setItem('wbt_eco_export_imported', hasEcoSimulatorImport ? 'true' : 'false');
         if (advancedConfig) localStorage.setItem('wbt_advanced_open', advancedConfig.open);
     }
 
@@ -467,9 +488,6 @@ document.addEventListener("DOMContentLoaded", () => {
         const apiKey = localStorage.getItem('wbt_warera_api_key');
         if (apiKey) document.getElementById('warera_api_key').value = apiKey;
 
-        const companies = localStorage.getItem('wbt_companies');
-        if (companies) document.getElementById('companies').value = companies;
-
         const pill = localStorage.getItem('wbt_pill');
         if (pill !== null) document.getElementById('pill').checked = pill === 'true';
 
@@ -484,6 +502,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const value = localStorage.getItem(storageKey);
             if (value !== null) document.getElementById(inputId).value = value;
         });
+        setEcoSimulatorImportState(localStorage.getItem('wbt_eco_export_imported') === 'true');
 
         const advancedOpen = localStorage.getItem('wbt_advanced_open');
         const shouldRestoreAdvancedOverrides = advancedOpen !== null;
@@ -525,7 +544,7 @@ document.addEventListener("DOMContentLoaded", () => {
     buildForm.addEventListener('input', saveFormState);
     buildForm.addEventListener('change', saveFormState);
     buildForm.addEventListener('input', updateAdvancedPlaceholders);
-    buildForm.addEventListener('input', () => updateWarSkillSummary(null));
+    buildForm.addEventListener('input', () => updateWarSkillSummary(importedWarScenario));
     if (importEcoLinkBtn && ecoExportUrlInput) {
         importEcoLinkBtn.addEventListener('click', importEcoSimulatorLink);
         ecoExportUrlInput.addEventListener('keydown', (event) => {
@@ -539,7 +558,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     restoreFormState();
-    updateWarSkillSummary(null);
+    updateWarSkillSummary(importedWarScenario);
     updateAdvancedPlaceholders();
 
 

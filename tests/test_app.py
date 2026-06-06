@@ -19,9 +19,13 @@ class AppFactoryTest(unittest.TestCase):
         response = self.client.get("/")
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn("Warera Build Tool", response.get_data(as_text=True))
+        self.assertIn("Warera War Planner", response.get_data(as_text=True))
         self.assertIn("Eco Simulator Import", response.get_data(as_text=True))
+        self.assertIn("War Planner Export", response.get_data(as_text=True))
+        self.assertIn('target="_blank"', response.get_data(as_text=True))
         self.assertIn("reserved_skill_points", response.get_data(as_text=True))
+        self.assertIn("eco_export_imported", response.get_data(as_text=True))
+        self.assertNotIn("War Companies", response.get_data(as_text=True))
 
 
 if __name__ == "__main__":

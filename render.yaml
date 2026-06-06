@@ -1,5 +1,5 @@
 services:
   - type: web
-    name: warera-build-helper
+    name: warera-war-planner
     env: docker
     dockerfilePath: ./Dockerfile

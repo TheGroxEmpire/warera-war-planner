@@ -37,7 +37,6 @@
         }
 
         const level = parseIntOption(formData.get("level"), "level", 1, 1);
-        const companies = parseIntOption(formData.get("companies"), "companies", 2, 1);
         const importedSkillReserve = parseFloatOption(formData.get("reserved_skill_points"), "reserved_skill_points", 0, 0);
         const rankBonus = 1 + parseFloatOption(formData.get("rank_bonus"), "rank_bonus", 0, 0) / 100;
         const battleBonus = 1 + parseFloatOption(formData.get("battle_bonus"), "battle_bonus", 0, 0) / 100;
@@ -55,19 +54,11 @@
             throw new Error("WarEra API key is required.");
         }
 
-        let companyCost = 0;
-        if (companies > 2) {
-            const companyCountAfterFreeSlots = companies - 2;
-            companyCost = companyCountAfterFreeSlots * (companyCountAfterFreeSlots + 1) / 2;
-        }
         const totalSkillPoints = level * WareraOptimizer.constants.SKILL_POINTS_PER_LEVEL;
-        const skillPointReserve = importedSkillReserve > 0
-            ? Math.min(totalSkillPoints, importedSkillReserve)
-            : companyCost;
+        const skillPointReserve = Math.min(totalSkillPoints, importedSkillReserve);
 
         return {
             level,
-            companies,
             skillPointReserve,
             adjustedLevel: Math.max(0.0, (totalSkillPoints - skillPointReserve) / WareraOptimizer.constants.SKILL_POINTS_PER_LEVEL),
             pill: formData.get("pill") === "on",

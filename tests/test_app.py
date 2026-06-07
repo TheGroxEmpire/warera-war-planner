@@ -27,6 +27,27 @@ class AppFactoryTest(unittest.TestCase):
         self.assertIn("eco_export_imported", response.get_data(as_text=True))
         self.assertNotIn("War Companies", response.get_data(as_text=True))
 
+    def test_index_uses_configured_base_path_for_assets(self):
+        app = create_app(Settings(app_base_path="/war-planner"))
+        client = app.test_client()
+
+        response = client.get("/war-planner")
+
+        self.assertEqual(response.status_code, 200)
+        text = response.get_data(as_text=True)
+        self.assertIn('href="/war-planner/static/style.css?v=', text)
+        self.assertIn('src="/war-planner/static/script.js?v=', text)
+
+    def test_prefixed_static_asset_is_served(self):
+        app = create_app(Settings(app_base_path="/war-planner"))
+        client = app.test_client()
+
+        response = client.get("/war-planner/static/style.css")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("text/css", response.content_type)
+        response.close()
+
 
 if __name__ == "__main__":
     unittest.main()

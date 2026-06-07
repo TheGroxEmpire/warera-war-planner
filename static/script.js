@@ -1,4 +1,9 @@
 const SKILL_NAMES = ["Attack", "Precision", "Crit. Chance", "Crit. Dmg", "Armor", "Dodge", "Health", "Hunger", "Loot"];
+const STATIC_BASE = String(window.WARERA_STATIC_BASE || "static").replace(/\/$/, "");
+
+function staticAsset(path) {
+    return `${STATIC_BASE}/${String(path || "").replace(/^\//, "")}`;
+}
 
 document.addEventListener("DOMContentLoaded", () => {
     const resultsDiv = document.getElementById("results");
@@ -25,6 +30,7 @@ document.addEventListener("DOMContentLoaded", () => {
     let sortDir = 1;
     let currentObjective = 'damage';
     let hasEcoSimulatorImport = false;
+    let importedEcoScenario = null;
     let importedWarScenario = null;
 
     const viewControls = document.getElementById('view-controls');
@@ -272,10 +278,48 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
+    function importStatusText(imported, restored = false) {
+        const userLabel = imported?.war?.user?.username || imported?.eco?.user?.username || "";
+        const generatedLabel = imported?.generatedAt ? ` Exported ${new Date(imported.generatedAt).toLocaleString()}.` : "";
+        const prefix = restored ? "Restored" : "Imported";
+        return `${prefix} ${userLabel ? `${userLabel}'s ` : ""}eco and war factory config.${generatedLabel}`;
+    }
+
+    function saveImportedExport(imported) {
+        localStorage.setItem("wbt_eco_import_payload", JSON.stringify(imported));
+    }
+
+    function restoreImportedExport() {
+        const raw = localStorage.getItem("wbt_eco_import_payload");
+        if (!raw) return null;
+        try {
+            const parsed = JSON.parse(raw);
+            return {
+                eco: normalizeScenario(parsed.eco),
+                war: normalizeScenario(parsed.war),
+                generatedAt: parsed.generatedAt || null,
+            };
+        } catch {
+            return null;
+        }
+    }
+
+    function applyImportedDerivedFields(imported, dispatchEvents = false) {
+        const setValue = dispatchEvents ? setInputValue : setFormControlValue;
+        if (imported?.eco) setValue("eco_profit_day", imported.eco.profitDay.toFixed(2));
+        if (imported?.war) {
+            setValue("war_profit_day", imported.war.profitDay.toFixed(2));
+            setValue("reserved_skill_points", imported.war.reservedSkillPoints);
+        }
+    }
+
     function updateImportedEconomySummary() {
-        if (importedEcoProfitDay) importedEcoProfitDay.textContent = formatMoney(parseNumericInput("eco_profit_day", 0));
-        if (importedWarProfitDay) importedWarProfitDay.textContent = formatMoney(parseNumericInput("war_profit_day", 0));
-        if (importedWarSkillPoints) importedWarSkillPoints.textContent = String(Math.max(0, Math.floor(parseNumericInput("reserved_skill_points", 0))));
+        const ecoProfitDay = importedEcoScenario ? importedEcoScenario.profitDay : parseNumericInput("eco_profit_day", 0);
+        const warProfitDay = importedWarScenario ? importedWarScenario.profitDay : parseNumericInput("war_profit_day", 0);
+        const reservedSkillPoints = importedWarScenario ? importedWarScenario.reservedSkillPoints : parseNumericInput("reserved_skill_points", 0);
+        if (importedEcoProfitDay) importedEcoProfitDay.textContent = formatMoney(ecoProfitDay);
+        if (importedWarProfitDay) importedWarProfitDay.textContent = formatMoney(warProfitDay);
+        if (importedWarSkillPoints) importedWarSkillPoints.textContent = String(Math.max(0, Math.floor(reservedSkillPoints)));
         if (importedEconomySummary) importedEconomySummary.classList.toggle("imported", hasEcoSimulatorImport);
     }
 
@@ -297,6 +341,7 @@ document.addEventListener("DOMContentLoaded", () => {
             warSkillSummary.textContent = text;
             warSkillSummary.classList.toggle("imported", reserved > 0);
         }
+        updateImportedEconomySummary();
     }
 
     async function importEcoSimulatorLink() {
@@ -307,22 +352,18 @@ document.addEventListener("DOMContentLoaded", () => {
             }
 
             setEcoSimulatorImportState(true);
+            importedEcoScenario = imported.eco || null;
             importedWarScenario = imported.war || null;
             const level = imported.war?.level || imported.eco?.level;
             if (level) setSliderPair("level", level);
-            if (imported.eco) setInputValue("eco_profit_day", imported.eco.profitDay.toFixed(2));
-            if (imported.war) {
-                setInputValue("war_profit_day", imported.war.profitDay.toFixed(2));
-                setInputValue("reserved_skill_points", imported.war.reservedSkillPoints);
-            }
+            applyImportedDerivedFields(imported, true);
 
+            saveImportedExport(imported);
             saveFormState();
             updateWarSkillSummary(importedWarScenario);
 
-            const userLabel = imported.war?.user?.username || imported.eco?.user?.username || "";
-            const generatedLabel = imported.generatedAt ? ` Exported ${new Date(imported.generatedAt).toLocaleString()}.` : "";
             if (ecoImportStatus) {
-                ecoImportStatus.textContent = `Imported ${userLabel ? `${userLabel}'s ` : ""}eco and war factory config.${generatedLabel}`;
+                ecoImportStatus.textContent = importStatusText(imported);
                 ecoImportStatus.classList.add("imported");
             }
         } catch (error) {
@@ -368,6 +409,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const budgetUsagePct = campaign.totalBudget > 0 ? (warTotalCost / campaign.totalBudget) * 100 : 0;
             return {
                 ...build,
+                is_recommended: false,
                 campaign: {
                     warNetCost,
                     warTotalCost,
@@ -386,6 +428,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (sustainableBuilds[0]) {
             sustainableBuilds[0].is_recommended = true;
+        } else if (unsustainableBuilds[0]) {
+            unsustainableBuilds[0].is_recommended = true;
         }
         return [...sustainableBuilds, ...unsustainableBuilds];
     }
@@ -482,6 +526,7 @@ document.addEventListener("DOMContentLoaded", () => {
             ['wbt_battle_bonus', 'battle_bonus-input'],
             ['wbt_warera_api_key', 'warera_api_key'],
             ['wbt_workers', 'workers'],
+            ['wbt_eco_export_url', 'eco-export-url'],
             ['wbt_eco_days', 'eco_days'],
             ['wbt_war_days', 'war_days'],
             ['wbt_eco_profit_day', 'eco_profit_day'],
@@ -516,6 +561,9 @@ document.addEventListener("DOMContentLoaded", () => {
         const apiKey = localStorage.getItem('wbt_warera_api_key');
         if (apiKey) setFormControlValue('warera_api_key', apiKey);
 
+        const ecoExportUrl = localStorage.getItem('wbt_eco_export_url');
+        if (ecoExportUrl) setFormControlValue('eco-export-url', ecoExportUrl);
+
         const pill = localStorage.getItem('wbt_pill');
         if (pill !== null) setFormControlChecked('pill', pill === 'true');
 
@@ -532,6 +580,17 @@ document.addEventListener("DOMContentLoaded", () => {
             if (value !== null && input) input.value = value;
         });
         setEcoSimulatorImportState(localStorage.getItem('wbt_eco_export_imported') === 'true');
+        if (hasEcoSimulatorImport) {
+            const restoredImport = restoreImportedExport();
+            importedEcoScenario = restoredImport?.eco || null;
+            importedWarScenario = restoredImport?.war || null;
+            applyImportedDerivedFields(restoredImport);
+            if (restoredImport && ecoImportStatus) {
+                ecoImportStatus.textContent = importStatusText(restoredImport, true);
+                ecoImportStatus.classList.add("imported");
+            }
+        }
+        updateImportedEconomySummary();
 
         const advancedOpen = localStorage.getItem('wbt_advanced_open');
         const shouldRestoreAdvancedOverrides = advancedOpen !== null;
@@ -616,7 +675,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
             const gearHtml = d.gear.filter(g => !g.is_none).map(g => `
                 <div class='gear-item' style='background-color: ${g.color}'>
-                    <img src='static/images/${g.image_name}.png' alt='${g.slot}'>
+                    <img src='${staticAsset(`images/${g.image_name}.png`)}' alt='${g.slot}'>
                     <span class='quantity-label'>x ${(Number(g.quantity)*100).toFixed(0)} %</span>
                 </div>
             `).join("");
@@ -655,11 +714,11 @@ document.addEventListener("DOMContentLoaded", () => {
                         <div class='items-grid'>
                             ${gearHtml}
                             ${d.ammo_name !== 'noAmmo' ? `<div class='gear-item' style='background-color: ${d.ammo_color}'>
-                                <img src='static/images/${d.ammo_name}.png' alt='${d.ammo_name}'>
+                                <img src='${staticAsset(`images/${d.ammo_name}.png`)}' alt='${d.ammo_name}'>
                                 <span class='quantity-label'>${d.ammo_quantity}</span>
                             </div>` : ''}
                             ${d.food_name !== 'noFood' ? `<div class='gear-item' style='background-color: ${d.food_color}'>
-                                <img src='static/images/${d.food_name}.png' alt='${d.food_name}'>
+                                <img src='${staticAsset(`images/${d.food_name}.png`)}' alt='${d.food_name}'>
                                 <span class='quantity-label'>${d.food_quantity}</span>
                             </div>` : ''}
                         </div>

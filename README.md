@@ -2,7 +2,7 @@
 
 Browser app for planning WarEra eco and war durations.
 
-The optimizer runs entirely in the browser. It uses Web Workers to split a deterministic exact search across local CPU threads and returns the highest-scoring build for the selected objective.
+The optimizer runs entirely in the browser. It uses Web Workers to split a deterministic exact search across local CPU threads and returns budget-tier build candidates for the selected objective.
 
 ## Configuration
 

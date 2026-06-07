@@ -54,6 +54,7 @@ class Settings:
     flask_debug: bool = False
     log_level: str = "INFO"
     port: int = 10000
+    app_base_path: str = ""
 
     @classmethod
     def from_env(cls, environ: Optional[Mapping[str, str]] = None) -> "Settings":
@@ -64,4 +65,10 @@ class Settings:
             flask_debug=env_bool("FLASK_DEBUG", cls.flask_debug, environ=source),
             log_level=log_level,
             port=env_int("PORT", cls.port, min_value=1, max_value=65535, environ=source),
+            app_base_path=normalize_base_path(source.get("APP_BASE_PATH", cls.app_base_path)),
         )
+
+
+def normalize_base_path(value: str) -> str:
+    normalized = str(value or "").strip().strip("/")
+    return f"/{normalized}" if normalized else ""

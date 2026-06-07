@@ -1,7 +1,8 @@
 import logging
+import os
 from typing import Optional
 
-from flask import Flask, jsonify, render_template
+from flask import Flask, jsonify, render_template, send_from_directory
 
 from .settings import Settings
 
@@ -26,13 +27,46 @@ def _configure_logging(flask_app: Flask, settings: Settings) -> None:
 
 
 def _register_routes(flask_app: Flask) -> None:
+    settings = flask_app.config["WARERA_SETTINGS"]
+    static_asset_version = _static_asset_version(flask_app)
+
+    @flask_app.context_processor
+    def asset_context():
+        static_base = f"{settings.app_base_path}/static" if settings.app_base_path else "/static"
+        return {"static_base": static_base, "static_asset_version": static_asset_version}
+
     @flask_app.route("/")
     def index():
         return render_template("index.html")
 
+    if settings.app_base_path:
+        @flask_app.route(settings.app_base_path)
+        @flask_app.route(f"{settings.app_base_path}/")
+        def prefixed_index():
+            return render_template("index.html")
+
+        @flask_app.route(f"{settings.app_base_path}/static/<path:filename>")
+        def prefixed_static(filename: str):
+            return send_from_directory(flask_app.static_folder, filename)
+
     @flask_app.route("/healthz")
     def healthz():
         return jsonify(status="ok")
+
+
+def _static_asset_version(flask_app: Flask) -> str:
+    static_folder = flask_app.static_folder
+    if not static_folder:
+        return "1"
+
+    candidates = ("style.css", "optimizer-core.js", "browser-optimizer.js", "script.js")
+    mtimes = []
+    for filename in candidates:
+        path = os.path.join(static_folder, filename)
+        if os.path.exists(path):
+            mtimes.append(os.path.getmtime(path))
+
+    return str(int(max(mtimes))) if mtimes else "1"
 
 
 app = create_app()

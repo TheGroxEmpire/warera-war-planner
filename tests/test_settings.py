@@ -1,6 +1,6 @@
 import unittest
 
-from warera.settings import Settings, env_bool, env_int
+from warera.settings import Settings, env_bool, env_int, normalize_base_path
 
 
 class SettingsTest(unittest.TestCase):
@@ -23,6 +23,15 @@ class SettingsTest(unittest.TestCase):
 
         self.assertEqual(settings.port, 8080)
         self.assertEqual(settings.log_level, "DEBUG")
+
+    def test_settings_parse_app_base_path(self):
+        settings = Settings.from_env({"APP_BASE_PATH": "war-planner/"})
+
+        self.assertEqual(settings.app_base_path, "/war-planner")
+
+    def test_normalize_empty_app_base_path(self):
+        self.assertEqual(normalize_base_path(""), "")
+        self.assertEqual(normalize_base_path("/"), "")
 
     def test_default_port(self):
         settings = Settings.from_env({})

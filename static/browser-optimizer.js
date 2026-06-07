@@ -43,6 +43,24 @@
 
         const totalSkillPoints = level * WareraOptimizer.constants.SKILL_POINTS_PER_LEVEL;
         const skillPointReserve = Math.min(totalSkillPoints, importedSkillReserve);
+        const ecoDays = parseIntOption(formData.get("eco_days"), "eco_days", 0, 0);
+        const warDays = parseIntOption(formData.get("war_days"), "war_days", 1, 1);
+        const ecoProfitDay = parseFloatOption(formData.get("eco_profit_day"), "eco_profit_day", 0);
+        const warProfitDay = parseFloatOption(formData.get("war_profit_day"), "war_profit_day", 0);
+        const campaignImported = ["1", "true", "yes"].includes(String(formData.get("eco_export_imported") || "").toLowerCase());
+        const campaignBudget = ecoProfitDay * ecoDays + warProfitDay * warDays;
+        const dailyBudget = campaignImported && campaignBudget > 0 ? campaignBudget / warDays : null;
+        const budgetTargets = dailyBudget == null ? [] : [
+            dailyBudget * 0.25,
+            dailyBudget * 0.5,
+            dailyBudget * 0.75,
+            dailyBudget,
+            dailyBudget * 1.25,
+            dailyBudget * 1.5,
+            dailyBudget * 2,
+            dailyBudget * 3,
+            dailyBudget * 5,
+        ];
 
         return {
             level,
@@ -53,6 +71,8 @@
             rankBonus: rankBonus * battleBonus,
             workers,
             apiKey,
+            dailyBudget,
+            budgetTargets,
         };
     }
 

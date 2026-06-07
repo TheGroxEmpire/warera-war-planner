@@ -8,6 +8,7 @@ services:
       PORT: ${WEB_PORT:-10000}
       FLASK_DEBUG: ${FLASK_DEBUG:-false}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      APP_BASE_PATH: ${APP_BASE_PATH:-}
     healthcheck:
       test: ["CMD-SHELL", "python - <<'PY'\nimport os\nimport urllib.request\nport = os.getenv('PORT') or '10000'\nurllib.request.urlopen(f'http://127.0.0.1:{port}/healthz', timeout=5)\nPY"]
       interval: 15s

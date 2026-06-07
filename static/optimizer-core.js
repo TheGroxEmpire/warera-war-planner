@@ -417,6 +417,14 @@
         };
     }
 
+    function normalizedBudgetTargets(options) {
+        const targets = Array.isArray(options.budgetTargets) ? options.budgetTargets : [];
+        return Array.from(new Set(targets
+            .map((target) => Number(target))
+            .filter((target) => Number.isFinite(target))))
+            .sort((a, b) => a - b);
+    }
+
     function makeDamageCombatPatterns(budget) {
         const patterns = [];
         for (let atk = 0; atk <= MAX_SKILL_LEVEL; atk += 1) {
@@ -559,6 +567,18 @@
         return attacksPossible(hp, hun, arm, ddg, config.food, options.pill);
     }
 
+    function sustainStats(config, levels, options) {
+        const arm = config.baseArm + 6 * levels[0];
+        const ddg = config.baseDdg + 4 * levels[1];
+        const hp = BASELINE.hp + 10 * levels[2];
+        const hun = BASELINE.hun + levels[3];
+        return {
+            ddg,
+            hun,
+            attacks: attacksPossible(hp, hun, arm, ddg, config.food, options.pill),
+        };
+    }
+
     function makeValueTable(config, patterns, budget, valueFn) {
         const values = new Float64Array(budget + 1);
         const patternIndexes = new Int32Array(budget + 1);
@@ -602,6 +622,81 @@
             return candidate.net_cost < incumbent.net_cost - EXACT_TIE_EPSILON;
         }
         return false;
+    }
+
+    function budgetTargetIndexesForValue(value, targetBuilds, objective) {
+        const indexes = [];
+        for (let i = 0; i < targetBuilds.length; i += 1) {
+            const build = targetBuilds[i];
+            if (!build) {
+                indexes.push(i);
+                continue;
+            }
+            const currentPrimary = exactPrimary(build, objective);
+            const epsilon = Math.max(1, Math.abs(currentPrimary)) * EXACT_TIE_EPSILON;
+            if (value > currentPrimary + epsilon) indexes.push(i);
+        }
+        return indexes;
+    }
+
+    function updateBudgetTargetBuilds(raw, targets, targetBuilds, objective, indexes) {
+        for (const i of indexes) {
+            if (raw.net_cost <= targets[i] && betterExactBuild(raw, targetBuilds[i], objective)) {
+                targetBuilds[i] = raw;
+            }
+        }
+    }
+
+    function quickNetCost(combatTable, sustainTable, combatPatterns, sustainPatterns, combatBudget, sustainBudget, objective, options, ctx) {
+        const combatPattern = combatPatterns[combatTable.patternIndexes[combatBudget]];
+        const sustainPattern = sustainPatterns[sustainTable.patternIndexes[sustainBudget]];
+        if (!combatPattern || !sustainPattern) return Number.POSITIVE_INFINITY;
+
+        const sustain = sustainStats(sustainTable.config, sustainPattern.levels, options);
+        const dodgeDecay = 1 - sustain.ddg / (sustain.ddg + 40);
+        const dayMultiplier = options.pill ? 1.8 : 2.4;
+        const foodCost = sustainTable.config.food.cost * sustain.hun * dayMultiplier;
+        const pillCost = options.pill ? ctx.rewards.pill_price : 0.0;
+        const ammoIdx = objective === "cases" ? 0 : combatTable.config.ammoIdx;
+        const ammoCost = ctx.ammo[AMMO_NAMES[ammoIdx]].bullet_cost * sustain.attacks;
+
+        const weaponIdx = objective === "cases" ? 0 : combatTable.config.weaponIdx;
+        const helmetIdx = objective === "cases" ? 0 : combatTable.config.helmetIdx;
+        const glovesIdx = combatTable.config.glovesIdx;
+        const gearParts = [
+            ["weapon", WEAPON_TIERS[weaponIdx], 1.0],
+            ["helmet", GEAR_TIERS[helmetIdx], dodgeDecay],
+            ["gloves", GEAR_TIERS[glovesIdx], dodgeDecay],
+            ["chest", GEAR_TIERS[sustainTable.config.chestIdx], dodgeDecay],
+            ["pants", GEAR_TIERS[sustainTable.config.pantsIdx], dodgeDecay],
+            ["boots", GEAR_TIERS[sustainTable.config.bootsIdx], dodgeDecay],
+        ];
+
+        let gearCost = 0.0;
+        let scrapGenerated = 0.0;
+        for (const [slot, tier, decayMultiplier] of gearParts) {
+            const gear = ctx.gear[slot][tier];
+            gearCost += (gear.cost / 100) * sustain.attacks * decayMultiplier;
+            const quantity = Math.max(0.01, Math.round((sustain.attacks * decayMultiplier / 100) * 100) / 100);
+            scrapGenerated += (gear.scrap / 3) * quantity;
+        }
+
+        let prc;
+        let loot;
+        if (objective === "cases") {
+            prc = Math.min(1.0, combatTable.config.basePrc / 100 + 0.05 * combatPattern.levels[0]);
+            loot = 0.02 + 0.02 * combatPattern.levels[1];
+        } else {
+            prc = Math.min(1.0, combatTable.config.basePrc / 100 + 0.05 * combatPattern.levels[1]);
+            loot = 0.02;
+        }
+        const casesPerDay = loot * sustain.attacks * prc;
+        const eliteCasesPerDay = (loot / 100) * sustain.attacks * prc;
+        const totalCost = gearCost + foodCost + ammoCost + pillCost;
+        return totalCost
+            - scrapGenerated * ctx.rewards.scrap_price
+            - casesPerDay * ctx.rewards.case1_price
+            - eliteCasesPerDay * ctx.rewards.case2_price;
     }
 
     function createExactRawBuild(combatTable, sustainTable, combatPatterns, sustainPatterns, combatBudget, sustainBudget, objective, options, ctx) {
@@ -684,6 +779,8 @@
         const combatTables = combatConfigs.map((config) => makeValueTable(config, combatPatterns, budget, combatValueFn));
         const sustainStart = Math.max(0, Math.min(sustainConfigs.length, Math.floor(options.sustainStart || 0)));
         const sustainEnd = Math.max(sustainStart, Math.min(sustainConfigs.length, Math.floor(options.sustainEnd == null ? sustainConfigs.length : options.sustainEnd)));
+        const budgetTargets = normalizedBudgetTargets(options);
+        const targetBuilds = Array(budgetTargets.length).fill(null);
         const totalChecks = (sustainEnd - sustainStart) * combatTables.length * (budget + 1);
         const progressEvery = Math.max(1000, Math.floor(totalChecks / 100));
         let nextProgress = progressEvery;
@@ -699,8 +796,11 @@
                     const value = combatTable.values[combatBudget] * sustainTable.values[sustainBudget];
                     if (Number.isFinite(value) && value > 0) {
                         const epsilon = Math.max(1, Math.abs(bestValue)) * EXACT_TIE_EPSILON;
-                        if (value > bestValue + epsilon || Math.abs(value - bestValue) <= epsilon) {
-                            const raw = createExactRawBuild(
+                        const couldUpdateBest = value > bestValue + epsilon || Math.abs(value - bestValue) <= epsilon;
+                        const budgetTargetIndexes = budgetTargetIndexesForValue(value, targetBuilds, options.objective);
+                        let raw = null;
+                        if (budgetTargetIndexes.length) {
+                            const netCost = quickNetCost(
                                 combatTable,
                                 sustainTable,
                                 combatPatterns,
@@ -711,9 +811,26 @@
                                 options,
                                 ctx
                             );
-                            if (value > bestValue + epsilon || betterExactBuild(raw, bestBuild, options.objective)) {
+                            budgetTargetIndexes.splice(0, budgetTargetIndexes.length, ...budgetTargetIndexes.filter((index) => netCost <= budgetTargets[index]));
+                        }
+                        if (couldUpdateBest || budgetTargetIndexes.length) {
+                            raw = createExactRawBuild(
+                                combatTable,
+                                sustainTable,
+                                combatPatterns,
+                                sustainPatterns,
+                                combatBudget,
+                                sustainBudget,
+                                options.objective,
+                                options,
+                                ctx
+                            );
+                            if (couldUpdateBest && (value > bestValue + epsilon || betterExactBuild(raw, bestBuild, options.objective))) {
                                 bestValue = value;
                                 bestBuild = raw;
+                            }
+                            if (budgetTargetIndexes.length) {
+                                updateBudgetTargetBuilds(raw, budgetTargets, targetBuilds, options.objective, budgetTargetIndexes);
                             }
                         }
                     }
@@ -730,7 +847,7 @@
         if (onProgress) onProgress(totalChecks);
 
         return {
-            builds: bestBuild ? [bestBuild] : [],
+            builds: [bestBuild, ...targetBuilds].filter(Boolean),
             evaluated: totalChecks,
             total: totalChecks,
         };
@@ -877,6 +994,35 @@
         return selected.length ? selected : filtered.slice(0, numBuilds);
     }
 
+    function addUniqueBuild(builds, build) {
+        if (!build) return;
+        if (!builds.some((existing) => rawBuildKey(existing) === rawBuildKey(build))) {
+            builds.push(build);
+        }
+    }
+
+    function selectBudgetBuilds(allBuilds, options, bestBuild) {
+        const selected = [];
+        const targets = normalizedBudgetTargets(options);
+        for (const target of targets) {
+            const bestUnderTarget = allBuilds
+                .filter((build) => build.net_cost <= target)
+                .reduce((best, build) => betterExactBuild(build, best, options.objective) ? build : best, null);
+            addUniqueBuild(selected, bestUnderTarget);
+        }
+
+        const dailyBudget = Number(options.dailyBudget);
+        if (Number.isFinite(dailyBudget)) {
+            const closestOverBudget = allBuilds
+                .filter((build) => build.net_cost > dailyBudget)
+                .sort((a, b) => a.net_cost - b.net_cost || exactPrimary(b, options.objective) - exactPrimary(a, options.objective))[0];
+            addUniqueBuild(selected, closestOverBudget);
+        }
+
+        addUniqueBuild(selected, bestBuild);
+        return selected.sort((a, b) => a.net_cost - b.net_cost || exactPrimary(b, options.objective) - exactPrimary(a, options.objective));
+    }
+
     function prepareResponse(workerResults, options) {
         const ctx = createModelContext(options.priceOverrides);
         const unique = new Map();
@@ -911,9 +1057,20 @@
         bestBuild.is_max_damage = true;
         const maxDamageBuild = allBuilds.reduce((best, build) => build.total_damage > best.total_damage ? build : best);
         const maxDamageValue = Math.floor(maxDamageBuild.total_damage);
+        const budgetTargets = normalizedBudgetTargets(options);
+        const builds = budgetTargets.length
+            ? selectBudgetBuilds(allBuilds, options, bestBuild)
+            : selectBuilds(allBuilds, {
+                minDamage: 50000,
+                maxDamage: maxDamageValue,
+                numBuilds: 19,
+                costKey: "net_cost",
+                metric: options.objective,
+            });
+        addUniqueBuild(builds, bestBuild);
 
         return {
-            builds: [bestBuild],
+            builds,
             all_builds: allBuilds,
             max_damage_value: maxDamageValue,
             max_net_cost_value: bestBuild.net_cost,

@@ -1,8 +1,15 @@
 const SKILL_NAMES = ["Attack", "Precision", "Crit. Chance", "Crit. Dmg", "Armor", "Dodge", "Health", "Hunger", "Loot"];
 const STATIC_BASE = String(window.WARERA_STATIC_BASE || "static").replace(/\/$/, "");
+const ASSET_BASE = String(window.WARERA_ASSET_BASE || "assets").replace(/\/$/, "");
+const ASSET_VERSION = String(window.WARERA_ASSET_VERSION || "");
 
 function staticAsset(path) {
     return `${STATIC_BASE}/${String(path || "").replace(/^\//, "")}`;
+}
+
+function itemIconAsset(path) {
+    const url = `${ASSET_BASE}/market_item_icons/${String(path || "").replace(/^\//, "")}`;
+    return ASSET_VERSION ? `${url}?v=${encodeURIComponent(ASSET_VERSION)}` : url;
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -91,6 +98,22 @@ document.addEventListener("DOMContentLoaded", () => {
         const data = new FormData(buildForm);
         const objective = submitter.value || 'damage';
         data.set('objective', objective);
+        data.set('eco_export_imported', hasEcoSimulatorImport ? '1' : '0');
+        data.set('eco_profit_day', getFormControlValue('eco_profit_day', '0'));
+        data.set('war_profit_day', getFormControlValue('war_profit_day', '0'));
+        data.set('eco_days', getFormControlValue('eco_days', '0'));
+        data.set('war_days', getFormControlValue('war_days', '1'));
+        data.set('stockpiled_money', getFormControlValue('stockpiled_money', '0'));
+        data.set('bounty_per_1k_damage', getFormControlValue('bounty_per_1k_damage', '0'));
+        [
+            'earning_bounty_enabled',
+            'earning_battle_loot_enabled',
+            'earning_cases_enabled',
+            'earning_scrap_enabled',
+            'earning_companies_enabled',
+        ].forEach((id) => {
+            data.set(id, getFormControlChecked(id, true) ? '1' : '0');
+        });
         const submitterLabel = submitter.innerHTML;
         currentObjective = objective;
 
@@ -155,6 +178,11 @@ document.addEventListener("DOMContentLoaded", () => {
     function getFormControlValue(id, fallback = "") {
         const input = getFormControl(id);
         return input ? input.value : fallback;
+    }
+
+    function getFormControlChecked(id, fallback = false) {
+        const input = getFormControl(id);
+        return input ? input.checked : fallback;
     }
 
     function setFormControlValue(id, value) {
@@ -378,9 +406,15 @@ document.addEventListener("DOMContentLoaded", () => {
         const ecoDays = Math.max(0, Math.floor(parseNumericInput("eco_days", 0)));
         const warDays = Math.max(0, Math.floor(parseNumericInput("war_days", 1)));
         const ecoProfitDay = parseNumericInput("eco_profit_day", 0);
-        const warProfitDay = parseNumericInput("war_profit_day", 0);
+        const companiesEnabled = getFormControlChecked("earning_companies_enabled", true);
+        const bountyEnabled = getFormControlChecked("earning_bounty_enabled", true);
+        const battleLootEnabled = getFormControlChecked("earning_battle_loot_enabled", true);
+        const warProfitDay = companiesEnabled ? parseNumericInput("war_profit_day", 0) : 0;
+        const bountyPer1kDamage = bountyEnabled ? Math.max(0, parseNumericInput("bounty_per_1k_damage", 0)) : 0;
+        const battleLootPer1kDamage = battleLootEnabled ? 0.13 : 0;
         const reservedSkillPoints = Math.max(0, Math.floor(parseNumericInput("reserved_skill_points", 0)));
-        const ecoBudget = ecoProfitDay * ecoDays;
+        const stockpiledMoney = Math.max(0, parseNumericInput("stockpiled_money", 0));
+        const ecoBudget = ecoProfitDay * ecoDays + stockpiledMoney;
         const warIncome = warProfitDay * warDays;
         const totalBudget = ecoBudget + warIncome;
         return {
@@ -388,7 +422,13 @@ document.addEventListener("DOMContentLoaded", () => {
             warDays,
             ecoProfitDay,
             warProfitDay,
+            bountyPer1kDamage,
+            battleLootPer1kDamage,
+            bountyEnabled,
+            battleLootEnabled,
+            companiesEnabled,
             reservedSkillPoints,
+            stockpiledMoney,
             ecoBudget,
             warIncome,
             totalBudget,
@@ -396,42 +436,201 @@ document.addEventListener("DOMContentLoaded", () => {
         };
     }
 
+    function simulateCampaignBuild(build, campaign) {
+        if (window.WareraOptimizer && typeof window.WareraOptimizer.simulateCampaignValues === "function") {
+            return window.WareraOptimizer.simulateCampaignValues(
+                Number(build.net_cost) || 0,
+                Number(build.total_damage) || 0,
+                {
+                    campaignWarDays: campaign.warDays,
+                    campaignInitialStockpile: campaign.ecoBudget,
+                    campaignWarProfitDay: campaign.warProfitDay,
+                    bountyPer1kDamage: campaign.bountyPer1kDamage,
+                    battleLootPer1kDamage: campaign.battleLootPer1kDamage,
+                }
+            );
+        }
+
+        const warDays = Math.max(0, Math.floor(campaign.warDays || 0));
+        const dailyNetCost = Number(build.net_cost) || 0;
+        const dailyBountyIncome = Math.max(0, Number(build.total_damage || 0) / 1000 * campaign.bountyPer1kDamage);
+        const dailyBattleLootIncome = Math.max(0, Number(build.total_damage || 0) / 1000 * campaign.battleLootPer1kDamage);
+        let stockpile = Number(campaign.ecoBudget) || 0;
+        let sustainable = true;
+        let failedDay = null;
+        let largestShortfall = 0;
+        let lowestStartingBudget = stockpile;
+        const dayBudgets = [];
+
+        for (let day = 1; day <= warDays; day += 1) {
+            const startingStockpile = stockpile;
+            lowestStartingBudget = Math.min(lowestStartingBudget, stockpile);
+            const spendShortfall = Math.max(0, dailyNetCost - startingStockpile);
+            stockpile = startingStockpile - dailyNetCost + campaign.warProfitDay + dailyBountyIncome + dailyBattleLootIncome;
+            const endingShortfall = stockpile < -0.000001 ? -stockpile : 0;
+            const shortfall = Math.max(spendShortfall, endingShortfall);
+            const overBudget = shortfall > 0.000001;
+            if (overBudget) {
+                sustainable = false;
+                failedDay = failedDay || day;
+                largestShortfall = Math.max(largestShortfall, shortfall);
+            }
+            dayBudgets.push({
+                day,
+                startingStockpile,
+                dailyNetCost,
+                dailyIncome: campaign.warProfitDay + dailyBountyIncome + dailyBattleLootIncome,
+                endingStockpile: stockpile,
+                overBudget,
+                shortfall: overBudget ? shortfall : 0,
+            });
+        }
+
+        const bountyIncome = dailyBountyIncome * warDays;
+        const battleLootIncome = dailyBattleLootIncome * warDays;
+        const availableBudget = campaign.ecoBudget + campaign.warIncome + bountyIncome + battleLootIncome;
+        const warTotalCost = dailyNetCost * warDays;
+        const remainingBudget = stockpile;
+        const budgetUsagePct = availableBudget > 0 ? (warTotalCost / availableBudget) * 100 : 0;
+        return {
+            dailyNetCost,
+            dailyBountyIncome,
+            dailyBattleLootIncome,
+            bountyIncome,
+            battleLootIncome,
+            availableBudget,
+            warTotalCost,
+            remainingBudget,
+            budgetUsagePct,
+            sustainable,
+            failedDay,
+            largestShortfall,
+            lowestStartingBudget,
+            dayBudgets,
+        };
+    }
+
+    function buildPrimaryValue(build, objective) {
+        const value = build.total_damage;
+        return Number.isFinite(Number(value)) ? Number(value) : Number.NEGATIVE_INFINITY;
+    }
+
+    function buildCostValue(build) {
+        const value = build.campaign ? build.campaign.warTotalCost : build.net_cost;
+        return Number.isFinite(Number(value)) ? Number(value) : Number.POSITIVE_INFINITY;
+    }
+
+    function filterDominatedBuilds(builds, objective) {
+        const epsilon = 0.000001;
+        return builds.filter((build, index) => {
+            const cost = buildCostValue(build);
+            const primary = buildPrimaryValue(build, objective);
+            if (!Number.isFinite(cost) || !Number.isFinite(primary)) return true;
+
+            return !builds.some((other, otherIndex) => {
+                if (otherIndex === index) return false;
+                const otherCost = buildCostValue(other);
+                const otherPrimary = buildPrimaryValue(other, objective);
+                if (!Number.isFinite(otherCost) || !Number.isFinite(otherPrimary)) return false;
+
+                const noMoreExpensive = otherCost <= cost + epsilon;
+                const noLessOutput = otherPrimary >= primary - epsilon;
+                const strictlyBetter = otherCost < cost - epsilon || otherPrimary > primary + epsilon;
+                return noMoreExpensive && noLessOutput && strictlyBetter;
+            });
+        });
+    }
+
     function applyCampaignToBuilds(builds, campaign, objective) {
         if (!campaign.active) {
-            return builds;
+            return filterDominatedBuilds(builds, objective);
         }
 
         const annotated = builds.map((build) => {
-            const warNetCost = Number(build.net_cost) || 0;
-            const warTotalCost = warNetCost * campaign.warDays;
-            const remainingBudget = campaign.totalBudget - warTotalCost;
-            const sustainable = remainingBudget >= -0.000001;
-            const budgetUsagePct = campaign.totalBudget > 0 ? (warTotalCost / campaign.totalBudget) * 100 : 0;
+            const simulation = simulateCampaignBuild(build, campaign);
             return {
                 ...build,
                 is_recommended: false,
                 campaign: {
-                    warNetCost,
-                    warTotalCost,
-                    remainingBudget,
-                    sustainable,
-                    budgetUsagePct,
+                    warNetCost: simulation.dailyNetCost,
+                    warTotalCost: simulation.warTotalCost,
+                    bountyIncome: simulation.bountyIncome,
+                    battleLootIncome: simulation.battleLootIncome,
+                    dailyBountyIncome: simulation.dailyBountyIncome,
+                    dailyBattleLootIncome: simulation.dailyBattleLootIncome,
+                    availableBudget: simulation.availableBudget,
+                    remainingBudget: simulation.remainingBudget,
+                    sustainable: simulation.sustainable,
+                    budgetUsagePct: simulation.budgetUsagePct,
+                    failedDay: simulation.failedDay,
+                    largestShortfall: simulation.largestShortfall,
+                    lowestStartingBudget: simulation.lowestStartingBudget,
+                    dayBudgets: simulation.dayBudgets,
                 },
             };
         });
 
-        const metricKey = objective === "cases" ? "cases_per_day" : "total_damage";
-        const sustainableBuilds = annotated.filter((build) => build.campaign.sustainable)
+        const metricKey = "total_damage";
+        const visibleBuilds = filterDominatedBuilds(
+            annotated.filter((build) => build.campaign.budgetUsagePct >= 50),
+            objective
+        );
+        const sustainableBuilds = visibleBuilds.filter((build) => build.campaign.sustainable)
             .sort((a, b) => (b[metricKey] || 0) - (a[metricKey] || 0));
-        const unsustainableBuilds = annotated.filter((build) => !build.campaign.sustainable)
-            .sort((a, b) => b.campaign.remainingBudget - a.campaign.remainingBudget);
+        const unsustainableBuilds = visibleBuilds.filter((build) => !build.campaign.sustainable)
+            .sort((a, b) => a.campaign.largestShortfall - b.campaign.largestShortfall || a.campaign.failedDay - b.campaign.failedDay);
 
+        let recommended = null;
         if (sustainableBuilds[0]) {
-            sustainableBuilds[0].is_recommended = true;
+            recommended = sustainableBuilds[0];
         } else if (unsustainableBuilds[0]) {
-            unsustainableBuilds[0].is_recommended = true;
+            recommended = unsustainableBuilds[0];
         }
-        return [...sustainableBuilds, ...unsustainableBuilds];
+        if (recommended) recommended.is_recommended = true;
+
+        return visibleBuilds.sort((a, b) => {
+            if (a === recommended) return -1;
+            if (b === recommended) return 1;
+            return a.campaign.warTotalCost - b.campaign.warTotalCost
+                || (b[metricKey] || 0) - (a[metricKey] || 0);
+        });
+    }
+
+    function maxBountyIncome(builds) {
+        return builds.reduce((max, build) => Math.max(max, build.campaign?.bountyIncome || 0), 0);
+    }
+
+    function maxBattleLootIncome(builds) {
+        return builds.reduce((max, build) => Math.max(max, build.campaign?.battleLootIncome || 0), 0);
+    }
+
+    function budgetFailureLabel(campaign) {
+        if (!campaign) return "-";
+        return campaign.sustainable ? "N/A" : `Day ${campaign.failedDay}`;
+    }
+
+    function dailyRewardLines(build) {
+        if (!build.campaign) return "";
+        const lines = [];
+        if (build.campaign.dailyBountyIncome > 0) {
+            lines.push(`<span class='cost-line positive'>+ ${formatMoney(build.campaign.dailyBountyIncome)} from bounty</span>`);
+        }
+        if (build.campaign.dailyBattleLootIncome > 0) {
+            lines.push(`<span class='cost-line positive'>+ ${formatMoney(build.campaign.dailyBattleLootIncome)} from battle loot</span>`);
+        }
+        return lines.join("");
+    }
+
+    function effectiveDailyCost(build) {
+        if (!build.campaign) return Number(build.net_cost) || 0;
+        return (Number(build.campaign.warNetCost) || 0)
+            - (Number(build.campaign.dailyBountyIncome) || 0)
+            - (Number(build.campaign.dailyBattleLootIncome) || 0);
+    }
+
+    function recommendedCampaign(builds) {
+        const recommended = builds.find((build) => build.is_recommended) || builds[0];
+        return recommended?.campaign || null;
     }
 
     function renderCampaignResults(campaign, builds) {
@@ -443,13 +642,20 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         const sustainableCount = builds.filter((build) => build.campaign?.sustainable).length;
+        const bountyIncome = maxBountyIncome(builds);
+        const battleLootIncome = maxBattleLootIncome(builds);
+        const recommended = recommendedCampaign(builds);
+        const failureClass = recommended && !recommended.sustainable ? " over-budget" : "";
         campaignResultsDiv.style.display = "";
         campaignResultsDiv.innerHTML = `
             <div class="campaign-results-grid">
                 <span><span class="campaign-results-label">Eco Stockpile</span><span class="campaign-results-value">${formatMoney(campaign.ecoBudget)}</span></span>
                 <span><span class="campaign-results-label">War Income</span><span class="campaign-results-value">${formatMoney(campaign.warIncome)}</span></span>
-                <span><span class="campaign-results-label">War Budget</span><span class="campaign-results-value">${formatMoney(campaign.totalBudget)}</span></span>
+                <span><span class="campaign-results-label">Bounty Income</span><span class="campaign-results-value">${formatMoney(bountyIncome)}</span></span>
+                <span><span class="campaign-results-label">Battle Loot</span><span class="campaign-results-value">${formatMoney(battleLootIncome)}</span></span>
+                <span><span class="campaign-results-label">Simulated Budget</span><span class="campaign-results-value">${formatMoney(campaign.totalBudget + bountyIncome + battleLootIncome)}</span></span>
                 <span><span class="campaign-results-label">War Days</span><span class="campaign-results-value">${campaign.warDays}</span></span>
+                <span><span class="campaign-results-label">Budget Failure</span><span class="campaign-results-value${failureClass}">${budgetFailureLabel(recommended)}</span></span>
                 <span><span class="campaign-results-label">Reserved Skill Points</span><span class="campaign-results-value">${campaign.reservedSkillPoints}</span></span>
                 <span><span class="campaign-results-label">Sustainable Builds</span><span class="campaign-results-value">${sustainableCount} / ${builds.length}</span></span>
             </div>
@@ -529,12 +735,24 @@ document.addEventListener("DOMContentLoaded", () => {
             ['wbt_eco_export_url', 'eco-export-url'],
             ['wbt_eco_days', 'eco_days'],
             ['wbt_war_days', 'war_days'],
+            ['wbt_stockpiled_money', 'stockpiled_money'],
+            ['wbt_bounty_per_1k_damage', 'bounty_per_1k_damage'],
             ['wbt_eco_profit_day', 'eco_profit_day'],
             ['wbt_war_profit_day', 'war_profit_day'],
             ['wbt_reserved_skill_points', 'reserved_skill_points'],
         ].forEach(([storageKey, inputId]) => saveStoredValue(storageKey, inputId));
         const pillInput = getFormControl('pill');
         if (pillInput) localStorage.setItem('wbt_pill', pillInput.checked);
+        [
+            ['wbt_earning_bounty_enabled', 'earning_bounty_enabled'],
+            ['wbt_earning_battle_loot_enabled', 'earning_battle_loot_enabled'],
+            ['wbt_earning_cases_enabled', 'earning_cases_enabled'],
+            ['wbt_earning_scrap_enabled', 'earning_scrap_enabled'],
+            ['wbt_earning_companies_enabled', 'earning_companies_enabled'],
+        ].forEach(([storageKey, inputId]) => {
+            const input = getFormControl(inputId);
+            if (input) localStorage.setItem(storageKey, input.checked);
+        });
         localStorage.setItem('wbt_eco_export_imported', hasEcoSimulatorImport ? 'true' : 'false');
         if (advancedConfig) localStorage.setItem('wbt_advanced_open', advancedConfig.open);
     }
@@ -567,9 +785,22 @@ document.addEventListener("DOMContentLoaded", () => {
         const pill = localStorage.getItem('wbt_pill');
         if (pill !== null) setFormControlChecked('pill', pill === 'true');
 
+        [
+            ['wbt_earning_bounty_enabled', 'earning_bounty_enabled'],
+            ['wbt_earning_battle_loot_enabled', 'earning_battle_loot_enabled'],
+            ['wbt_earning_cases_enabled', 'earning_cases_enabled'],
+            ['wbt_earning_scrap_enabled', 'earning_scrap_enabled'],
+            ['wbt_earning_companies_enabled', 'earning_companies_enabled'],
+        ].forEach(([storageKey, inputId]) => {
+            const value = localStorage.getItem(storageKey);
+            if (value !== null) setFormControlChecked(inputId, value === 'true');
+        });
+
         const campaignFields = [
             ['wbt_eco_days', 'eco_days'],
             ['wbt_war_days', 'war_days'],
+            ['wbt_stockpiled_money', 'stockpiled_money'],
+            ['wbt_bounty_per_1k_damage', 'bounty_per_1k_damage'],
             ['wbt_eco_profit_day', 'eco_profit_day'],
             ['wbt_war_profit_day', 'war_profit_day'],
             ['wbt_reserved_skill_points', 'reserved_skill_points'],
@@ -675,18 +906,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
             const gearHtml = d.gear.filter(g => !g.is_none).map(g => `
                 <div class='gear-item' style='background-color: ${g.color}'>
-                    <img src='${staticAsset(`images/${g.image_name}.png`)}' alt='${g.slot}'>
+                    <img src='${itemIconAsset(`${g.image_name}.png`)}' alt='${g.slot}'>
                     <span class='quantity-label'>x ${(Number(g.quantity)*100).toFixed(0)} %</span>
                 </div>
             `).join("");
 
-            const isCasesMode = objective === 'cases';
-            const primaryStatHtml = isCasesMode
-                ? `${d.cases_per_day_formatted} Cases<span class='damage-label'>Cases per day</span><span class='damage-secondary'>${d.total_damage_formatted} DMG<span class='damage-label'>Daily damage</span></span>`
-                : `${d.total_damage_formatted} DMG<span class='damage-label'>Average daily damage</span>`;
-            const efficiencyHtml = isCasesMode
-                ? `${d.cases_per_day > 0 ? (d.net_cost / d.cases_per_day).toFixed(2) : '\u221e'} $/Case<span class='efficiency-label'>Net cost per case</span>`
-                : `${(d.net_cost / d.total_damage * 1000).toFixed(2)} $/K<span class='efficiency-label'>Net cost per 1K damage</span>`;
+            const primaryStatHtml = `${d.total_damage_formatted} DMG<span class='damage-label'>Average daily damage</span>`;
+            const displayedDailyCost = effectiveDailyCost(d);
+            const efficiencyHtml = `${(displayedDailyCost / d.total_damage * 1000).toFixed(2)} $/K<span class='efficiency-label'>Net cost per 1K damage</span>`;
+            const dailyRewardsHtml = dailyRewardLines(d);
 
             const cardClass = `${d.is_recommended ? " recommended-card" : ""}${d.is_highest_damage ? " highest-damage-card" : (d.is_max_damage ? " max-damage-card" : "")}`;
             const campaignHtml = d.campaign ? `
@@ -697,13 +925,16 @@ document.addEventListener("DOMContentLoaded", () => {
                             <span><b>${formatMoney(d.campaign.warTotalCost)}</b><small>War net cost</small></span>
                             <span><b>${formatMoney(d.campaign.remainingBudget)}</b><small>Remaining</small></span>
                             <span><b>${Number.isFinite(d.campaign.budgetUsagePct) ? d.campaign.budgetUsagePct.toFixed(1) : "0.0"}%</b><small>Budget used</small></span>
+                            <span><b>${formatMoney(d.campaign.bountyIncome)}</b><small>Bounty income</small></span>
+                            <span><b>${formatMoney(d.campaign.battleLootIncome)}</b><small>Battle loot</small></span>
+                            <span><b class='budget-failure ${d.campaign.sustainable ? "" : "over-budget"}'>${budgetFailureLabel(d.campaign)}</b><small>Budget failure</small></span>
                         </div>
                     </div>
             ` : "";
             return `
                 <div class='card${cardClass}'>
                     <div class='card-damage'>${primaryStatHtml}</div>
-                    <div class='card-cost'><div class='cost-left'><svg stroke='currentColor' fill='currentColor' stroke-width='0' viewBox='0 0 24 24' height='1em' width='1em' xmlns='http://www.w3.org/2000/svg' style='width: 1em; height: 1em; paint-order: stroke; stroke-linecap: round; stroke-linejoin: round;'><path d='M12 5C7.031 5 2 6.546 2 9.5S7.031 14 12 14c4.97 0 10-1.546 10-4.5S16.97 5 12 5zm-5 9.938v3c1.237.299 2.605.482 4 .541v-3a21.166 21.166 0 0 1-4-.541zm6 .54v3a20.994 20.994 0 0 0 4-.541v-3a20.994 20.994 0 0 1-4 .541zm6-1.181v3c1.801-.755 3-1.857 3-3.297v-3c0 1.44-1.199 2.542-3 3.297zm-14 3v-3C3.2 13.542 2 12.439 2 11v3c0 1.439 1.2 2.542 3 3.297z'></path></svg><span class='net-cost-value'>${d.net_cost_formatted}</span><div class='cost-label'>Daily net cost<div class='cost-breakdown'><span class='cost-line negative'>- ${d.total_cost_formatted} gear and consumables</span><span class='cost-line positive'>+ ${d.monetary_value_from_scrap_formatted} from scrap</span><span class='cost-line positive'>+ ${d.case_value_formatted} from ${d.cases_per_day_formatted} cases</span>${d.elite_cases_per_day > 0 ? `<span class='cost-line positive'>+ ${d.elite_case_value_formatted} from ${d.elite_cases_per_day_formatted} elite cases</span>` : ''}</div></div></div><span class='card-efficiency'>${efficiencyHtml}</span></div>
+                    <div class='card-cost'><div class='cost-left'><svg stroke='currentColor' fill='currentColor' stroke-width='0' viewBox='0 0 24 24' height='1em' width='1em' xmlns='http://www.w3.org/2000/svg' style='width: 1em; height: 1em; paint-order: stroke; stroke-linecap: round; stroke-linejoin: round;'><path d='M12 5C7.031 5 2 6.546 2 9.5S7.031 14 12 14c4.97 0 10-1.546 10-4.5S16.97 5 12 5zm-5 9.938v3c1.237.299 2.605.482 4 .541v-3a21.166 21.166 0 0 1-4-.541zm6 .54v3a20.994 20.994 0 0 0 4-.541v-3a20.994 20.994 0 0 1-4 .541zm6-1.181v3c1.801-.755 3-1.857 3-3.297v-3c0 1.44-1.199 2.542-3 3.297zm-14 3v-3C3.2 13.542 2 12.439 2 11v3c0 1.439 1.2 2.542 3 3.297z'></path></svg><span class='net-cost-value'>${formatMoney(displayedDailyCost)}</span><div class='cost-label'>Daily net cost<div class='cost-breakdown'><span class='cost-line negative'>- ${d.total_cost_formatted} gear and consumables</span><span class='cost-line positive'>+ ${d.monetary_value_from_scrap_formatted} from scrap</span><span class='cost-line positive'>+ ${d.case_value_formatted} from ${d.cases_per_day_formatted} cases</span>${d.elite_cases_per_day > 0 ? `<span class='cost-line positive'>+ ${d.elite_case_value_formatted} from ${d.elite_cases_per_day_formatted} elite cases</span>` : ''}${dailyRewardsHtml}</div></div></div><span class='card-efficiency'>${efficiencyHtml}</span></div>
                     ${campaignHtml}
                     <div class='card-skills'>
                         <h3>Skills</h3>
@@ -714,11 +945,11 @@ document.addEventListener("DOMContentLoaded", () => {
                         <div class='items-grid'>
                             ${gearHtml}
                             ${d.ammo_name !== 'noAmmo' ? `<div class='gear-item' style='background-color: ${d.ammo_color}'>
-                                <img src='${staticAsset(`images/${d.ammo_name}.png`)}' alt='${d.ammo_name}'>
+                                <img src='${itemIconAsset(`${d.ammo_name}.png`)}' alt='${d.ammo_name}'>
                                 <span class='quantity-label'>${d.ammo_quantity}</span>
                             </div>` : ''}
                             ${d.food_name !== 'noFood' ? `<div class='gear-item' style='background-color: ${d.food_color}'>
-                                <img src='${staticAsset(`images/${d.food_name}.png`)}' alt='${d.food_name}'>
+                                <img src='${itemIconAsset(`${d.food_name}.png`)}' alt='${d.food_name}'>
                                 <span class='quantity-label'>${d.food_quantity}</span>
                             </div>` : ''}
                         </div>
@@ -728,14 +959,15 @@ document.addEventListener("DOMContentLoaded", () => {
         }).join("");
     }
 
-    // --- Render Table ---
+    // --- Render Detailed View ---
     function getSortValue(d, col) {
-        if (col === 'damage') return currentObjective === 'cases' ? d.cases_per_day : d.total_damage;
+        if (col === 'damage') return d.total_damage;
         if (col === 'net_cost') return d.net_cost;
         if (col === 'campaign_sustainable') return d.campaign && d.campaign.sustainable ? 1 : 0;
+        if (col === 'campaign_failure') return d.campaign && d.campaign.failedDay ? d.campaign.failedDay : Number.MAX_SAFE_INTEGER;
         if (col === 'campaign_remaining') return d.campaign ? d.campaign.remainingBudget : 0;
         if (col === 'campaign_cost') return d.campaign ? d.campaign.warTotalCost : 0;
-        if (col === 'eff') return currentObjective === 'cases' ? d.net_cost / d.cases_per_day : d.net_cost / d.total_damage * 1000;
+        if (col === 'eff') return d.net_cost / d.total_damage * 1000;
         if (col === 'ammo') return d.ammo_quantity;
         if (col === 'food') return d.food_quantity;
         if (col.startsWith('skill_')) return d.skill_lvls[parseInt(col.split('_')[1])];
@@ -749,9 +981,20 @@ document.addEventListener("DOMContentLoaded", () => {
         return `<th class="sortable-th${active ? ' sort-active' : ''}" data-sort="${col}">${label}<span class="sort-indicator${active ? ' sort-indicator-visible' : ''}">${arrow}</span></th>`;
     }
 
+    function dailyBudgetHtml(campaign) {
+        if (!campaign?.dayBudgets?.length) return "-";
+        return `
+            <div class="daily-budget-strip">
+                ${campaign.dayBudgets.map(day => {
+                    const title = `Day ${day.day}: start ${formatMoney(day.startingStockpile)}, spend ${formatMoney(day.dailyNetCost)}, income ${formatMoney(day.dailyIncome)}, end ${formatMoney(day.endingStockpile)}`;
+                    return `<span class="daily-budget-chip${day.overBudget ? " over-budget" : ""}" title="${title}"><small>D${day.day}</small>${formatMoney(day.endingStockpile)}</span>`;
+                }).join("")}
+            </div>
+        `;
+    }
+
     function renderTable(builds, objective = 'damage') {
         let sorted = [...builds];
-        const isCasesMode = objective === 'cases';
         const hasCampaign = sorted.some(d => d.campaign);
         if (sortCol) {
             sorted.sort((a, b) => (getSortValue(a, sortCol) - getSortValue(b, sortCol)) * sortDir);
@@ -765,13 +1008,11 @@ document.addEventListener("DOMContentLoaded", () => {
             const skillCells = d.skill_lvls.map(lvl => `<td>${lvl}</td>`).join("");
             const gearCells = d.gear.map(g => `<td class="td-gear" style="background-color:${g.color}">${g.tier}<br><small>${(Number(g.quantity)*100).toFixed(0)}%</small></td>`).join("");
             const campaignCells = hasCampaign
-                ? `<td class="td-campaign">${d.campaign?.sustainable ? "Yes" : "No"}</td><td class="td-campaign">${d.campaign ? formatMoney(d.campaign.remainingBudget) : "-"}</td>`
+                ? `<td class="td-campaign${d.campaign?.sustainable ? "" : " over-budget"}">${d.campaign?.sustainable ? "Yes" : "No"}</td><td class="td-campaign${d.campaign?.sustainable ? "" : " over-budget"}">${d.campaign ? budgetFailureLabel(d.campaign) : "-"}</td><td class="td-campaign">${d.campaign ? formatMoney(d.campaign.remainingBudget) : "-"}</td><td class="td-campaign td-daily-budget">${dailyBudgetHtml(d.campaign)}</td>`
                 : "";
             const rowClass = `${d.is_recommended ? " recommended-card" : ""}${d.is_highest_damage ? " highest-damage-card" : (d.is_max_damage ? " max-damage-card" : "")}`;
-            const primaryValue = isCasesMode ? d.cases_per_day_formatted : d.total_damage_formatted;
-            const efficiencyValue = isCasesMode
-                ? (d.net_cost / d.cases_per_day).toFixed(2)
-                : (d.net_cost / d.total_damage * 1000).toFixed(2);
+            const primaryValue = d.total_damage_formatted;
+            const efficiencyValue = (d.net_cost / d.total_damage * 1000).toFixed(2);
             return `
                 <tr class="table-row${rowClass}">
                     <td class="td-damage">${primaryValue}</td>
@@ -790,10 +1031,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 <table class="builds-table">
                     <thead>
                         <tr>
-                            ${thHtml(isCasesMode ? 'Cases' : 'Damage', 'damage')}
+                            ${thHtml('Damage', 'damage')}
                             ${thHtml('Net Cost', 'net_cost')}
-                            ${hasCampaign ? `${thHtml('Sustain', 'campaign_sustainable')}${thHtml('Remaining', 'campaign_remaining')}` : ""}
-                            ${thHtml(isCasesMode ? '$/Case' : '$/K', 'eff')}
+                            ${hasCampaign ? `${thHtml('Sustain', 'campaign_sustainable')}${thHtml('Budget Failure', 'campaign_failure')}${thHtml('Remaining', 'campaign_remaining')}<th>Daily Stockpile</th>` : ""}
+                            ${thHtml('$/K', 'eff')}
                             ${skillCols}
                             ${gearHeaders}
                             ${thHtml('Ammo', 'ammo')}

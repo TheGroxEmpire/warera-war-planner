@@ -29,11 +29,13 @@ def _configure_logging(flask_app: Flask, settings: Settings) -> None:
 def _register_routes(flask_app: Flask) -> None:
     settings = flask_app.config["WARERA_SETTINGS"]
     static_asset_version = _static_asset_version(flask_app)
+    assets_folder = os.path.abspath(os.path.join(flask_app.root_path, "..", "assets"))
 
     @flask_app.context_processor
     def asset_context():
         static_base = f"{settings.app_base_path}/static" if settings.app_base_path else "/static"
-        return {"static_base": static_base, "static_asset_version": static_asset_version}
+        asset_base = f"{settings.app_base_path}/assets" if settings.app_base_path else "/assets"
+        return {"static_base": static_base, "asset_base": asset_base, "static_asset_version": static_asset_version}
 
     @flask_app.route("/")
     def index():
@@ -48,6 +50,14 @@ def _register_routes(flask_app: Flask) -> None:
         @flask_app.route(f"{settings.app_base_path}/static/<path:filename>")
         def prefixed_static(filename: str):
             return send_from_directory(flask_app.static_folder, filename)
+
+        @flask_app.route(f"{settings.app_base_path}/assets/<path:filename>")
+        def prefixed_assets(filename: str):
+            return send_from_directory(assets_folder, filename)
+
+    @flask_app.route("/assets/<path:filename>")
+    def assets(filename: str):
+        return send_from_directory(assets_folder, filename)
 
     @flask_app.route("/healthz")
     def healthz():
@@ -65,6 +75,13 @@ def _static_asset_version(flask_app: Flask) -> str:
         path = os.path.join(static_folder, filename)
         if os.path.exists(path):
             mtimes.append(os.path.getmtime(path))
+
+    assets_folder = os.path.abspath(os.path.join(flask_app.root_path, "..", "assets"))
+    for dirpath, _, filenames in os.walk(assets_folder):
+        for filename in filenames:
+            path = os.path.join(dirpath, filename)
+            if os.path.exists(path):
+                mtimes.append(os.path.getmtime(path))
 
     return str(int(max(mtimes))) if mtimes else "1"
 

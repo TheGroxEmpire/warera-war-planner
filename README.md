@@ -41,7 +41,7 @@ docker compose up --build
 
 The Docker image serves the browser app.
 
-For Traefik at `https://warera.xorgress.com/war-planner`, run:
+For Traefik at `https://warera.yourdomain.com/war-planner`, run:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d --build
@@ -51,7 +51,7 @@ The Traefik override removes the direct host port binding, joins the external pr
 
 ## Deployment
 
-This repository includes the same GitHub Actions deployment pattern used by WarEra Monetary Watch. Pushes to `master` or `main` run CI, then the deploy workflow SSHes into the server, pulls the pushed branch, and runs `scripts/deploy.sh`.
+Pushes to `master` or `main` run CI, then the deploy workflow SSHes into the server, pulls the pushed branch, and runs `scripts/deploy.sh`.
 
 Configure these repository secrets:
 
@@ -64,7 +64,7 @@ Configure these repository secrets:
 
 Configure this repository variable so the deployment appears with the correct link on the GitHub Deployments page:
 
-- `DEPLOY_URL` set to `https://warera.xorgress.com/war-planner/`
+- `DEPLOY_URL` set to `https://warera.yourdomain.com/war-planner/`
 
 Manual server deploy:
 
@@ -77,4 +77,18 @@ ENABLE_TRAEFIK=1 bash scripts/deploy.sh
 ```bash
 python -m unittest discover -s tests
 python -m compileall warera tests
+```
+
+Simulation objective snapshots are stored in `tests/fixtures/simulation_objectives.json`.
+Normal test runs fail if the deterministic optimizer output changes. To accept a new
+objective value after reviewing the diff, run:
+
+```bash
+UPDATE_SIMULATION_OBJECTIVES=1 python -m unittest tests.test_simulation_objectives
+```
+
+Profile simulation speed with:
+
+```bash
+node scripts/benchmark-simulation.js --iterations 3
 ```

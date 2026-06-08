@@ -14,7 +14,7 @@
     <div class="container">
         <header class="site-header">
             <h1>Warera War Planner</h1>
-            <p class="site-tagline">Multi-Objective Build Optimizer - Updated for 0.24.1</p>
+            <p class="site-tagline">Damage & Budget Build Optimizer - Updated for 0.24.7</p>
         </header>
         <div class="top-section">
             <form id="build-form">
@@ -47,6 +47,39 @@
                         <div class="input-group">
                             <label for="war_days">War Days</label>
                             <input type="number" id="war_days" name="war_days" min="1" step="1" value="1">
+                        </div>
+                        <div class="input-group">
+                            <label for="stockpiled_money">Stockpiled Money</label>
+                            <input type="number" id="stockpiled_money" name="stockpiled_money" min="0" step="0.01" value="0">
+                            <span class="tooltip">Added to the eco stockpile before the first simulated war day.</span>
+                        </div>
+                    </div>
+                    <div class="earnings-panel">
+                        <h3>Earnings<span class="tooltip">Choose which income sources count toward the war budget simulation. Daily war income, bounty, and battle loot are added after each simulated war day.</span></h3>
+                        <div class="earnings-grid">
+                            <div class="earning-control bounty-earning">
+                                <div class="checkbox-wrapper">
+                                    <input type="checkbox" name="earning_bounty_enabled" id="earning_bounty_enabled" checked>
+                                    <label for="earning_bounty_enabled">Bounty</label>
+                                </div>
+                                <input type="number" id="bounty_per_1k_damage" name="bounty_per_1k_damage" min="0" step="0.01" value="0" aria-label="Bounty dollars per 1K damage">
+                            </div>
+                            <div class="checkbox-wrapper earning-control">
+                                <input type="checkbox" name="earning_battle_loot_enabled" id="earning_battle_loot_enabled" checked>
+                                <label for="earning_battle_loot_enabled">Battle Loot <small>0.13/K</small></label>
+                            </div>
+                            <div class="checkbox-wrapper earning-control">
+                                <input type="checkbox" name="earning_cases_enabled" id="earning_cases_enabled" checked>
+                                <label for="earning_cases_enabled">Cases</label>
+                            </div>
+                            <div class="checkbox-wrapper earning-control">
+                                <input type="checkbox" name="earning_scrap_enabled" id="earning_scrap_enabled" checked>
+                                <label for="earning_scrap_enabled">Scrap</label>
+                            </div>
+                            <div class="checkbox-wrapper earning-control">
+                                <input type="checkbox" name="earning_companies_enabled" id="earning_companies_enabled" checked>
+                                <label for="earning_companies_enabled">Companies &amp; Wages</label>
+                            </div>
                         </div>
                     </div>
                     <input type="hidden" id="eco_profit_day" name="eco_profit_day" value="0">
@@ -114,19 +147,22 @@
                 </details>
 
 <div class="btn-row">
-                    <button type="submit" name="objective" value="damage" class="optimize-btn">Optimize Damage<span class="tooltip">Finds the exact highest-damage build in this browser and splits the search across local threads.</span></button>
-                    <button type="submit" name="objective" value="cases" class="optimize-btn">Optimize Cases<span class="tooltip">Finds the exact highest cases-per-day build in this browser and splits the search across local threads.</span></button>
+                    <button type="submit" name="objective" value="damage" class="optimize-btn">Optimize for Best Sustainable Set<span class="tooltip">Finds the exact highest-damage sustainable build.</span></button>
                 </div>
             </form>
         </div>
         <div id="campaign-results" class="campaign-results" style="display:none"></div>
         <div id="view-controls" style="display:none">
             <button type="button" id="view-cards-btn" class="view-btn active">Cards</button>
-            <button type="button" id="view-table-btn" class="view-btn">Table</button>
+            <button type="button" id="view-table-btn" class="view-btn">Detailed View</button>
         </div>
         <div id="results"></div>
     </div>
-    <script>window.WARERA_STATIC_BASE = {{ static_base|tojson }};</script>
+    <script>
+        window.WARERA_STATIC_BASE = {{ static_base|tojson }};
+        window.WARERA_ASSET_BASE = {{ asset_base|tojson }};
+        window.WARERA_ASSET_VERSION = {{ static_asset_version|tojson }};
+    </script>
     <script src="{{ static_base }}/optimizer-core.js?v={{ static_asset_version }}"></script>
     <script src="{{ static_base }}/browser-optimizer.js?v={{ static_asset_version }}"></script>
     <script src="{{ static_base }}/script.js?v={{ static_asset_version }}"></script>

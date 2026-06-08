@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "name": "level_20_no_pill",
+      "level": 20,
+      "options": {
+        "pill": false,
+        "rankBonus": 1
+      }
+    },
+    {
+      "name": "level_20_pill",
+      "level": 20,
+      "options": {
+        "pill": true,
+        "rankBonus": 1,
+        "priceOverrides": {
+          "rewards": {
+            "pill_price": 42
+          }
+        }
+      }
+    },
+    {
+      "name": "level_30_no_pill",
+      "level": 30,
+      "options": {
+        "pill": false,
+        "rankBonus": 1
+      }
+    },
+    {
+      "name": "level_30_pill",
+      "level": 30,
+      "options": {
+        "pill": true,
+        "rankBonus": 1,
+        "priceOverrides": {
+          "rewards": {
+            "pill_price": 42
+          }
+        }
+      }
+    },
+    {
+      "name": "level_40_no_pill",
+      "level": 40,
+      "options": {
+        "pill": false,
+        "rankBonus": 1
+      }
+    },
+    {
+      "name": "level_40_pill",
+      "level": 40,
+      "options": {
+        "pill": true,
+        "rankBonus": 1,
+        "priceOverrides": {
+          "rewards": {
+            "pill_price": 42
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,573 @@
+{
+  "schemaVersion": 1,
+  "generatedBy": "node scripts/simulation-objectives.js",
+  "cases": [
+    {
+      "name": "level_20_no_pill",
+      "config": {
+        "level": 20,
+        "reservedSkillPoints": 0,
+        "adjustedLevel": 20,
+        "pill": false,
+        "objective": "damage",
+        "rankBonus": 1,
+        "budgetTargets": []
+      },
+      "plan": {
+        "budget": 80,
+        "combatCount": 833,
+        "sustainCount": 1372,
+        "checks": 92572956
+      },
+      "result": {
+        "evaluated": 92572956,
+        "total": 92572956,
+        "buildCount": 1,
+        "allBuildCount": 1,
+        "maxDamageValue": 3444685,
+        "maxNetCostValue": 29171.436
+      },
+      "bestBuild": {
+        "skill_lvls": [
+          4,
+          3,
+          4,
+          3,
+          3,
+          3,
+          5,
+          6,
+          0
+        ],
+        "gear_idx": [
+          6,
+          6,
+          6,
+          6,
+          6,
+          6
+        ],
+        "ammo_name": "heavyAmmo",
+        "food_name": "cookedFish",
+        "ammo_quantity": 1358,
+        "food_quantity": 24,
+        "total_damage": 3444685.71615,
+        "total_cost": 29171.436,
+        "net_cost": 29171.436,
+        "n_attacks": 1357.83,
+        "cases_per_day": 27.1566,
+        "elite_cases_per_day": 0.271566,
+        "total_scrap_generated": 18944.28
+      },
+      "selectedBuilds": [
+        {
+          "skill_lvls": [
+            4,
+            3,
+            4,
+            3,
+            3,
+            3,
+            5,
+            6,
+            0
+          ],
+          "gear_idx": [
+            6,
+            6,
+            6,
+            6,
+            6,
+            6
+          ],
+          "ammo_name": "heavyAmmo",
+          "food_name": "cookedFish",
+          "ammo_quantity": 1358,
+          "food_quantity": 24,
+          "total_damage": 3444685.71615,
+          "total_cost": 29171.436,
+          "net_cost": 29171.436,
+          "n_attacks": 1357.83,
+          "cases_per_day": 27.1566,
+          "elite_cases_per_day": 0.271566,
+          "total_scrap_generated": 18944.28
+        }
+      ]
+    },
+    {
+      "name": "level_20_pill",
+      "config": {
+        "level": 20,
+        "reservedSkillPoints": 0,
+        "adjustedLevel": 20,
+        "pill": true,
+        "objective": "damage",
+        "rankBonus": 1,
+        "budgetTargets": [],
+        "priceOverrides": {
+          "rewards": {
+            "pill_price": 42
+          }
+        }
+      },
+      "plan": {
+        "budget": 80,
+        "combatCount": 833,
+        "sustainCount": 1372,
+        "checks": 92572956
+      },
+      "result": {
+        "evaluated": 92572956,
+        "total": 92572956,
+        "buildCount": 1,
+        "allBuildCount": 1,
+        "maxDamageValue": 4133622,
+        "maxNetCostValue": 21920.577
+      },
+      "bestBuild": {
+        "skill_lvls": [
+          4,
+          3,
+          4,
+          3,
+          3,
+          3,
+          5,
+          6,
+          0
+        ],
+        "gear_idx": [
+          6,
+          6,
+          6,
+          6,
+          6,
+          6
+        ],
+        "ammo_name": "heavyAmmo",
+        "food_name": "cookedFish",
+        "ammo_quantity": 1019,
+        "food_quantity": 18,
+        "total_damage": 4133622.85938,
+        "total_cost": 21920.577,
+        "net_cost": 21920.577,
+        "n_attacks": 1018.3725,
+        "cases_per_day": 20.36745,
+        "elite_cases_per_day": 0.203674,
+        "total_scrap_generated": 14205.78
+      },
+      "selectedBuilds": [
+        {
+          "skill_lvls": [
+            4,
+            3,
+            4,
+            3,
+            3,
+            3,
+            5,
+            6,
+            0
+          ],
+          "gear_idx": [
+            6,
+            6,
+            6,
+            6,
+            6,
+            6
+          ],
+          "ammo_name": "heavyAmmo",
+          "food_name": "cookedFish",
+          "ammo_quantity": 1019,
+          "food_quantity": 18,
+          "total_damage": 4133622.85938,
+          "total_cost": 21920.577,
+          "net_cost": 21920.577,
+          "n_attacks": 1018.3725,
+          "cases_per_day": 20.36745,
+          "elite_cases_per_day": 0.203674,
+          "total_scrap_generated": 14205.78
+        }
+      ]
+    },
+    {
+      "name": "level_30_no_pill",
+      "config": {
+        "level": 30,
+        "reservedSkillPoints": 0,
+        "adjustedLevel": 30,
+        "pill": false,
+        "objective": "damage",
+        "rankBonus": 1,
+        "budgetTargets": []
+      },
+      "plan": {
+        "budget": 120,
+        "combatCount": 833,
+        "sustainCount": 1372,
+        "checks": 138287996
+      },
+      "result": {
+        "evaluated": 138287996,
+        "total": 138287996,
+        "buildCount": 1,
+        "allBuildCount": 1,
+        "maxDamageValue": 5029539,
+        "maxNetCostValue": 33715.05408
+      },
+      "bestBuild": {
+        "skill_lvls": [
+          5,
+          4,
+          5,
+          5,
+          3,
+          4,
+          6,
+          7,
+          0
+        ],
+        "gear_idx": [
+          6,
+          6,
+          6,
+          6,
+          6,
+          6
+        ],
+        "ammo_name": "heavyAmmo",
+        "food_name": "cookedFish",
+        "ammo_quantity": 1603,
+        "food_quantity": 27,
+        "total_damage": 5029539.250176,
+        "total_cost": 33715.05408,
+        "net_cost": 33715.05408,
+        "n_attacks": 1602.6624,
+        "cases_per_day": 32.053248,
+        "elite_cases_per_day": 0.320532,
+        "total_scrap_generated": 21835.98
+      },
+      "selectedBuilds": [
+        {
+          "skill_lvls": [
+            5,
+            4,
+            5,
+            5,
+            3,
+            4,
+            6,
+            7,
+            0
+          ],
+          "gear_idx": [
+            6,
+            6,
+            6,
+            6,
+            6,
+            6
+          ],
+          "ammo_name": "heavyAmmo",
+          "food_name": "cookedFish",
+          "ammo_quantity": 1603,
+          "food_quantity": 27,
+          "total_damage": 5029539.250176,
+          "total_cost": 33715.05408,
+          "net_cost": 33715.05408,
+          "n_attacks": 1602.6624,
+          "cases_per_day": 32.053248,
+          "elite_cases_per_day": 0.320532,
+          "total_scrap_generated": 21835.98
+        }
+      ]
+    },
+    {
+      "name": "level_30_pill",
+      "config": {
+        "level": 30,
+        "reservedSkillPoints": 0,
+        "adjustedLevel": 30,
+        "pill": true,
+        "objective": "damage",
+        "rankBonus": 1,
+        "budgetTargets": [],
+        "priceOverrides": {
+          "rewards": {
+            "pill_price": 42
+          }
+        }
+      },
+      "plan": {
+        "budget": 120,
+        "combatCount": 833,
+        "sustainCount": 1372,
+        "checks": 138287996
+      },
+      "result": {
+        "evaluated": 138287996,
+        "total": 138287996,
+        "buildCount": 1,
+        "allBuildCount": 1,
+        "maxDamageValue": 6035447,
+        "maxNetCostValue": 25328.29056
+      },
+      "bestBuild": {
+        "skill_lvls": [
+          5,
+          4,
+          5,
+          5,
+          3,
+          4,
+          6,
+          7,
+          0
+        ],
+        "gear_idx": [
+          6,
+          6,
+          6,
+          6,
+          6,
+          6
+        ],
+        "ammo_name": "heavyAmmo",
+        "food_name": "cookedFish",
+        "ammo_quantity": 1202,
+        "food_quantity": 19,
+        "total_damage": 6035447.100211,
+        "total_cost": 25328.29056,
+        "net_cost": 25328.29056,
+        "n_attacks": 1201.9968,
+        "cases_per_day": 24.039936,
+        "elite_cases_per_day": 0.240399,
+        "total_scrap_generated": 16363.62
+      },
+      "selectedBuilds": [
+        {
+          "skill_lvls": [
+            5,
+            4,
+            5,
+            5,
+            3,
+            4,
+            6,
+            7,
+            0
+          ],
+          "gear_idx": [
+            6,
+            6,
+            6,
+            6,
+            6,
+            6
+          ],
+          "ammo_name": "heavyAmmo",
+          "food_name": "cookedFish",
+          "ammo_quantity": 1202,
+          "food_quantity": 19,
+          "total_damage": 6035447.100211,
+          "total_cost": 25328.29056,
+          "net_cost": 25328.29056,
+          "n_attacks": 1201.9968,
+          "cases_per_day": 24.039936,
+          "elite_cases_per_day": 0.240399,
+          "total_scrap_generated": 16363.62
+        }
+      ]
+    },
+    {
+      "name": "level_40_no_pill",
+      "config": {
+        "level": 40,
+        "reservedSkillPoints": 0,
+        "adjustedLevel": 40,
+        "pill": false,
+        "objective": "damage",
+        "rankBonus": 1,
+        "budgetTargets": []
+      },
+      "plan": {
+        "budget": 160,
+        "combatCount": 833,
+        "sustainCount": 1372,
+        "checks": 184003036
+      },
+      "result": {
+        "evaluated": 184003036,
+        "total": 184003036,
+        "buildCount": 1,
+        "allBuildCount": 1,
+        "maxDamageValue": 6797017,
+        "maxNetCostValue": 40914.1872
+      },
+      "bestBuild": {
+        "skill_lvls": [
+          5,
+          4,
+          6,
+          6,
+          3,
+          5,
+          8,
+          8,
+          0
+        ],
+        "gear_idx": [
+          6,
+          6,
+          6,
+          6,
+          6,
+          6
+        ],
+        "ammo_name": "heavyAmmo",
+        "food_name": "cookedFish",
+        "ammo_quantity": 1985,
+        "food_quantity": 29,
+        "total_damage": 6797017.19088,
+        "total_cost": 40914.1872,
+        "net_cost": 40914.1872,
+        "n_attacks": 1984.716,
+        "cases_per_day": 39.69432,
+        "elite_cases_per_day": 0.396943,
+        "total_scrap_generated": 26414.1
+      },
+      "selectedBuilds": [
+        {
+          "skill_lvls": [
+            5,
+            4,
+            6,
+            6,
+            3,
+            5,
+            8,
+            8,
+            0
+          ],
+          "gear_idx": [
+            6,
+            6,
+            6,
+            6,
+            6,
+            6
+          ],
+          "ammo_name": "heavyAmmo",
+          "food_name": "cookedFish",
+          "ammo_quantity": 1985,
+          "food_quantity": 29,
+          "total_damage": 6797017.19088,
+          "total_cost": 40914.1872,
+          "net_cost": 40914.1872,
+          "n_attacks": 1984.716,
+          "cases_per_day": 39.69432,
+          "elite_cases_per_day": 0.396943,
+          "total_scrap_generated": 26414.1
+        }
+      ]
+    },
+    {
+      "name": "level_40_pill",
+      "config": {
+        "level": 40,
+        "reservedSkillPoints": 0,
+        "adjustedLevel": 40,
+        "pill": true,
+        "objective": "damage",
+        "rankBonus": 1,
+        "budgetTargets": [],
+        "priceOverrides": {
+          "rewards": {
+            "pill_price": 42
+          }
+        }
+      },
+      "plan": {
+        "budget": 160,
+        "combatCount": 833,
+        "sustainCount": 1372,
+        "checks": 184003036
+      },
+      "result": {
+        "evaluated": 184003036,
+        "total": 184003036,
+        "buildCount": 1,
+        "allBuildCount": 1,
+        "maxDamageValue": 8156420,
+        "maxNetCostValue": 30727.6404
+      },
+      "bestBuild": {
+        "skill_lvls": [
+          5,
+          4,
+          6,
+          6,
+          3,
+          5,
+          8,
+          8,
+          0
+        ],
+        "gear_idx": [
+          6,
+          6,
+          6,
+          6,
+          6,
+          6
+        ],
+        "ammo_name": "heavyAmmo",
+        "food_name": "cookedFish",
+        "ammo_quantity": 1489,
+        "food_quantity": 21,
+        "total_damage": 8156420.629056,
+        "total_cost": 30727.6404,
+        "net_cost": 30727.6404,
+        "n_attacks": 1488.537,
+        "cases_per_day": 29.77074,
+        "elite_cases_per_day": 0.297707,
+        "total_scrap_generated": 19823.94
+      },
+      "selectedBuilds": [
+        {
+          "skill_lvls": [
+            5,
+            4,
+            6,
+            6,
+            3,
+            5,
+            8,
+            8,
+            0
+          ],
+          "gear_idx": [
+            6,
+            6,
+            6,
+            6,
+            6,
+            6
+          ],
+          "ammo_name": "heavyAmmo",
+          "food_name": "cookedFish",
+          "ammo_quantity": 1489,
+          "food_quantity": 21,
+          "total_damage": 8156420.629056,
+          "total_cost": 30727.6404,
+          "net_cost": 30727.6404,
+          "n_attacks": 1488.537,
+          "cases_per_day": 29.77074,
+          "elite_cases_per_day": 0.297707,
+          "total_scrap_generated": 19823.94
+        }
+      ]
+    }
+  ]
+}

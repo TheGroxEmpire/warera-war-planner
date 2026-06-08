@@ -21,10 +21,15 @@
         return parsed;
     }
 
+    function parseBoolOption(value, fallback = true) {
+        if (value == null || value === "") return fallback;
+        return ["1", "true", "on", "yes"].includes(String(value).toLowerCase());
+    }
+
     function parseOptimizationRequest(formData) {
         const objective = formData.get("objective") || "damage";
-        if (!["damage", "cases"].includes(objective)) {
-            throw new Error("objective must be one of: damage, cases");
+        if (objective !== "damage") {
+            throw new Error("objective must be damage");
         }
 
         const level = parseIntOption(formData.get("level"), "level", 1, 1);
@@ -43,24 +48,40 @@
 
         const totalSkillPoints = level * WareraOptimizer.constants.SKILL_POINTS_PER_LEVEL;
         const skillPointReserve = Math.min(totalSkillPoints, importedSkillReserve);
+        const campaignImported = parseBoolOption(formData.get("eco_export_imported"), false);
         const ecoDays = parseIntOption(formData.get("eco_days"), "eco_days", 0, 0);
         const warDays = parseIntOption(formData.get("war_days"), "war_days", 1, 1);
         const ecoProfitDay = parseFloatOption(formData.get("eco_profit_day"), "eco_profit_day", 0);
-        const warProfitDay = parseFloatOption(formData.get("war_profit_day"), "war_profit_day", 0);
-        const campaignImported = ["1", "true", "yes"].includes(String(formData.get("eco_export_imported") || "").toLowerCase());
-        const campaignBudget = ecoProfitDay * ecoDays + warProfitDay * warDays;
-        const dailyBudget = campaignImported && campaignBudget > 0 ? campaignBudget / warDays : null;
-        const budgetTargets = dailyBudget == null ? [] : [
-            dailyBudget * 0.25,
-            dailyBudget * 0.5,
-            dailyBudget * 0.75,
-            dailyBudget,
-            dailyBudget * 1.25,
-            dailyBudget * 1.5,
-            dailyBudget * 2,
-            dailyBudget * 3,
-            dailyBudget * 5,
-        ];
+        const earningBountyEnabled = parseBoolOption(formData.get("earning_bounty_enabled"), true);
+        const earningBattleLootEnabled = parseBoolOption(formData.get("earning_battle_loot_enabled"), true);
+        const earningCasesEnabled = parseBoolOption(formData.get("earning_cases_enabled"), true);
+        const earningScrapEnabled = parseBoolOption(formData.get("earning_scrap_enabled"), true);
+        const earningCompaniesEnabled = parseBoolOption(formData.get("earning_companies_enabled"), true);
+        const warProfitDay = earningCompaniesEnabled ? parseFloatOption(formData.get("war_profit_day"), "war_profit_day", 0) : 0;
+        const bountyPer1kDamage = earningBountyEnabled ? parseFloatOption(formData.get("bounty_per_1k_damage"), "bounty_per_1k_damage", 0, 0) : 0;
+        const battleLootPer1kDamage = earningBattleLootEnabled ? 0.13 : 0;
+        const stockpiledMoney = parseFloatOption(formData.get("stockpiled_money"), "stockpiled_money", 0, 0);
+        const ecoBudget = ecoProfitDay * ecoDays + stockpiledMoney;
+        const campaignBudget = ecoBudget + warProfitDay * warDays;
+        const campaignActive = campaignImported && campaignBudget > 0 && warDays > 0;
+        const dailyBudget = campaignActive ? campaignBudget / warDays : null;
+        const budgetTargets = campaignActive ? [
+            campaignBudget * 0.10,
+            campaignBudget * 0.25,
+            campaignBudget * 0.35,
+            campaignBudget * 0.5,
+            campaignBudget * 0.65,
+            campaignBudget * 0.75,
+            campaignBudget * 0.9,
+            campaignBudget,
+            campaignBudget * 1.1,
+            campaignBudget * 1.25,
+            campaignBudget * 1.5,
+            campaignBudget * 1.75,
+            campaignBudget * 2,
+            campaignBudget * 3,
+            campaignBudget * 5,
+        ] : [];
 
         return {
             level,
@@ -72,6 +93,14 @@
             workers,
             apiKey,
             dailyBudget,
+            campaignBudget: campaignActive ? campaignBudget : null,
+            campaignInitialStockpile: campaignActive ? ecoBudget : null,
+            campaignWarProfitDay: campaignActive ? warProfitDay : 0,
+            campaignWarDays: warDays,
+            bountyPer1kDamage,
+            battleLootPer1kDamage,
+            earningCasesEnabled,
+            earningScrapEnabled,
             budgetTargets,
         };
     }
@@ -149,7 +178,7 @@
         return gearCosts;
     }
 
-    async function fetchConsumablePrices(apiKey) {
+    async function fetchConsumablePrices(apiKey, options) {
         const {
             AMMO_API_MAPPING,
             FOOD_NAMES,
@@ -199,20 +228,20 @@
             foodCosts,
             ammoCosts,
             rewards: {
-                scrap_price: prices[SCRAP_API_CODE] || 0.0,
-                case1_price: prices[CASE_API_CODE] || 0.0,
-                case2_price: prices[CASE2_API_CODE] || 0.0,
+                scrap_price: options.earningScrapEnabled ? prices[SCRAP_API_CODE] || 0.0 : 0.0,
+                case1_price: options.earningCasesEnabled ? prices[CASE_API_CODE] || 0.0 : 0.0,
+                case2_price: options.earningCasesEnabled ? prices[CASE2_API_CODE] || 0.0 : 0.0,
                 pill_price: prices[PILL_API_CODE] || 0.0,
             },
         };
     }
 
-    async function fetchMarketPrices(apiKey, onProgress) {
+    async function fetchMarketPrices(apiKey, options, onProgress) {
         try {
             if (onProgress) onProgress({ phase: "prices" });
             const [gearCosts, consumables] = await Promise.all([
                 fetchEquipmentPrices(apiKey),
-                fetchConsumablePrices(apiKey),
+                fetchConsumablePrices(apiKey, options),
             ]);
             return {
                 gearCosts,
@@ -323,7 +352,7 @@
     async function run(formData, callbacks) {
         const onProgress = callbacks && callbacks.onProgress;
         const options = parseOptimizationRequest(formData);
-        const priceOverrides = await fetchMarketPrices(options.apiKey, onProgress);
+        const priceOverrides = await fetchMarketPrices(options.apiKey, options, onProgress);
         const runOptions = {
             ...options,
             priceOverrides,

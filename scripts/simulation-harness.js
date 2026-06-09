@@ -4,6 +4,7 @@ const { performance } = require("perf_hooks");
 
 const PROJECT_ROOT = path.resolve(__dirname, "..");
 const DEFAULT_CASES_PATH = path.join(PROJECT_ROOT, "tests", "fixtures", "simulation_cases.json");
+const DEFAULT_BENCHMARK_CASES_PATH = path.join(PROJECT_ROOT, "tests", "fixtures", "benchmark_cases.json");
 const DEFAULT_OBJECTIVES_PATH = path.join(PROJECT_ROOT, "tests", "fixtures", "simulation_objectives.json");
 
 let optimizerLoaded = false;
@@ -217,6 +218,7 @@ function simulateCampaignForBuild(build, options) {
 
 module.exports = {
     PROJECT_ROOT,
+    DEFAULT_BENCHMARK_CASES_PATH,
     DEFAULT_CASES_PATH,
     DEFAULT_OBJECTIVES_PATH,
     buildObjectives,

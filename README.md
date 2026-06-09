@@ -92,3 +92,5 @@ Profile simulation speed with:
 ```bash
 node scripts/benchmark-simulation.js --iterations 3
 ```
+
+Benchmark cases live in `tests/fixtures/benchmark_cases.json`.

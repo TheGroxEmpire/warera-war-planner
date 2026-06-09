@@ -2,14 +2,14 @@
 
 const path = require("path");
 const {
-    DEFAULT_CASES_PATH,
+    DEFAULT_BENCHMARK_CASES_PATH,
     loadCases,
     runCase,
 } = require("./simulation-harness");
 
 function parseArgs(argv) {
     const args = {
-        casesPath: DEFAULT_CASES_PATH,
+        casesPath: DEFAULT_BENCHMARK_CASES_PATH,
         iterations: 1,
         caseNames: new Set(),
         json: false,
@@ -46,7 +46,7 @@ function printHelp() {
     console.log([
         "Usage: node scripts/benchmark-simulation.js [--iterations 3] [--case level_20_pill] [--json]",
         "",
-        "Profiles deterministic optimizer simulation cases from tests/fixtures/simulation_cases.json.",
+        "Profiles deterministic optimizer simulation cases from tests/fixtures/benchmark_cases.json.",
     ].join("\n"));
 }
 

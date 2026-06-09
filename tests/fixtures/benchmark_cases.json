@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "name": "level_20_no_pill",
+      "level": 20,
+      "options": {
+        "pill": false,
+        "rankBonus": 1
+      }
+    },
+    {
+      "name": "level_20_pill",
+      "level": 20,
+      "options": {
+        "pill": true,
+        "rankBonus": 1,
+        "priceOverrides": {
+          "rewards": {
+            "pill_price": 42
+          }
+        }
+      }
+    },
+    {
+      "name": "level_30_no_pill",
+      "level": 30,
+      "options": {
+        "pill": false,
+        "rankBonus": 1
+      }
+    },
+    {
+      "name": "level_30_pill",
+      "level": 30,
+      "options": {
+        "pill": true,
+        "rankBonus": 1,
+        "priceOverrides": {
+          "rewards": {
+            "pill_price": 42
+          }
+        }
+      }
+    },
+    {
+      "name": "level_40_no_pill",
+      "level": 40,
+      "options": {
+        "pill": false,
+        "rankBonus": 1
+      }
+    },
+    {
+      "name": "level_40_pill",
+      "level": 40,
+      "options": {
+        "pill": true,
+        "rankBonus": 1,
+        "priceOverrides": {
+          "rewards": {
+            "pill_price": 42
+          }
+        }
+      }
+    },
+    {
+      "name": "level_40_campaign",
+      "level": 40,
+      "options": {
+        "pill": false,
+        "rankBonus": 1,
+        "campaignBudget": 100000,
+        "campaignInitialStockpile": 50000,
+        "campaignWarProfitDay": 5000,
+        "campaignWarDays": 10,
+        "bountyPer1kDamage": 2,
+        "battleLootPer1kDamage": 0.13,
+        "budgetTargets": [
+          10000,
+          25000,
+          35000,
+          50000,
+          65000,
+          75000,
+          90000,
+          100000,
+          110000,
+          125000,
+          150000,
+          175000,
+          200000,
+          300000,
+          500000
+        ]
+      }
+    }
+  ]
+}

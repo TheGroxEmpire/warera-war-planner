@@ -1,7 +1,9 @@
 services:
   web:
     image: warera-war-planner:local
-    build: .
+    build:
+      context: .
+      target: runtime
     ports:
       - "${WEB_PUBLISHED_PORT:-10000}:${WEB_PORT:-10000}"
     environment:
@@ -17,8 +19,9 @@ services:
     restart: unless-stopped
 
   test:
-    image: warera-war-planner:local
-    build: .
+    build:
+      context: .
+      target: test
     environment:
       FLASK_DEBUG: "false"
       LOG_LEVEL: INFO

@@ -133,7 +133,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 onProgress: renderProgress,
             });
             const campaign = getCampaignSettings();
-            allBuilds = applyCampaignToBuilds(results.builds || [], campaign, objective);
+            const resultBuilds = campaign.active && Array.isArray(results.all_builds) && results.all_builds.length
+                ? results.all_builds
+                : (results.builds || []);
+            allBuilds = applyCampaignToBuilds(resultBuilds, campaign, objective);
             renderCampaignResults(campaign, allBuilds);
 
             renderBuilds(allBuilds, objective);

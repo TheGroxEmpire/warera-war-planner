@@ -1042,8 +1042,11 @@
         const sustainStart = Math.max(0, Math.min(sustainConfigs.length, Math.floor(options.sustainStart || 0)));
         const sustainEnd = Math.max(sustainStart, Math.min(sustainConfigs.length, Math.floor(options.sustainEnd == null ? sustainConfigs.length : options.sustainEnd)));
         const evaluated = (sustainEnd - sustainStart) * plan.combatCount * (budget + 1);
+        const frontierBucketCount = 64;
+        const frontierMinDamage = 50000;
         const bestCombatByBudget = Array(budget + 1).fill(null);
         const bestSustainByBudget = Array(budget + 1).fill(null);
+        const sustainTables = [];
 
         for (const table of combatTables) {
             for (let cost = 0; cost <= budget; cost += 1) {
@@ -1057,7 +1060,14 @@
         }
 
         for (let sustainIndex = sustainStart; sustainIndex < sustainEnd; sustainIndex += 1) {
-            const table = makeValueTable(sustainConfigs[sustainIndex], sustainPatterns, budget, sustainValueFn);
+            const table = attachSustainEconomy(
+                makeValueTable(sustainConfigs[sustainIndex], sustainPatterns, budget, sustainValueFn),
+                sustainPatterns,
+                budget,
+                options,
+                ctx
+            );
+            sustainTables.push(table);
             for (let cost = 0; cost <= budget; cost += 1) {
                 const value = table.values[cost];
                 if (!Number.isFinite(value) || table.patternIndexes[cost] < 0) continue;
@@ -1126,9 +1136,259 @@
             );
         }
 
+        const economyCombatTables = combatTables.map((table) => (
+            table.economy ? table : attachCombatEconomy(table, combatPatterns, budget, ctx)
+        ));
+        const frontierCandidates = Array(frontierBucketCount).fill(null);
+        const cheapCandidates = [];
+        const cheapCandidateIndexes = new Map();
+        const highDamageCandidates = [];
+        const highDamageCandidateIndexes = new Map();
+
+        function sideCandidateKey(entry) {
+            const config = entry.table.config;
+            return [
+                config.weaponIdx,
+                config.helmetIdx,
+                config.glovesIdx,
+                config.ammoIdx,
+                config.chestIdx,
+                config.pantsIdx,
+                config.bootsIdx,
+                config.foodIdx,
+                entry.table.patternIndexes[entry.budget],
+            ].join("|");
+        }
+
+        function addSortedEntry(list, entry, limit, sorter) {
+            const existingIndex = list.findIndex((item) => item.key === entry.key);
+            if (existingIndex >= 0) {
+                const existing = list[existingIndex];
+                if (sorter(entry, existing) >= 0) return;
+                list[existingIndex] = entry;
+            } else {
+                list.push(entry);
+            }
+            list.sort(sorter);
+            if (list.length > limit) list.length = limit;
+        }
+
+        function mergeEntryLists(...lists) {
+            const merged = [];
+            const seen = new Set();
+            for (const list of lists) {
+                for (const entry of list) {
+                    if (seen.has(entry.key)) continue;
+                    seen.add(entry.key);
+                    merged.push(entry);
+                }
+            }
+            return merged;
+        }
+
+        function buildCombatBudgetCandidates() {
+            const byBudget = Array.from({ length: budget + 1 }, () => ({ value: [], cheap: [] }));
+            const valueSorter = (a, b) => b.value - a.value || a.costHint - b.costHint;
+            const cheapSorter = (a, b) => a.costHint - b.costHint || b.value - a.value;
+            const caseIncomePerAttack = ctx.rewards.case1_price * 0.02 + ctx.rewards.case2_price * 0.0002;
+
+            for (const table of economyCombatTables) {
+                for (let cost = 0; cost <= budget; cost += 1) {
+                    const value = table.values[cost];
+                    const prc = table.economy && table.economy.prc[cost];
+                    if (!Number.isFinite(value) || !Number.isFinite(prc) || table.patternIndexes[cost] < 0) continue;
+                    const economy = table.economy;
+                    const costHint = economy.fixedAttackCost
+                        + economy.dodgeAttackCost
+                        - (economy.weaponScrap + economy.dodgeScrap) * ctx.rewards.scrap_price
+                        - prc * caseIncomePerAttack;
+                    const entry = {
+                        table,
+                        budget: cost,
+                        value,
+                        costHint,
+                    };
+                    entry.key = sideCandidateKey(entry);
+                    addSortedEntry(byBudget[cost].value, entry, 12, valueSorter);
+                    addSortedEntry(byBudget[cost].cheap, entry, 8, cheapSorter);
+                }
+            }
+
+            return byBudget.map((bucket) => mergeEntryLists(bucket.value, bucket.cheap));
+        }
+
+        function buildSustainBudgetCandidates() {
+            const byBudget = Array.from({ length: budget + 1 }, () => ({ value: [], cheap: [] }));
+            const valueSorter = (a, b) => b.value - a.value || a.costHint - b.costHint;
+            const cheapSorter = (a, b) => a.costHint - b.costHint || b.value - a.value;
+
+            for (const table of sustainTables) {
+                for (let cost = 0; cost <= budget; cost += 1) {
+                    const value = table.values[cost];
+                    const economy = table.economy;
+                    if (!Number.isFinite(value) || table.patternIndexes[cost] < 0) continue;
+                    const costHint = economy.foodCost[cost]
+                        + economy.sustainGearCost[cost]
+                        - economy.sustainScrap[cost] * ctx.rewards.scrap_price;
+                    const entry = {
+                        table,
+                        budget: cost,
+                        value,
+                        costHint,
+                    };
+                    entry.key = sideCandidateKey(entry);
+                    addSortedEntry(byBudget[cost].value, entry, 12, valueSorter);
+                    addSortedEntry(byBudget[cost].cheap, entry, 8, cheapSorter);
+                }
+            }
+
+            return byBudget.map((bucket) => mergeEntryLists(bucket.value, bucket.cheap));
+        }
+
+        function candidateKey(candidate) {
+            return [
+                candidate.combatTable.config.weaponIdx,
+                candidate.combatTable.config.helmetIdx,
+                candidate.combatTable.config.glovesIdx,
+                candidate.combatTable.config.ammoIdx,
+                candidate.sustainTable.config.chestIdx,
+                candidate.sustainTable.config.pantsIdx,
+                candidate.sustainTable.config.bootsIdx,
+                candidate.sustainTable.config.foodIdx,
+                candidate.combatTable.patternIndexes[candidate.combatBudget],
+                candidate.sustainTable.patternIndexes[candidate.sustainBudget],
+            ].join("|");
+        }
+
+        function createCandidateRef(combatTable, sustainTable, combatBudget, sustainBudget, primary, netCost) {
+            const candidate = {
+                combatTable,
+                sustainTable,
+                combatBudget,
+                sustainBudget,
+                primary,
+                netCost,
+                raw: null,
+            };
+            candidate.key = candidateKey(candidate);
+            return candidate;
+        }
+
+        function materializeCandidate(candidate) {
+            if (!candidate) return null;
+            if (!candidate.raw) {
+                candidate.raw = createExactRawBuild(
+                    candidate.combatTable,
+                    candidate.sustainTable,
+                    combatPatterns,
+                    sustainPatterns,
+                    candidate.combatBudget,
+                    candidate.sustainBudget,
+                    options,
+                    ctx
+                );
+            }
+            return candidate.raw;
+        }
+
+        function candidateEfficiency(candidate) {
+            return candidate.netCost > 0 ? candidate.primary / candidate.netCost : Number.MAX_SAFE_INTEGER + candidate.primary;
+        }
+
+        function betterFrontierCandidate(candidate, incumbent) {
+            if (!candidate) return false;
+            if (!incumbent) return true;
+            const candidateScore = candidateEfficiency(candidate);
+            const incumbentScore = candidateEfficiency(incumbent);
+            if (candidateScore > incumbentScore + EXACT_TIE_EPSILON) return true;
+            if (Math.abs(candidateScore - incumbentScore) <= EXACT_TIE_EPSILON) {
+                const epsilon = Math.max(1, Math.abs(incumbent.primary)) * EXACT_TIE_EPSILON;
+                if (candidate.primary > incumbent.primary + epsilon) return true;
+                if (Math.abs(candidate.primary - incumbent.primary) <= epsilon) {
+                    return candidate.netCost < incumbent.netCost - EXACT_TIE_EPSILON;
+                }
+            }
+            return false;
+        }
+
+        function addRankedCandidate(list, indexes, candidate, limit, sorter) {
+            const existingIndex = indexes.get(candidate.key);
+            if (existingIndex != null) {
+                if (sorter(candidate, list[existingIndex]) >= 0) return;
+                list[existingIndex] = candidate;
+            } else {
+                list.push(candidate);
+            }
+            list.sort(sorter);
+            if (list.length > limit) list.length = limit;
+            indexes.clear();
+            list.forEach((item, index) => indexes.set(item.key, index));
+        }
+
+        function addFrontierCandidate(candidate) {
+            if (!candidate || candidate.primary < frontierMinDamage) return;
+            const ratio = bestValue > 0 ? candidate.primary / bestValue : 0;
+            const bucket = Math.max(0, Math.min(frontierBucketCount - 1, Math.floor(ratio * frontierBucketCount)));
+            if (betterFrontierCandidate(candidate, frontierCandidates[bucket])) {
+                frontierCandidates[bucket] = candidate;
+            }
+            addRankedCandidate(
+                cheapCandidates,
+                cheapCandidateIndexes,
+                candidate,
+                32,
+                (a, b) => a.netCost - b.netCost || b.primary - a.primary
+            );
+            addRankedCandidate(
+                highDamageCandidates,
+                highDamageCandidateIndexes,
+                candidate,
+                32,
+                (a, b) => b.primary - a.primary || a.netCost - b.netCost
+            );
+        }
+
+        const combatBudgetCandidates = buildCombatBudgetCandidates();
+        const sustainBudgetCandidates = buildSustainBudgetCandidates();
+        for (let combatBudget = 0; combatBudget <= budget; combatBudget += 1) {
+            const sustainBudget = budget - combatBudget;
+            for (const combatEntry of combatBudgetCandidates[combatBudget]) {
+                for (const sustainEntry of sustainBudgetCandidates[sustainBudget]) {
+                    const value = combatEntry.value * sustainEntry.value;
+                    if (!Number.isFinite(value) || value <= 0) continue;
+                    const netCost = quickNetCostFromTables(
+                        combatEntry.table,
+                        sustainEntry.table,
+                        combatPatterns,
+                        sustainPatterns,
+                        combatEntry.budget,
+                        sustainEntry.budget,
+                        options,
+                        ctx
+                    );
+                    if (!Number.isFinite(netCost)) continue;
+                    addFrontierCandidate(createCandidateRef(
+                        combatEntry.table,
+                        sustainEntry.table,
+                        combatEntry.budget,
+                        sustainEntry.budget,
+                        value,
+                        netCost
+                    ));
+                }
+            }
+        }
+
         if (onProgress) onProgress(evaluated);
         return {
-            builds: bestBuild ? [bestBuild] : [],
+            builds: [
+                bestBuild,
+                ...frontierCandidates,
+                ...cheapCandidates,
+                ...highDamageCandidates,
+            ].filter(Boolean).map((candidate) => (
+                candidate.skill_lvls ? candidate : materializeCandidate(candidate)
+            )).filter(Boolean),
             evaluated,
             total: evaluated,
         };

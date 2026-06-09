@@ -1,6 +1,8 @@
 services:
   web:
     ports: !reset []
+    environment:
+      APP_BASE_PATH: ${APP_BASE_PATH:-/war-planner}
     networks:
       - default
       - proxy

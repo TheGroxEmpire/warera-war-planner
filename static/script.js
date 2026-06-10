@@ -46,6 +46,24 @@ function compareCampaignRecommendationBuilds(a, b, objective) {
         || buildCostValue(a) - buildCostValue(b);
 }
 
+function compareCampaignRecommendedBuilds(a, b, objective) {
+    return buildPrimaryValue(b, objective) - buildPrimaryValue(a, objective)
+        || buildCostValue(a) - buildCostValue(b)
+        || buildEfficiencyValue(a) - buildEfficiencyValue(b);
+}
+
+function selectCampaignRecommendedBuild(builds, objective) {
+    const sustainableBuilds = builds.filter((build) => build.campaign && build.campaign.sustainable);
+    if (sustainableBuilds.length) {
+        return sustainableBuilds.slice().sort((a, b) => compareCampaignRecommendedBuilds(a, b, objective))[0];
+    }
+
+    return builds
+        .filter((build) => build.campaign)
+        .slice()
+        .sort((a, b) => compareCampaignRecommendationBuilds(a, b, objective))[0] || null;
+}
+
 function canBuildDominate(other, build) {
     if (!build.campaign && !other.campaign) return true;
 
@@ -604,11 +622,15 @@ document.addEventListener("DOMContentLoaded", () => {
             || costGap >= campaignRecommendationCostGap;
     }
 
-    function spaceCampaignRecommendations(builds, objective) {
+    function spaceCampaignRecommendations(builds, objective, pinnedBuild = null) {
         const ordered = builds.slice().sort((a, b) => compareCampaignRecommendationBuilds(a, b, objective));
         const selected = [];
+        if (pinnedBuild && builds.includes(pinnedBuild)) {
+            selected.push(pinnedBuild);
+        }
 
         for (const build of ordered) {
+            if (build === pinnedBuild) continue;
             if (selected.every((selectedBuild) => hasRecommendationGap(build, selectedBuild, objective))) {
                 selected.push(build);
                 if (selected.length >= campaignRecommendationLimit) break;
@@ -651,20 +673,10 @@ document.addEventListener("DOMContentLoaded", () => {
             annotated.filter((build) => build.campaign.budgetUsagePct >= 50),
             objective
         );
-        const sustainableBuilds = visibleBuilds.filter((build) => build.campaign.sustainable)
-            .sort((a, b) => compareCampaignRecommendationBuilds(a, b, objective));
-        const unsustainableBuilds = visibleBuilds.filter((build) => !build.campaign.sustainable)
-            .sort((a, b) => compareCampaignRecommendationBuilds(a, b, objective));
-
-        let recommended = null;
-        if (sustainableBuilds[0]) {
-            recommended = sustainableBuilds[0];
-        } else if (unsustainableBuilds[0]) {
-            recommended = unsustainableBuilds[0];
-        }
+        const recommended = selectCampaignRecommendedBuild(visibleBuilds, objective);
         if (recommended) recommended.is_recommended = true;
 
-        return spaceCampaignRecommendations(visibleBuilds, objective);
+        return spaceCampaignRecommendations(visibleBuilds, objective, recommended);
     }
 
     function maxBountyIncome(builds) {

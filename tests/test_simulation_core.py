@@ -67,10 +67,12 @@ class SimulationCoreTest(unittest.TestCase):
             const ordered = filtered
                 .slice()
                 .sort((a, b) => sandbox.compareCampaignRecommendationBuilds(a, b, "damage"));
+            const recommended = sandbox.selectCampaignRecommendedBuild(filtered, "damage");
             console.log(JSON.stringify({
                 filtered: filtered.map((item) => item.id),
                 mixedFiltered: mixedFiltered.map((item) => item.id),
                 ordered: ordered.map((item) => item.id),
+                recommended: recommended.id,
                 efficiencies: ordered.map((item) => Number(sandbox.buildEfficiencyValue(item).toFixed(3))),
             }));
             """
@@ -82,6 +84,7 @@ class SimulationCoreTest(unittest.TestCase):
             ["best_efficiency", "dominates", "higher_damage_less_efficient"],
         )
         self.assertIn("sustainable", result["mixedFiltered"])
+        self.assertEqual(result["recommended"], "higher_damage_less_efficient")
         self.assertEqual(result["efficiencies"], [0.25, 0.3, 0.4])
 
     def test_campaign_fails_when_future_income_would_be_needed(self):

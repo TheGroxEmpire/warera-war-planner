@@ -23,7 +23,8 @@
     const SUSTAIN_SKILL_COUNT = 4;
     const MAX_DAMAGE_SKILL_BUDGET = DAMAGE_SKILL_COUNT * SKILL_LEVEL_COST[MAX_SKILL_LEVEL];
     const MAX_SUSTAIN_SKILL_BUDGET = SUSTAIN_SKILL_COUNT * SKILL_LEVEL_COST[MAX_SKILL_LEVEL];
-    const MAX_OPTIMIZED_SKILL_BUDGET = MAX_DAMAGE_SKILL_BUDGET + MAX_SUSTAIN_SKILL_BUDGET;
+    const MAX_LOOT_SKILL_BUDGET = SKILL_LEVEL_COST[MAX_SKILL_LEVEL];
+    const MAX_OPTIMIZED_SKILL_BUDGET = MAX_DAMAGE_SKILL_BUDGET + MAX_SUSTAIN_SKILL_BUDGET + MAX_LOOT_SKILL_BUDGET;
 
     const FOOD = {
         noFood: { regen_bonus: 0, health_pct: 0.0, food_multiplier: 0, cost: 0.0 },
@@ -924,7 +925,7 @@
             : campaignCostForBuild(build, options) <= campaignBudgetLimit(options);
     }
 
-    function quickNetCost(combatTable, sustainTable, combatPatterns, sustainPatterns, combatBudget, sustainBudget, options, ctx) {
+    function quickNetCost(combatTable, sustainTable, combatPatterns, sustainPatterns, combatBudget, sustainBudget, options, ctx, lootLevel = 0) {
         const combatPattern = combatPatterns[combatTable.patternIndexes[combatBudget]];
         const sustainPattern = sustainPatterns[sustainTable.patternIndexes[sustainBudget]];
         if (!combatPattern || !sustainPattern) return Number.POSITIVE_INFINITY;
@@ -959,7 +960,7 @@
         }
 
         const prc = Math.min(1.0, combatTable.config.basePrc / 100 + 0.05 * combatPattern.levels[1]);
-        const loot = 0.02;
+        const loot = 0.02 + 0.02 * lootLevel;
         const casesPerDay = loot * sustain.attacks * prc;
         const eliteCasesPerDay = (loot / 100) * sustain.attacks * prc;
         const totalCost = gearCost + foodCost + ammoCost + pillCost;
@@ -969,11 +970,11 @@
             - eliteCasesPerDay * ctx.rewards.case2_price;
     }
 
-    function quickNetCostFromTables(combatTable, sustainTable, combatPatterns, sustainPatterns, combatBudget, sustainBudget, options, ctx) {
+    function quickNetCostFromTables(combatTable, sustainTable, combatPatterns, sustainPatterns, combatBudget, sustainBudget, options, ctx, lootLevel = 0) {
         const combatEconomy = combatTable.economy;
         const sustainEconomy = sustainTable.economy;
         if (!combatEconomy || !sustainEconomy) {
-            return quickNetCost(combatTable, sustainTable, combatPatterns, sustainPatterns, combatBudget, sustainBudget, options, ctx);
+            return quickNetCost(combatTable, sustainTable, combatPatterns, sustainPatterns, combatBudget, sustainBudget, options, ctx, lootLevel);
         }
 
         const attacks = sustainEconomy.attacks[sustainBudget];
@@ -990,8 +991,9 @@
         const scrapGenerated = combatEconomy.weaponScrap * sustainEconomy.weaponQuantity[sustainBudget]
             + combatEconomy.dodgeScrap * sustainEconomy.dodgeQuantity[sustainBudget]
             + sustainEconomy.sustainScrap[sustainBudget];
-        const casesPerDay = 0.02 * attacks * prc;
-        const eliteCasesPerDay = 0.0002 * attacks * prc;
+        const loot = 0.02 + 0.02 * lootLevel;
+        const casesPerDay = loot * attacks * prc;
+        const eliteCasesPerDay = (loot / 100) * attacks * prc;
 
         return totalCost
             - scrapGenerated * ctx.rewards.scrap_price
@@ -999,7 +1001,7 @@
             - eliteCasesPerDay * ctx.rewards.case2_price;
     }
 
-    function createExactRawBuild(combatTable, sustainTable, combatPatterns, sustainPatterns, combatBudget, sustainBudget, options, ctx) {
+    function createExactRawBuild(combatTable, sustainTable, combatPatterns, sustainPatterns, combatBudget, sustainBudget, options, ctx, lootLevel = 0) {
         const combatPattern = combatPatterns[combatTable.patternIndexes[combatBudget]];
         const sustainPattern = sustainPatterns[sustainTable.patternIndexes[sustainBudget]];
         if (!combatPattern || !sustainPattern) return null;
@@ -1013,7 +1015,7 @@
             sustainPattern.levels[1],
             sustainPattern.levels[2],
             sustainPattern.levels[3],
-            0,
+            lootLevel,
         ];
         const gearIdx = [
             combatTable.config.weaponIdx,
@@ -1200,7 +1202,6 @@
                     const economy = table.economy;
                     const costHint = economy.fixedAttackCost
                         + economy.dodgeAttackCost
-                        - (economy.weaponScrap + economy.dodgeScrap) * ctx.rewards.scrap_price
                         - prc * caseIncomePerAttack;
                     const entry = {
                         table,
@@ -1228,8 +1229,7 @@
                     const economy = table.economy;
                     if (!Number.isFinite(value) || table.patternIndexes[cost] < 0) continue;
                     const costHint = economy.foodCost[cost]
-                        + economy.sustainGearCost[cost]
-                        - economy.sustainScrap[cost] * ctx.rewards.scrap_price;
+                        + economy.sustainGearCost[cost];
                     const entry = {
                         table,
                         budget: cost,
@@ -1433,7 +1433,14 @@
         const targetBuilds = Array(budgetTargets.length).fill(null);
         const frontierTargets = budgetTargets.length ? budgetTargets : [];
         const frontierBuilds = Array(frontierTargets.length).fill(null);
-        const totalChecks = (sustainEnd - sustainStart) * combatTables.length * (budget + 1);
+        const lootSkillLevels = (ctx.rewards.case1_price > 0 || ctx.rewards.case2_price > 0)
+            ? Array.from({ length: MAX_SKILL_LEVEL + 1 }, (_, level) => level)
+                .filter((level) => SKILL_LEVEL_COST[level] <= budget)
+            : [0];
+        const splitChecks = lootSkillLevels.reduce((total, level) => (
+            total + budget - SKILL_LEVEL_COST[level] + 1
+        ), 0);
+        const totalChecks = (sustainEnd - sustainStart) * combatTables.length * splitChecks;
         const progressEvery = Math.max(1000, Math.floor(totalChecks / 100));
         let nextProgress = progressEvery;
         let evaluated = 0;
@@ -1458,15 +1465,17 @@
                 candidate.sustainTable.config.foodIdx,
                 candidate.combatTable.patternIndexes[candidate.combatBudget],
                 candidate.sustainTable.patternIndexes[candidate.sustainBudget],
+                candidate.lootLevel || 0,
             ].join("|");
         }
 
-        function createCandidateRef(combatTable, sustainTable, combatBudget, sustainBudget, primary, netCost, campaignCost, simulation) {
+        function createCandidateRef(combatTable, sustainTable, combatBudget, sustainBudget, primary, netCost, campaignCost, simulation, lootLevel = 0) {
             const candidate = {
                 combatTable,
                 sustainTable,
                 combatBudget,
                 sustainBudget,
+                lootLevel,
                 primary,
                 netCost,
                 campaignCost,
@@ -1488,7 +1497,8 @@
                     candidate.combatBudget,
                     candidate.sustainBudget,
                     options,
-                    ctx
+                    ctx,
+                    candidate.lootLevel || 0
                 );
             }
             return candidate.raw;
@@ -1604,8 +1614,38 @@
             return merged;
         }
 
+        function sampledCostValueFrontier(entries, limit) {
+            if (!entries.length) return [];
+
+            const sorted = entries.slice().sort((a, b) => (
+                a.costHint - b.costHint || b.value - a.value
+            ));
+            const frontier = [];
+            let bestValue = Number.NEGATIVE_INFINITY;
+            for (const entry of sorted) {
+                if (entry.value > bestValue + EXACT_TIE_EPSILON) {
+                    frontier.push(entry);
+                    bestValue = entry.value;
+                }
+            }
+
+            if (frontier.length <= limit) return frontier;
+
+            const sampled = [];
+            const seen = new Set();
+            for (let i = 0; i < limit; i += 1) {
+                const index = Math.round(i * (frontier.length - 1) / Math.max(1, limit - 1));
+                const entry = frontier[index];
+                if (entry && !seen.has(entry.key)) {
+                    seen.add(entry.key);
+                    sampled.push(entry);
+                }
+            }
+            return sampled;
+        }
+
         function buildCombatBudgetCandidates() {
-            const byBudget = Array.from({ length: budget + 1 }, () => ({ value: [], cheap: [] }));
+            const byBudget = Array.from({ length: budget + 1 }, () => ({ value: [], cheap: [], frontier: [] }));
             const valueSorter = (a, b) => b.value - a.value || a.costHint - b.costHint;
             const cheapSorter = (a, b) => a.costHint - b.costHint || b.value - a.value;
             const caseIncomePerAttack = ctx.rewards.case1_price * 0.02 + ctx.rewards.case2_price * 0.0002;
@@ -1618,7 +1658,6 @@
                     const economy = table.economy;
                     const costHint = economy.fixedAttackCost
                         + economy.dodgeAttackCost
-                        - (economy.weaponScrap + economy.dodgeScrap) * ctx.rewards.scrap_price
                         - prc * caseIncomePerAttack;
                     const entry = {
                         table,
@@ -1629,14 +1668,19 @@
                     entry.key = sideCandidateKey(entry);
                     addSortedEntry(byBudget[cost].value, entry, 16, valueSorter);
                     addSortedEntry(byBudget[cost].cheap, entry, 10, cheapSorter);
+                    byBudget[cost].frontier.push(entry);
                 }
             }
 
-            return byBudget.map((bucket) => mergeEntryLists(bucket.value, bucket.cheap));
+            return byBudget.map((bucket) => mergeEntryLists(
+                bucket.value,
+                bucket.cheap,
+                sampledCostValueFrontier(bucket.frontier, 24)
+            ));
         }
 
         function buildSustainBudgetCandidates() {
-            const byBudget = Array.from({ length: budget + 1 }, () => ({ value: [], cheap: [] }));
+            const byBudget = Array.from({ length: budget + 1 }, () => ({ value: [], cheap: [], frontier: [] }));
             const valueSorter = (a, b) => b.value - a.value || a.costHint - b.costHint;
             const cheapSorter = (a, b) => a.costHint - b.costHint || b.value - a.value;
 
@@ -1646,8 +1690,7 @@
                     const economy = table.economy;
                     if (!Number.isFinite(value) || table.patternIndexes[cost] < 0) continue;
                     const costHint = economy.foodCost[cost]
-                        + economy.sustainGearCost[cost]
-                        - economy.sustainScrap[cost] * ctx.rewards.scrap_price;
+                        + economy.sustainGearCost[cost];
                     const entry = {
                         table,
                         budget: cost,
@@ -1657,13 +1700,18 @@
                     entry.key = sideCandidateKey(entry);
                     addSortedEntry(byBudget[cost].value, entry, 16, valueSorter);
                     addSortedEntry(byBudget[cost].cheap, entry, 10, cheapSorter);
+                    byBudget[cost].frontier.push(entry);
                 }
             }
 
-            return byBudget.map((bucket) => mergeEntryLists(bucket.value, bucket.cheap));
+            return byBudget.map((bucket) => mergeEntryLists(
+                bucket.value,
+                bucket.cheap,
+                sampledCostValueFrontier(bucket.frontier, 24)
+            ));
         }
 
-        function considerCandidate(combatEntry, sustainEntry) {
+        function considerCandidate(combatEntry, sustainEntry, lootLevel = 0) {
             const value = combatEntry.value * sustainEntry.value;
             if (!Number.isFinite(value) || value <= 0) return;
 
@@ -1675,7 +1723,8 @@
                 combatEntry.budget,
                 sustainEntry.budget,
                 options,
-                ctx
+                ctx,
+                lootLevel
             );
             if (!Number.isFinite(netCost)) return;
 
@@ -1691,7 +1740,8 @@
                 value,
                 netCost,
                 campaignCost,
-                simulation
+                simulation,
+                lootLevel
             );
 
             if (betterCandidate(candidate, bestCandidate)) {
@@ -1745,11 +1795,14 @@
         if (!options.exactCampaignSearch) {
             const combatBudgetCandidates = buildCombatBudgetCandidates();
             const sustainBudgetCandidates = buildSustainBudgetCandidates();
-            for (let combatBudget = 0; combatBudget <= budget; combatBudget += 1) {
-                const sustainBudget = budget - combatBudget;
-                for (const combatEntry of combatBudgetCandidates[combatBudget]) {
-                    for (const sustainEntry of sustainBudgetCandidates[sustainBudget]) {
-                        considerCandidate(combatEntry, sustainEntry);
+            for (const lootLevel of lootSkillLevels) {
+                const remainingBudget = budget - SKILL_LEVEL_COST[lootLevel];
+                for (let combatBudget = 0; combatBudget <= remainingBudget; combatBudget += 1) {
+                    const sustainBudget = remainingBudget - combatBudget;
+                    for (const combatEntry of combatBudgetCandidates[combatBudget]) {
+                        for (const sustainEntry of sustainBudgetCandidates[sustainBudget]) {
+                            considerCandidate(combatEntry, sustainEntry, lootLevel);
+                        }
                     }
                 }
             }
@@ -1764,116 +1817,121 @@
 
         for (const sustainTable of sustainTables) {
             for (const combatTable of combatTables) {
-                forEachUniqueBudgetSplit(combatTable, sustainTable, budget, (combatBudget, sustainBudget, value) => {
-                    if (!Number.isFinite(value) || value <= 0) return;
+                for (const lootLevel of lootSkillLevels) {
+                    const remainingBudget = budget - SKILL_LEVEL_COST[lootLevel];
+                    forEachUniqueBudgetSplit(combatTable, sustainTable, remainingBudget, (combatBudget, sustainBudget, value) => {
+                        if (!Number.isFinite(value) || value <= 0) return;
 
-                    const epsilon = Math.max(1, Math.abs(bestValue)) * EXACT_TIE_EPSILON;
-                    const couldUpdateBest = value > bestValue + epsilon || Math.abs(value - bestValue) <= epsilon;
-                    const budgetTargetIndexes = budgetTargetIndexesForCandidateValue(value);
-                    let candidateNetCost = null;
-                    let candidateSimulation = null;
-                    let candidate = null;
-                    const getCandidateNetCost = () => {
-                        if (candidateNetCost == null) {
-                            candidateNetCost = quickNetCostFromTables(
-                                combatTable,
-                                sustainTable,
-                                combatPatterns,
-                                sustainPatterns,
-                                combatBudget,
-                                sustainBudget,
-                                options,
-                                ctx
-                            );
-                        }
-                        return candidateNetCost;
-                    };
-                    const getCandidateCampaignCost = () => campaignCostFromNetCost(getCandidateNetCost(), options);
-                    const getCandidateSimulation = () => {
-                        if (!candidateSimulation) {
-                            candidateSimulation = simulateCampaignValues(getCandidateNetCost(), value, options, false);
-                        }
-                        return candidateSimulation;
-                    };
-                    const getCandidate = () => {
-                        if (!candidate) {
-                            candidate = createCandidateRef(
-                                combatTable,
-                                sustainTable,
-                                combatBudget,
-                                sustainBudget,
-                                value,
-                                getCandidateNetCost(),
-                                getCandidateCampaignCost(),
-                                hasCampaignBudget ? getCandidateSimulation() : null
-                            );
-                        }
-                        return candidate;
-                    };
-                    if (budgetTargetIndexes.length) {
-                        budgetTargetIndexes.splice(0, budgetTargetIndexes.length, ...budgetTargetIndexes.filter((index) => getCandidateCampaignCost() <= budgetTargets[index]));
-                    }
-                    const frontierIndexes = [];
-                    if (frontierTargets.length) {
-                        for (let i = 0; i < frontierTargets.length; i += 1) {
-                            const score = candidateScoreForTarget(value, getCandidateCampaignCost(), frontierTargets[i]);
-                            if (!frontierBuilds[i] || score > frontierBuilds[i].score + EXACT_TIE_EPSILON) {
-                                frontierIndexes.push(i);
+                        const epsilon = Math.max(1, Math.abs(bestValue)) * EXACT_TIE_EPSILON;
+                        const couldUpdateBest = value > bestValue + epsilon || Math.abs(value - bestValue) <= epsilon;
+                        const budgetTargetIndexes = budgetTargetIndexesForCandidateValue(value);
+                        let candidateNetCost = null;
+                        let candidateSimulation = null;
+                        let candidate = null;
+                        const getCandidateNetCost = () => {
+                            if (candidateNetCost == null) {
+                                candidateNetCost = quickNetCostFromTables(
+                                    combatTable,
+                                    sustainTable,
+                                    combatPatterns,
+                                    sustainPatterns,
+                                    combatBudget,
+                                    sustainBudget,
+                                    options,
+                                    ctx,
+                                    lootLevel
+                                );
                             }
-                        }
-                    }
-                    let couldUpdateBestUnderCampaignBudget = false;
-                    let couldUpdateLowestCost = false;
-                    if (hasCampaignBudget) {
-                        const candidateCampaignCost = getCandidateCampaignCost();
-                        const bestUnderEpsilon = Number.isFinite(bestUnderCampaignBudgetValue)
-                            ? Math.max(1, Math.abs(bestUnderCampaignBudgetValue)) * EXACT_TIE_EPSILON
-                            : 0;
-                        const lowestCostEpsilon = Number.isFinite(lowestCostValue)
-                            ? Math.max(0.000001, Math.abs(lowestCostValue)) * 0.000001
-                            : 0;
-                        couldUpdateBestUnderCampaignBudget = getCandidateSimulation().sustainable
-                            && value > bestUnderCampaignBudgetValue + bestUnderEpsilon;
-                        couldUpdateLowestCost = candidateCampaignCost < lowestCostValue - lowestCostEpsilon;
-                    }
-                    if (couldUpdateBest || budgetTargetIndexes.length || frontierIndexes.length || couldUpdateBestUnderCampaignBudget || couldUpdateLowestCost) {
-                        candidate = getCandidate();
-                        if (couldUpdateBest && (!bestCandidate || value > bestValue + epsilon || betterCandidate(candidate, bestCandidate))) {
-                            bestValue = value;
-                            bestCandidate = candidate;
-                        }
+                            return candidateNetCost;
+                        };
+                        const getCandidateCampaignCost = () => campaignCostFromNetCost(getCandidateNetCost(), options);
+                        const getCandidateSimulation = () => {
+                            if (!candidateSimulation) {
+                                candidateSimulation = simulateCampaignValues(getCandidateNetCost(), value, options, false);
+                            }
+                            return candidateSimulation;
+                        };
+                        const getCandidate = () => {
+                            if (!candidate) {
+                                candidate = createCandidateRef(
+                                    combatTable,
+                                    sustainTable,
+                                    combatBudget,
+                                    sustainBudget,
+                                    value,
+                                    getCandidateNetCost(),
+                                    getCandidateCampaignCost(),
+                                    hasCampaignBudget ? getCandidateSimulation() : null,
+                                    lootLevel
+                                );
+                            }
+                            return candidate;
+                        };
                         if (budgetTargetIndexes.length) {
-                            updateBudgetTargetCandidates(candidate, budgetTargetIndexes);
+                            budgetTargetIndexes.splice(0, budgetTargetIndexes.length, ...budgetTargetIndexes.filter((index) => getCandidateCampaignCost() <= budgetTargets[index]));
                         }
-                        for (const index of frontierIndexes) {
-                            const score = candidateScoreForTarget(value, candidate.campaignCost, frontierTargets[index]);
-                            const current = frontierBuilds[index];
-                            if (
-                                !current
-                                || score > current.score + EXACT_TIE_EPSILON
-                                || (Math.abs(score - current.score) <= EXACT_TIE_EPSILON && betterCandidate(candidate, current.candidate))
-                            ) {
-                                frontierBuilds[index] = { score, candidate };
+                        const frontierIndexes = [];
+                        if (frontierTargets.length) {
+                            for (let i = 0; i < frontierTargets.length; i += 1) {
+                                const score = candidateScoreForTarget(value, getCandidateCampaignCost(), frontierTargets[i]);
+                                if (!frontierBuilds[i] || score > frontierBuilds[i].score + EXACT_TIE_EPSILON) {
+                                    frontierIndexes.push(i);
+                                }
                             }
                         }
-                        if (
-                            couldUpdateBestUnderCampaignBudget
-                            && candidate.simulation
-                            && candidate.simulation.sustainable
-                            && betterCandidate(candidate, bestUnderCampaignBudgetCandidate)
-                        ) {
-                            bestUnderCampaignBudgetValue = value;
-                            bestUnderCampaignBudgetCandidate = candidate;
-                            addAffordableCandidate(candidate);
+                        let couldUpdateBestUnderCampaignBudget = false;
+                        let couldUpdateLowestCost = false;
+                        if (hasCampaignBudget) {
+                            const candidateCampaignCost = getCandidateCampaignCost();
+                            const bestUnderEpsilon = Number.isFinite(bestUnderCampaignBudgetValue)
+                                ? Math.max(1, Math.abs(bestUnderCampaignBudgetValue)) * EXACT_TIE_EPSILON
+                                : 0;
+                            const lowestCostEpsilon = Number.isFinite(lowestCostValue)
+                                ? Math.max(0.000001, Math.abs(lowestCostValue)) * 0.000001
+                                : 0;
+                            couldUpdateBestUnderCampaignBudget = getCandidateSimulation().sustainable
+                                && value > bestUnderCampaignBudgetValue + bestUnderEpsilon;
+                            couldUpdateLowestCost = candidateCampaignCost < lowestCostValue - lowestCostEpsilon;
                         }
-                        if (couldUpdateLowestCost && candidate.campaignCost < lowestCostValue) {
-                            lowestCostValue = candidate.campaignCost;
-                            lowestCostCandidate = candidate;
+                        if (couldUpdateBest || budgetTargetIndexes.length || frontierIndexes.length || couldUpdateBestUnderCampaignBudget || couldUpdateLowestCost) {
+                            candidate = getCandidate();
+                            if (couldUpdateBest && (!bestCandidate || value > bestValue + epsilon || betterCandidate(candidate, bestCandidate))) {
+                                bestValue = value;
+                                bestCandidate = candidate;
+                            }
+                            if (budgetTargetIndexes.length) {
+                                updateBudgetTargetCandidates(candidate, budgetTargetIndexes);
+                            }
+                            for (const index of frontierIndexes) {
+                                const score = candidateScoreForTarget(value, candidate.campaignCost, frontierTargets[index]);
+                                const current = frontierBuilds[index];
+                                if (
+                                    !current
+                                    || score > current.score + EXACT_TIE_EPSILON
+                                    || (Math.abs(score - current.score) <= EXACT_TIE_EPSILON && betterCandidate(candidate, current.candidate))
+                                ) {
+                                    frontierBuilds[index] = { score, candidate };
+                                }
+                            }
+                            if (
+                                couldUpdateBestUnderCampaignBudget
+                                && candidate.simulation
+                                && candidate.simulation.sustainable
+                                && betterCandidate(candidate, bestUnderCampaignBudgetCandidate)
+                            ) {
+                                bestUnderCampaignBudgetValue = value;
+                                bestUnderCampaignBudgetCandidate = candidate;
+                                addAffordableCandidate(candidate);
+                            }
+                            if (couldUpdateLowestCost && candidate.campaignCost < lowestCostValue) {
+                                lowestCostValue = candidate.campaignCost;
+                                lowestCostCandidate = candidate;
+                            }
                         }
-                    }
-                });
+                    });
 
-                evaluated += budget + 1;
+                    evaluated += remainingBudget + 1;
+                }
                 if (onProgress && evaluated >= nextProgress) {
                     onProgress(evaluated);
                     nextProgress += progressEvery;
@@ -1882,51 +1940,56 @@
         }
 
         if (hasCampaignBudget) {
-            const sustainBudgetSamples = Array.from(new Set([
-                ...SKILL_LEVEL_COST,
-                Math.floor(budget * 0.25),
-                Math.floor(budget * 0.5),
-                Math.floor(budget * 0.75),
-            ].filter((value) => value >= 0 && value <= budget))).sort((a, b) => a - b);
+            for (const lootLevel of lootSkillLevels) {
+                const remainingBudget = budget - SKILL_LEVEL_COST[lootLevel];
+                const sustainBudgetSamples = Array.from(new Set([
+                    ...SKILL_LEVEL_COST,
+                    Math.floor(remainingBudget * 0.25),
+                    Math.floor(remainingBudget * 0.5),
+                    Math.floor(remainingBudget * 0.75),
+                ].filter((value) => value >= 0 && value <= remainingBudget))).sort((a, b) => a - b);
 
-            for (const sustainTable of sustainTables) {
-                for (const sustainBudget of sustainBudgetSamples) {
-                    const combatBudget = budget - sustainBudget;
-                    for (const combatTable of combatTables) {
-                        const value = combatTable.values[combatBudget] * sustainTable.values[sustainBudget];
-                        if (!Number.isFinite(value) || value <= 0) continue;
+                for (const sustainTable of sustainTables) {
+                    for (const sustainBudget of sustainBudgetSamples) {
+                        const combatBudget = remainingBudget - sustainBudget;
+                        for (const combatTable of combatTables) {
+                            const value = combatTable.values[combatBudget] * sustainTable.values[sustainBudget];
+                            if (!Number.isFinite(value) || value <= 0) continue;
 
-                        const netCost = quickNetCostFromTables(
-                            combatTable,
-                            sustainTable,
-                            combatPatterns,
-                            sustainPatterns,
-                            combatBudget,
-                            sustainBudget,
-                            options,
-                            ctx
-                        );
-                        const simulation = simulateCampaignValues(netCost, value, options, false);
-                        if (!simulation.sustainable) continue;
+                            const netCost = quickNetCostFromTables(
+                                combatTable,
+                                sustainTable,
+                                combatPatterns,
+                                sustainPatterns,
+                                combatBudget,
+                                sustainBudget,
+                                options,
+                                ctx,
+                                lootLevel
+                            );
+                            const simulation = simulateCampaignValues(netCost, value, options, false);
+                            if (!simulation.sustainable) continue;
 
-                        const candidate = createCandidateRef(
-                            combatTable,
-                            sustainTable,
-                            combatBudget,
-                            sustainBudget,
-                            value,
-                            netCost,
-                            campaignCostFromNetCost(netCost, options),
-                            simulation
-                        );
-                        addAffordableCandidate(candidate);
-                        if (betterCandidate(candidate, bestUnderCampaignBudgetCandidate)) {
-                            bestUnderCampaignBudgetValue = candidate.primary;
-                            bestUnderCampaignBudgetCandidate = candidate;
-                        }
-                        if (candidate.campaignCost < lowestCostValue) {
-                            lowestCostValue = candidate.campaignCost;
-                            lowestCostCandidate = candidate;
+                            const candidate = createCandidateRef(
+                                combatTable,
+                                sustainTable,
+                                combatBudget,
+                                sustainBudget,
+                                value,
+                                netCost,
+                                campaignCostFromNetCost(netCost, options),
+                                simulation,
+                                lootLevel
+                            );
+                            addAffordableCandidate(candidate);
+                            if (betterCandidate(candidate, bestUnderCampaignBudgetCandidate)) {
+                                bestUnderCampaignBudgetValue = candidate.primary;
+                                bestUnderCampaignBudgetCandidate = candidate;
+                            }
+                            if (candidate.campaignCost < lowestCostValue) {
+                                lowestCostValue = candidate.campaignCost;
+                                lowestCostCandidate = candidate;
+                            }
                         }
                     }
                 }

@@ -20,6 +20,70 @@ class SimulationCoreTest(unittest.TestCase):
             self.fail(completed.stderr or completed.stdout)
         return json.loads(completed.stdout)
 
+    def run_script_helper_json(self, script):
+        return self.run_node_json(
+            """
+            const fs = require("fs");
+            const vm = require("vm");
+            const sandbox = {
+                window: {
+                    WARERA_STATIC_BASE: "static",
+                    WARERA_ASSET_BASE: "assets",
+                    WARERA_ASSET_VERSION: "",
+                },
+                document: { addEventListener() {} },
+            };
+            vm.createContext(sandbox);
+            vm.runInContext(fs.readFileSync("./static/script.js", "utf8"), sandbox, { filename: "static/script.js" });
+            """
+            + script
+        )
+
+    def test_recommendations_filter_and_sort_by_displayed_efficiency(self):
+        result = self.run_script_helper_json(
+            """
+            const build = (id, damage, dailyCost, sustainable = true) => ({
+                id,
+                total_damage: damage,
+                net_cost: dailyCost,
+                campaign: {
+                    sustainable,
+                    warNetCost: dailyCost + 50,
+                    dailyBountyIncome: 30,
+                    dailyBattleLootIncome: 20,
+                    warTotalCost: (dailyCost + 50) * 10,
+                },
+            });
+            const builds = [
+                build("best_efficiency", 800000, 200),
+                build("dominates", 900000, 270),
+                build("dominated", 850000, 280),
+                build("higher_damage_less_efficient", 1100000, 440),
+            ];
+            const sustainable = build("sustainable", 800000, 240, true);
+            const unsustainable = build("unsustainable_better_metrics", 900000, 180, false);
+            const filtered = sandbox.filterDominatedBuilds(builds, "damage");
+            const mixedFiltered = sandbox.filterDominatedBuilds([sustainable, unsustainable], "damage");
+            const ordered = filtered
+                .slice()
+                .sort((a, b) => sandbox.compareCampaignRecommendationBuilds(a, b, "damage"));
+            console.log(JSON.stringify({
+                filtered: filtered.map((item) => item.id),
+                mixedFiltered: mixedFiltered.map((item) => item.id),
+                ordered: ordered.map((item) => item.id),
+                efficiencies: ordered.map((item) => Number(sandbox.buildEfficiencyValue(item).toFixed(3))),
+            }));
+            """
+        )
+
+        self.assertNotIn("dominated", result["filtered"])
+        self.assertEqual(
+            result["ordered"],
+            ["best_efficiency", "dominates", "higher_damage_less_efficient"],
+        )
+        self.assertIn("sustainable", result["mixedFiltered"])
+        self.assertEqual(result["efficiencies"], [0.25, 0.3, 0.4])
+
     def test_campaign_fails_when_future_income_would_be_needed(self):
         result = self.run_node_json(
             """

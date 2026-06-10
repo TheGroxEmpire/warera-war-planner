@@ -12,6 +12,70 @@ function itemIconAsset(path) {
     return ASSET_VERSION ? `${url}?v=${encodeURIComponent(ASSET_VERSION)}` : url;
 }
 
+function buildPrimaryValue(build, objective) {
+    const value = build.total_damage;
+    return Number.isFinite(Number(value)) ? Number(value) : Number.NEGATIVE_INFINITY;
+}
+
+function buildCostValue(build) {
+    const value = build.campaign ? build.campaign.warTotalCost : build.net_cost;
+    return Number.isFinite(Number(value)) ? Number(value) : Number.POSITIVE_INFINITY;
+}
+
+function effectiveDailyCost(build) {
+    if (!build.campaign) return Number(build.net_cost) || 0;
+    return (Number(build.campaign.warNetCost) || 0)
+        - (Number(build.campaign.dailyBountyIncome) || 0)
+        - (Number(build.campaign.dailyBattleLootIncome) || 0);
+}
+
+function buildEfficiencyValue(build) {
+    const damage = Number(build.total_damage);
+    if (!Number.isFinite(damage) || damage <= 0) return Number.POSITIVE_INFINITY;
+
+    const cost = effectiveDailyCost(build);
+    return Number.isFinite(cost) ? cost / damage * 1000 : Number.POSITIVE_INFINITY;
+}
+
+function compareCampaignRecommendationBuilds(a, b, objective) {
+    const aSustainable = a.campaign && a.campaign.sustainable ? 1 : 0;
+    const bSustainable = b.campaign && b.campaign.sustainable ? 1 : 0;
+    return bSustainable - aSustainable
+        || buildEfficiencyValue(a) - buildEfficiencyValue(b)
+        || buildPrimaryValue(b, objective) - buildPrimaryValue(a, objective)
+        || buildCostValue(a) - buildCostValue(b);
+}
+
+function canBuildDominate(other, build) {
+    if (!build.campaign && !other.campaign) return true;
+
+    const buildSustainable = build.campaign && build.campaign.sustainable;
+    const otherSustainable = other.campaign && other.campaign.sustainable;
+    return !buildSustainable || otherSustainable;
+}
+
+function filterDominatedBuilds(builds, objective) {
+    const epsilon = 0.000001;
+    return builds.filter((build, index) => {
+        const efficiency = buildEfficiencyValue(build);
+        const primary = buildPrimaryValue(build, objective);
+        if (!Number.isFinite(efficiency) || !Number.isFinite(primary)) return true;
+
+        return !builds.some((other, otherIndex) => {
+            if (otherIndex === index) return false;
+            if (!canBuildDominate(other, build)) return false;
+            const otherEfficiency = buildEfficiencyValue(other);
+            const otherPrimary = buildPrimaryValue(other, objective);
+            if (!Number.isFinite(otherEfficiency) || !Number.isFinite(otherPrimary)) return false;
+
+            const noLessEfficient = otherEfficiency <= efficiency + epsilon;
+            const noLessOutput = otherPrimary >= primary - epsilon;
+            const strictlyBetter = otherEfficiency < efficiency - epsilon || otherPrimary > primary + epsilon;
+            return noLessEfficient && noLessOutput && strictlyBetter;
+        });
+    });
+}
+
 document.addEventListener("DOMContentLoaded", () => {
     const resultsDiv = document.getElementById("results");
     const campaignResultsDiv = document.getElementById("campaign-results");
@@ -520,37 +584,6 @@ document.addEventListener("DOMContentLoaded", () => {
         };
     }
 
-    function buildPrimaryValue(build, objective) {
-        const value = build.total_damage;
-        return Number.isFinite(Number(value)) ? Number(value) : Number.NEGATIVE_INFINITY;
-    }
-
-    function buildCostValue(build) {
-        const value = build.campaign ? build.campaign.warTotalCost : build.net_cost;
-        return Number.isFinite(Number(value)) ? Number(value) : Number.POSITIVE_INFINITY;
-    }
-
-    function filterDominatedBuilds(builds, objective) {
-        const epsilon = 0.000001;
-        return builds.filter((build, index) => {
-            const cost = buildCostValue(build);
-            const primary = buildPrimaryValue(build, objective);
-            if (!Number.isFinite(cost) || !Number.isFinite(primary)) return true;
-
-            return !builds.some((other, otherIndex) => {
-                if (otherIndex === index) return false;
-                const otherCost = buildCostValue(other);
-                const otherPrimary = buildPrimaryValue(other, objective);
-                if (!Number.isFinite(otherCost) || !Number.isFinite(otherPrimary)) return false;
-
-                const noMoreExpensive = otherCost <= cost + epsilon;
-                const noLessOutput = otherPrimary >= primary - epsilon;
-                const strictlyBetter = otherCost < cost - epsilon || otherPrimary > primary + epsilon;
-                return noMoreExpensive && noLessOutput && strictlyBetter;
-            });
-        });
-    }
-
     function finiteConfigNumber(value, fallback) {
         const parsed = Number(value);
         return Number.isFinite(parsed) ? parsed : fallback;
@@ -566,23 +599,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function hasRecommendationGap(candidate, selectedBuild, objective) {
         const damageGap = relativeGap(buildPrimaryValue(candidate, objective), buildPrimaryValue(selectedBuild, objective));
-        const costGap = relativeGap(buildCostValue(candidate), buildCostValue(selectedBuild));
+        const costGap = relativeGap(buildEfficiencyValue(candidate), buildEfficiencyValue(selectedBuild));
         return damageGap >= campaignRecommendationDamageGap
             || costGap >= campaignRecommendationCostGap;
     }
 
-    function spaceCampaignRecommendations(builds, recommended, objective) {
-        const ordered = builds.slice().sort((a, b) => {
-            if (a === recommended) return -1;
-            if (b === recommended) return 1;
-            return a.campaign.warTotalCost - b.campaign.warTotalCost
-                || buildPrimaryValue(b, objective) - buildPrimaryValue(a, objective);
-        });
+    function spaceCampaignRecommendations(builds, objective) {
+        const ordered = builds.slice().sort((a, b) => compareCampaignRecommendationBuilds(a, b, objective));
         const selected = [];
-        if (recommended) selected.push(recommended);
 
         for (const build of ordered) {
-            if (build === recommended) continue;
             if (selected.every((selectedBuild) => hasRecommendationGap(build, selectedBuild, objective))) {
                 selected.push(build);
                 if (selected.length >= campaignRecommendationLimit) break;
@@ -621,15 +647,14 @@ document.addEventListener("DOMContentLoaded", () => {
             };
         });
 
-        const metricKey = "total_damage";
         const visibleBuilds = filterDominatedBuilds(
             annotated.filter((build) => build.campaign.budgetUsagePct >= 50),
             objective
         );
         const sustainableBuilds = visibleBuilds.filter((build) => build.campaign.sustainable)
-            .sort((a, b) => (b[metricKey] || 0) - (a[metricKey] || 0));
+            .sort((a, b) => compareCampaignRecommendationBuilds(a, b, objective));
         const unsustainableBuilds = visibleBuilds.filter((build) => !build.campaign.sustainable)
-            .sort((a, b) => a.campaign.largestShortfall - b.campaign.largestShortfall || a.campaign.failedDay - b.campaign.failedDay);
+            .sort((a, b) => compareCampaignRecommendationBuilds(a, b, objective));
 
         let recommended = null;
         if (sustainableBuilds[0]) {
@@ -639,7 +664,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         if (recommended) recommended.is_recommended = true;
 
-        return spaceCampaignRecommendations(visibleBuilds, recommended, objective);
+        return spaceCampaignRecommendations(visibleBuilds, objective);
     }
 
     function maxBountyIncome(builds) {
@@ -665,13 +690,6 @@ document.addEventListener("DOMContentLoaded", () => {
             lines.push(`<span class='cost-line positive'>+ ${formatMoney(build.campaign.dailyBattleLootIncome)} from battle loot</span>`);
         }
         return lines.join("");
-    }
-
-    function effectiveDailyCost(build) {
-        if (!build.campaign) return Number(build.net_cost) || 0;
-        return (Number(build.campaign.warNetCost) || 0)
-            - (Number(build.campaign.dailyBountyIncome) || 0)
-            - (Number(build.campaign.dailyBattleLootIncome) || 0);
     }
 
     function recommendedCampaign(builds) {
@@ -1014,7 +1032,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (col === 'campaign_failure') return d.campaign && d.campaign.failedDay ? d.campaign.failedDay : Number.MAX_SAFE_INTEGER;
         if (col === 'campaign_remaining') return d.campaign ? d.campaign.remainingBudget : 0;
         if (col === 'campaign_cost') return d.campaign ? d.campaign.warTotalCost : 0;
-        if (col === 'eff') return d.net_cost / d.total_damage * 1000;
+        if (col === 'eff') return buildEfficiencyValue(d);
         if (col === 'ammo') return d.ammo_quantity;
         if (col === 'food') return d.food_quantity;
         if (col.startsWith('skill_')) return d.skill_lvls[parseInt(col.split('_')[1])];
@@ -1059,7 +1077,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 : "";
             const rowClass = `${d.is_recommended ? " recommended-card" : ""}${d.is_highest_damage ? " highest-damage-card" : (d.is_max_damage ? " max-damage-card" : "")}`;
             const primaryValue = d.total_damage_formatted;
-            const efficiencyValue = (d.net_cost / d.total_damage * 1000).toFixed(2);
+            const efficiencyValue = buildEfficiencyValue(d).toFixed(2);
             return `
                 <tr class="table-row${rowClass}">
                     <td class="td-damage">${primaryValue}</td>

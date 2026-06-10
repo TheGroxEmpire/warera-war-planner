@@ -23,7 +23,7 @@ Useful variables:
 - `LOG_LEVEL`: server logging level. Defaults to `INFO`.
 - `CAMPAIGN_RECOMMENDATION_LIMIT`: maximum campaign recommendation cards. Defaults to `19`.
 - `CAMPAIGN_RECOMMENDATION_DAMAGE_GAP_RATIO`: minimum damage difference from selected campaign cards. Defaults to `0.05`.
-- `CAMPAIGN_RECOMMENDATION_COST_GAP_RATIO`: minimum campaign-cost difference from selected campaign cards. Defaults to `0.05`.
+- `CAMPAIGN_RECOMMENDATION_COST_GAP_RATIO`: minimum displayed $/K efficiency difference from selected campaign cards. Defaults to `0.05`.
 
 ## Run Locally
 

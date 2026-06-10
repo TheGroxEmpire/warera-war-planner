@@ -39,6 +39,13 @@ document.addEventListener("DOMContentLoaded", () => {
     let hasEcoSimulatorImport = false;
     let importedEcoScenario = null;
     let importedWarScenario = null;
+    const campaignRecommendationConfig = window.WARERA_CAMPAIGN_RECOMMENDATION_CONFIG || {};
+    const campaignRecommendationLimit = Math.max(
+        1,
+        Math.floor(finiteConfigNumber(campaignRecommendationConfig.limit, Number.MAX_SAFE_INTEGER))
+    );
+    const campaignRecommendationDamageGap = finiteConfigNumber(campaignRecommendationConfig.damageGapRatio, 0);
+    const campaignRecommendationCostGap = finiteConfigNumber(campaignRecommendationConfig.costGapRatio, 0);
 
     const viewControls = document.getElementById('view-controls');
     const viewCardsBtn = document.getElementById('view-cards-btn');
@@ -544,6 +551,47 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
+    function finiteConfigNumber(value, fallback) {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : fallback;
+    }
+
+    function relativeGap(value, otherValue) {
+        const first = Math.abs(Number(value));
+        const second = Math.abs(Number(otherValue));
+        if (!Number.isFinite(first) || !Number.isFinite(second)) return Number.POSITIVE_INFINITY;
+        const baseline = Math.max(1, first, second);
+        return Math.abs(first - second) / baseline;
+    }
+
+    function hasRecommendationGap(candidate, selectedBuild, objective) {
+        const damageGap = relativeGap(buildPrimaryValue(candidate, objective), buildPrimaryValue(selectedBuild, objective));
+        const costGap = relativeGap(buildCostValue(candidate), buildCostValue(selectedBuild));
+        return damageGap >= campaignRecommendationDamageGap
+            || costGap >= campaignRecommendationCostGap;
+    }
+
+    function spaceCampaignRecommendations(builds, recommended, objective) {
+        const ordered = builds.slice().sort((a, b) => {
+            if (a === recommended) return -1;
+            if (b === recommended) return 1;
+            return a.campaign.warTotalCost - b.campaign.warTotalCost
+                || buildPrimaryValue(b, objective) - buildPrimaryValue(a, objective);
+        });
+        const selected = [];
+        if (recommended) selected.push(recommended);
+
+        for (const build of ordered) {
+            if (build === recommended) continue;
+            if (selected.every((selectedBuild) => hasRecommendationGap(build, selectedBuild, objective))) {
+                selected.push(build);
+                if (selected.length >= campaignRecommendationLimit) break;
+            }
+        }
+
+        return selected.length ? selected : ordered.slice(0, campaignRecommendationLimit);
+    }
+
     function applyCampaignToBuilds(builds, campaign, objective) {
         if (!campaign.active) {
             return filterDominatedBuilds(builds, objective);
@@ -591,12 +639,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         if (recommended) recommended.is_recommended = true;
 
-        return visibleBuilds.sort((a, b) => {
-            if (a === recommended) return -1;
-            if (b === recommended) return 1;
-            return a.campaign.warTotalCost - b.campaign.warTotalCost
-                || (b[metricKey] || 0) - (a[metricKey] || 0);
-        });
+        return spaceCampaignRecommendations(visibleBuilds, recommended, objective);
     }
 
     function maxBountyIncome(builds) {
@@ -707,13 +750,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const total = Number(progress.total || 0);
         const evaluated = Number(progress.evaluated || 0);
-        const percent = total > 0 ? Math.min(100, Math.max(0, evaluated / total * 100)) : 0;
+        const displayedEvaluated = total > 0 ? Math.min(evaluated, total) : evaluated;
+        const percent = total > 0 ? Math.min(100, Math.max(0, displayedEvaluated / total * 100)) : 0;
         const workerLabel = progress.workers === "auto" ? "Auto" : `${progress.workers} Threads`;
 
         resultsDiv.innerHTML = `
             <div class="optimizer-progress">
                 <div class="progress-header">
-                    <span>${formatProgressNumber(evaluated)} / ${formatProgressNumber(total)} checks</span>
+                    <span>${formatProgressNumber(displayedEvaluated)} / ${formatProgressNumber(total)} checks</span>
                     <span>${workerLabel}</span>
                 </div>
                 <div class="progress-track"><div class="progress-fill" style="width:${percent.toFixed(1)}%"></div></div>

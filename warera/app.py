@@ -35,7 +35,17 @@ def _register_routes(flask_app: Flask) -> None:
     def asset_context():
         static_base = f"{settings.app_base_path}/static" if settings.app_base_path else "/static"
         asset_base = f"{settings.app_base_path}/assets" if settings.app_base_path else "/assets"
-        return {"static_base": static_base, "asset_base": asset_base, "static_asset_version": static_asset_version}
+        campaign_recommendation_config = {
+            "limit": settings.campaign_recommendation_limit,
+            "damageGapRatio": settings.campaign_recommendation_damage_gap_ratio,
+            "costGapRatio": settings.campaign_recommendation_cost_gap_ratio,
+        }
+        return {
+            "static_base": static_base,
+            "asset_base": asset_base,
+            "static_asset_version": static_asset_version,
+            "campaign_recommendation_config": campaign_recommendation_config,
+        }
 
     @flask_app.route("/")
     def index():

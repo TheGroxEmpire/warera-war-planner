@@ -174,6 +174,58 @@ class SimulationCoreTest(unittest.TestCase):
         self.assertLess(result["dailyNetCost"], 690)
         self.assertTrue(90 <= result["budgetUsagePct"] <= 100)
 
+    def test_campaign_progress_matches_loot_search_plan_without_changing_results(self):
+        result = self.run_node_json(
+            """
+            require("./static/optimizer-core.js");
+            const optimizer = globalThis.WareraOptimizer;
+            const options = {
+                adjustedLevel: 3,
+                pill: false,
+                objective: "damage",
+                rankBonus: 1,
+                campaignBudget: 300,
+                campaignInitialStockpile: 150,
+                campaignWarProfitDay: 15,
+                campaignWarDays: 10,
+                bountyPer1kDamage: 0,
+                battleLootPer1kDamage: 0.13,
+                budgetTargets: [150, 300, 450],
+                priceOverrides: {
+                    rewards: {
+                        scrap_price: 0.2,
+                        case1_price: 3,
+                        case2_price: 20,
+                        pill_price: 30,
+                    },
+                },
+            };
+            const progress = [];
+            const plan = optimizer.getSearchPlan(options);
+            const splitChecks = Math.round(plan.checks / (plan.combatCount * plan.sustainCount));
+            const withProgress = optimizer.runSearch(options, (evaluated) => progress.push(evaluated));
+            const withoutProgress = optimizer.runSearch(options);
+            console.log(JSON.stringify({
+                planChecks: plan.checks,
+                splitChecks,
+                withProgressTotal: withProgress.total,
+                withoutProgressTotal: withoutProgress.total,
+                progressCount: progress.length,
+                maxProgress: Math.max(...progress),
+                lastProgress: progress[progress.length - 1],
+                sameBuilds: JSON.stringify(withProgress.builds) === JSON.stringify(withoutProgress.builds),
+            }));
+            """
+        )
+
+        self.assertEqual(result["planChecks"], result["withProgressTotal"])
+        self.assertEqual(result["withProgressTotal"], result["withoutProgressTotal"])
+        self.assertGreater(result["splitChecks"], 13)
+        self.assertGreater(result["progressCount"], 2)
+        self.assertLessEqual(result["maxProgress"], result["withProgressTotal"])
+        self.assertEqual(result["lastProgress"], result["withProgressTotal"])
+        self.assertTrue(result["sameBuilds"])
+
 
 if __name__ == "__main__":
     unittest.main()

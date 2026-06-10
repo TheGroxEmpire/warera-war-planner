@@ -162,6 +162,7 @@
         window.WARERA_STATIC_BASE = {{ static_base|tojson }};
         window.WARERA_ASSET_BASE = {{ asset_base|tojson }};
         window.WARERA_ASSET_VERSION = {{ static_asset_version|tojson }};
+        window.WARERA_CAMPAIGN_RECOMMENDATION_CONFIG = {{ campaign_recommendation_config|tojson }};
     </script>
     <script src="{{ static_base }}/optimizer-core.js?v={{ static_asset_version }}"></script>
     <script src="{{ static_base }}/browser-optimizer.js?v={{ static_asset_version }}"></script>

@@ -302,7 +302,9 @@
             ranges.forEach(([sustainStart, sustainEnd], workerId) => {
                 const worker = new Worker(WORKER_URL);
                 workers.push(worker);
-                const workerTotal = (sustainEnd - sustainStart) * plan.combatCount * (plan.budget + 1);
+                const workerTotal = plan.sustainCount > 0
+                    ? (sustainEnd - sustainStart) * plan.checks / plan.sustainCount
+                    : 0;
 
                 worker.onmessage = (event) => {
                     const message = event.data || {};
@@ -316,7 +318,9 @@
                             });
                         }
                     } else if (message.type === "result") {
-                        progressByWorker[workerId] = workerTotal;
+                        progressByWorker[workerId] = message.result && Number.isFinite(message.result.total)
+                            ? message.result.total
+                            : workerTotal;
                         results[workerId] = message.result;
                         worker.terminate();
                         finished += 1;

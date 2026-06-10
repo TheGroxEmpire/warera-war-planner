@@ -49,12 +49,39 @@ def env_int(
     return parsed
 
 
+def env_float(
+    name: str,
+    default: float,
+    *,
+    min_value: Optional[float] = None,
+    max_value: Optional[float] = None,
+    environ: Optional[Mapping[str, str]] = None,
+) -> float:
+    value = _env(environ).get(name)
+    if value is None:
+        parsed = default
+    else:
+        try:
+            parsed = float(value)
+        except ValueError:
+            parsed = default
+
+    if min_value is not None:
+        parsed = max(min_value, parsed)
+    if max_value is not None:
+        parsed = min(max_value, parsed)
+    return parsed
+
+
 @dataclass(frozen=True)
 class Settings:
     flask_debug: bool = False
     log_level: str = "INFO"
     port: int = 10000
     app_base_path: str = ""
+    campaign_recommendation_limit: int = 19
+    campaign_recommendation_damage_gap_ratio: float = 0.05
+    campaign_recommendation_cost_gap_ratio: float = 0.05
 
     @classmethod
     def from_env(cls, environ: Optional[Mapping[str, str]] = None) -> "Settings":
@@ -66,6 +93,26 @@ class Settings:
             log_level=log_level,
             port=env_int("PORT", cls.port, min_value=1, max_value=65535, environ=source),
             app_base_path=normalize_base_path(source.get("APP_BASE_PATH", cls.app_base_path)),
+            campaign_recommendation_limit=env_int(
+                "CAMPAIGN_RECOMMENDATION_LIMIT",
+                cls.campaign_recommendation_limit,
+                min_value=1,
+                environ=source,
+            ),
+            campaign_recommendation_damage_gap_ratio=env_float(
+                "CAMPAIGN_RECOMMENDATION_DAMAGE_GAP_RATIO",
+                cls.campaign_recommendation_damage_gap_ratio,
+                min_value=0,
+                max_value=1,
+                environ=source,
+            ),
+            campaign_recommendation_cost_gap_ratio=env_float(
+                "CAMPAIGN_RECOMMENDATION_COST_GAP_RATIO",
+                cls.campaign_recommendation_cost_gap_ratio,
+                min_value=0,
+                max_value=1,
+                environ=source,
+            ),
         )
 
 

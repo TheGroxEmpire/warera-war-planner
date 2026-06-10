@@ -21,6 +21,9 @@ Useful variables:
 - `WEB_PUBLISHED_PORT`: local host port published by Docker Compose. Defaults to `10000`.
 - `FLASK_DEBUG`: local Flask debug mode. Defaults to `false`.
 - `LOG_LEVEL`: server logging level. Defaults to `INFO`.
+- `CAMPAIGN_RECOMMENDATION_LIMIT`: maximum campaign recommendation cards. Defaults to `19`.
+- `CAMPAIGN_RECOMMENDATION_DAMAGE_GAP_RATIO`: minimum damage difference from selected campaign cards. Defaults to `0.05`.
+- `CAMPAIGN_RECOMMENDATION_COST_GAP_RATIO`: minimum campaign-cost difference from selected campaign cards. Defaults to `0.05`.
 
 ## Run Locally
 

@@ -421,11 +421,12 @@
         const budget = skillBudget(options);
         const combatCount = damageCombatConfigCount();
         const sustainCount = GEAR_TIERS.length * GEAR_TIERS.length * GEAR_TIERS.length * FOOD_NAMES.length;
+        const splitChecks = budgetSplitCount(budget, options);
         return {
             budget,
             combatCount,
             sustainCount,
-            checks: combatCount * sustainCount * (budget + 1),
+            checks: combatCount * sustainCount * splitChecks,
         };
     }
 
@@ -435,6 +436,31 @@
             .map((target) => Number(target))
             .filter((target) => Number.isFinite(target))))
             .sort((a, b) => a - b);
+    }
+
+    function usesBudgetedSearch(options) {
+        return Number.isFinite(campaignBudgetLimit(options)) || normalizedBudgetTargets(options).length > 0;
+    }
+
+    function usesLootSkillBudget(options) {
+        if (!usesBudgetedSearch(options)) return false;
+        const rewards = options && options.priceOverrides && options.priceOverrides.rewards;
+        return Boolean(rewards && (
+            (Number(rewards.case1_price) || 0) > 0
+            || (Number(rewards.case2_price) || 0) > 0
+        ));
+    }
+
+    function lootSkillLevelsForBudget(budget, options) {
+        if (!usesLootSkillBudget(options)) return [0];
+        return Array.from({ length: MAX_SKILL_LEVEL + 1 }, (_, level) => level)
+            .filter((level) => SKILL_LEVEL_COST[level] <= budget);
+    }
+
+    function budgetSplitCount(budget, options) {
+        return lootSkillLevelsForBudget(budget, options).reduce((total, level) => (
+            total + budget - SKILL_LEVEL_COST[level] + 1
+        ), 0);
     }
 
     function makeDamageCombatPatterns(budget) {
@@ -1433,13 +1459,8 @@
         const targetBuilds = Array(budgetTargets.length).fill(null);
         const frontierTargets = budgetTargets.length ? budgetTargets : [];
         const frontierBuilds = Array(frontierTargets.length).fill(null);
-        const lootSkillLevels = (ctx.rewards.case1_price > 0 || ctx.rewards.case2_price > 0)
-            ? Array.from({ length: MAX_SKILL_LEVEL + 1 }, (_, level) => level)
-                .filter((level) => SKILL_LEVEL_COST[level] <= budget)
-            : [0];
-        const splitChecks = lootSkillLevels.reduce((total, level) => (
-            total + budget - SKILL_LEVEL_COST[level] + 1
-        ), 0);
+        const lootSkillLevels = lootSkillLevelsForBudget(budget, options);
+        const splitChecks = budgetSplitCount(budget, options);
         const totalChecks = (sustainEnd - sustainStart) * combatTables.length * splitChecks;
         const progressEvery = Math.max(1000, Math.floor(totalChecks / 100));
         let nextProgress = progressEvery;
@@ -1795,6 +1816,7 @@
         if (!options.exactCampaignSearch) {
             const combatBudgetCandidates = buildCombatBudgetCandidates();
             const sustainBudgetCandidates = buildSustainBudgetCandidates();
+            const progressStep = (sustainEnd - sustainStart) * combatTables.length;
             for (const lootLevel of lootSkillLevels) {
                 const remainingBudget = budget - SKILL_LEVEL_COST[lootLevel];
                 for (let combatBudget = 0; combatBudget <= remainingBudget; combatBudget += 1) {
@@ -1803,6 +1825,11 @@
                         for (const sustainEntry of sustainBudgetCandidates[sustainBudget]) {
                             considerCandidate(combatEntry, sustainEntry, lootLevel);
                         }
+                    }
+                    evaluated += progressStep;
+                    if (onProgress && evaluated >= nextProgress) {
+                        onProgress(Math.min(evaluated, totalChecks));
+                        while (nextProgress <= evaluated) nextProgress += progressEvery;
                     }
                 }
             }

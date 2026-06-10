@@ -32,6 +32,12 @@
 /* ============================================================
    BASE
    ============================================================ */
+@media (min-width: 1025px) {
+    html {
+        font-size: 18px;
+    }
+}
+
 body {
     font-family: "Saira Condensed", "Saira", sans-serif;
     background: radial-gradient(ellipse at 50% 0%, #161a16 0%, var(--bg-base) 70%);
@@ -90,6 +96,10 @@ h4 {
    HEADER
    ============================================================ */
 .site-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1.5em;
     padding: 2em 0 1.5em;
     border-bottom: 1px solid var(--border-strong);
     margin-bottom: 2em;
@@ -126,14 +136,12 @@ h1 {
 
 .site-credit {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1em;
-    margin-top: 2em;
-    padding-top: 1em;
-    border-top: 1px solid var(--border-strong);
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.5em;
     color: var(--text-secondary);
     font-size: 0.85em;
+    text-align: right;
 }
 
 .site-credit strong {
@@ -297,6 +305,11 @@ h1 {
     font-size: 0.75em;
     letter-spacing: 0.12em;
     text-transform: uppercase;
+}
+
+.earnings-panel h3 .tooltip {
+    font-size: 1em;
+    text-transform: none;
 }
 
 .earnings-grid {
@@ -1430,7 +1443,8 @@ select, button {
 
 @media (max-width: 768px) {
     .container { padding: 0 0.75em 2em; }
-    .site-header { padding: 1.5em 0 1em; }
+    .site-header { flex-direction: column; padding: 1.5em 0 1em; }
+    .site-credit { align-items: stretch; text-align: left; width: 100%; }
     h1 { font-size: 1.6em; }
 
     .top-section {
@@ -1461,7 +1475,6 @@ select, button {
     .form-controls-row .pill-wrapper { flex: 1 1 100%; max-width: none; }
     .advanced-controls .input-group { flex: 1 1 100%; }
     .filter-slider-wrapper { flex: 1 1 100%; }
-    .site-credit { flex-direction: column; align-items: stretch; }
     .credit-links { justify-content: stretch; }
     .credit-links a { flex: 1 1 auto; text-align: center; }
     #results { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }

@@ -13,8 +13,20 @@
     {% include 'skill_svgs.html' %}
     <div class="container">
         <header class="site-header">
-            <h1>Warera War Planner</h1>
-            <p class="site-tagline">Damage & Budget Build Optimizer - Updated for 0.24.7</p>
+            <div class="site-header-copy">
+                <h1>Warera War Planner</h1>
+                <p class="site-tagline">Damage & Budget Build Optimizer - Updated for 0.24.7</p>
+            </div>
+            <div class="site-credit">
+                <div>
+                    <strong>Created by GroxEmpire.</strong>
+                    <span>Forked from the Warera Build Tool prototype.</span>
+                </div>
+                <nav class="credit-links" aria-label="Project links">
+                    <a href="https://github.com/TheGroxEmpire/warera-war-planner" target="_blank" rel="noopener noreferrer">GitHub Repository</a>
+                    <a href="https://github.com/TheGroxEmpire/warera-war-planner/issues/new" class="report-issues-link" target="_blank" rel="noopener noreferrer">Report Issues</a>
+                </nav>
+            </div>
         </header>
         <div class="top-section">
             <form id="build-form">
@@ -157,15 +169,6 @@
             <button type="button" id="view-table-btn" class="view-btn">Detailed View</button>
         </div>
         <div id="results"></div>
-        <footer class="site-credit">
-            <div>
-                <strong>Created by GroxEmpire.</strong>
-            </div>
-            <nav class="credit-links" aria-label="Project links">
-                <a href="https://github.com/TheGroxEmpire/warera-war-planner" target="_blank" rel="noopener noreferrer">GitHub Repository</a>
-                <a href="https://github.com/TheGroxEmpire/warera-war-planner/issues/new" class="report-issues-link" target="_blank" rel="noopener noreferrer">Report Issues</a>
-            </nav>
-        </footer>
     </div>
     <script>
         window.WARERA_STATIC_BASE = {{ static_base|tojson }};

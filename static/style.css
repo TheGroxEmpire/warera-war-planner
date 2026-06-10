@@ -124,6 +124,67 @@ h1 {
     margin: 0;
 }
 
+.site-credit {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1em;
+    margin-top: 2em;
+    padding-top: 1em;
+    border-top: 1px solid var(--border-strong);
+    color: var(--text-secondary);
+    font-size: 0.85em;
+}
+
+.site-credit strong {
+    display: block;
+    color: var(--text-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+.site-credit span {
+    color: var(--text-muted);
+    letter-spacing: 0.05em;
+}
+
+.credit-links {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.6em;
+}
+
+.credit-links a {
+    color: var(--accent-amber);
+    border: 1px solid var(--border-strong);
+    background: var(--bg-raised);
+    border-radius: 4px;
+    padding: 0.45em 0.8em;
+    text-decoration: none;
+    text-transform: uppercase;
+    font-size: 0.85em;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.credit-links a:hover {
+    border-color: var(--accent-amber);
+    color: var(--text-primary);
+}
+
+.credit-links .report-issues-link {
+    background: var(--accent-red-dim);
+    border-color: var(--accent-red);
+    color: var(--text-primary);
+}
+
+.credit-links .report-issues-link:hover {
+    background: var(--accent-red);
+    box-shadow: 0 0 10px var(--accent-red-glow);
+}
+
 /* ============================================================
    CONTROL PANEL
    ============================================================ */
@@ -1400,6 +1461,9 @@ select, button {
     .form-controls-row .pill-wrapper { flex: 1 1 100%; max-width: none; }
     .advanced-controls .input-group { flex: 1 1 100%; }
     .filter-slider-wrapper { flex: 1 1 100%; }
+    .site-credit { flex-direction: column; align-items: stretch; }
+    .credit-links { justify-content: stretch; }
+    .credit-links a { flex: 1 1 auto; text-align: center; }
     #results { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
 }
 
@@ -1411,6 +1475,7 @@ select, button {
     .filter-tab { flex: 1 1 40%; }
     #results { grid-template-columns: 1fr; }
     .btn-row { flex-direction: column; }
+    .credit-links { flex-direction: column; }
 }
 
 /* ============================================================

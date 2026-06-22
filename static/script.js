@@ -37,6 +37,16 @@ function buildEfficiencyValue(build) {
     return Number.isFinite(cost) ? cost / damage * 1000 : Number.POSITIVE_INFINITY;
 }
 
+function campaignAverageDailyDamage(campaignTotalDamage, campaign) {
+    const totalDamage = Number(campaignTotalDamage);
+    if (!Number.isFinite(totalDamage) || totalDamage <= 0) return 0;
+
+    const ecoDays = Math.max(0, Math.floor(Number(campaign?.ecoDays) || 0));
+    const warDays = Math.max(0, Math.floor(Number(campaign?.warDays) || 0));
+    const campaignDays = ecoDays + warDays;
+    return campaignDays > 0 ? totalDamage / campaignDays : 0;
+}
+
 function compareCampaignRecommendationBuilds(a, b, objective) {
     const aSustainable = a.campaign && a.campaign.sustainable ? 1 : 0;
     const bSustainable = b.campaign && b.campaign.sustainable ? 1 : 0;
@@ -250,6 +260,15 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function formatMoney(value) {
+        const num = Number(value || 0);
+        const sign = num < 0 ? "-" : "";
+        const abs = Math.abs(num);
+        if (abs >= 1000000) return `${sign}${(abs / 1000000).toFixed(2)}M`;
+        if (abs >= 1000) return `${sign}${(abs / 1000).toFixed(1)}K`;
+        return `${sign}${abs.toFixed(2)}`;
+    }
+
+    function formatCompactNumber(value) {
         const num = Number(value || 0);
         const sign = num < 0 ? "-" : "";
         const abs = Math.abs(num);
@@ -582,6 +601,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const battleLootIncome = dailyBattleLootIncome * warDays;
         const availableBudget = campaign.ecoBudget + campaign.warIncome + bountyIncome + battleLootIncome;
         const warTotalCost = dailyNetCost * warDays;
+        const campaignTotalDamage = Math.max(0, Number(build.total_damage) || 0) * warDays;
         const remainingBudget = stockpile;
         const budgetUsagePct = availableBudget > 0 ? (warTotalCost / availableBudget) * 100 : 0;
         return {
@@ -592,6 +612,7 @@ document.addEventListener("DOMContentLoaded", () => {
             battleLootIncome,
             availableBudget,
             warTotalCost,
+            campaignTotalDamage,
             remainingBudget,
             budgetUsagePct,
             sustainable,
@@ -647,6 +668,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const annotated = builds.map((build) => {
             const simulation = simulateCampaignBuild(build, campaign);
+            const campaignAvgDailyDamage = campaignAverageDailyDamage(simulation.campaignTotalDamage, campaign);
             return {
                 ...build,
                 is_recommended: false,
@@ -659,6 +681,8 @@ document.addEventListener("DOMContentLoaded", () => {
                     dailyBattleLootIncome: simulation.dailyBattleLootIncome,
                     availableBudget: simulation.availableBudget,
                     remainingBudget: simulation.remainingBudget,
+                    campaignTotalDamage: simulation.campaignTotalDamage,
+                    campaignAvgDailyDamage,
                     sustainable: simulation.sustainable,
                     budgetUsagePct: simulation.budgetUsagePct,
                     failedDay: simulation.failedDay,
@@ -1002,8 +1026,8 @@ document.addEventListener("DOMContentLoaded", () => {
                             <span><b>${formatMoney(d.campaign.warTotalCost)}</b><small>War net cost</small></span>
                             <span><b>${formatMoney(d.campaign.remainingBudget)}</b><small>Remaining</small></span>
                             <span><b>${Number.isFinite(d.campaign.budgetUsagePct) ? d.campaign.budgetUsagePct.toFixed(1) : "0.0"}%</b><small>Budget used</small></span>
-                            <span><b>${formatMoney(d.campaign.bountyIncome)}</b><small>Bounty income</small></span>
-                            <span><b>${formatMoney(d.campaign.battleLootIncome)}</b><small>Battle loot</small></span>
+                            <span><b>${formatCompactNumber(d.campaign.campaignTotalDamage)}</b><small>Campaign Total Damage</small></span>
+                            <span><b>${formatCompactNumber(d.campaign.campaignAvgDailyDamage)} DMG</b><small>Campaign Avg Daily Damage</small></span>
                             <span><b class='budget-failure ${d.campaign.sustainable ? "" : "over-budget"}'>${budgetFailureLabel(d.campaign)}</b><small>Budget failure</small></span>
                         </div>
                     </div>

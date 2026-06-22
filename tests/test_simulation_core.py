@@ -87,6 +87,30 @@ class SimulationCoreTest(unittest.TestCase):
         self.assertEqual(result["recommended"], "higher_damage_less_efficient")
         self.assertEqual(result["efficiencies"], [0.25, 0.3, 0.4])
 
+    def test_campaign_average_daily_damage_uses_eco_plus_war_days(self):
+        result = self.run_script_helper_json(
+            """
+            console.log(JSON.stringify({
+                average: sandbox.campaignAverageDailyDamage(200000, { ecoDays: 3, warDays: 2 }),
+                noDays: sandbox.campaignAverageDailyDamage(200000, { ecoDays: 0, warDays: 0 }),
+                badTotal: sandbox.campaignAverageDailyDamage(null, { ecoDays: 3, warDays: 2 }),
+            }));
+            """
+        )
+
+        self.assertEqual(result["average"], 40000)
+        self.assertEqual(result["noDays"], 0)
+        self.assertEqual(result["badTotal"], 0)
+
+    def test_campaign_card_badges_move_income_to_daily_cost_tooltip(self):
+        script = (ROOT / "static" / "script.js").read_text()
+
+        self.assertIn("<small>Campaign Avg Daily Damage</small>", script)
+        self.assertNotIn("<small>Bounty income</small>", script)
+        self.assertNotIn("<small>Battle loot</small>", script)
+        self.assertIn("from bounty", script)
+        self.assertIn("from battle loot", script)
+
     def test_campaign_fails_when_future_income_would_be_needed(self):
         result = self.run_node_json(
             """
@@ -137,6 +161,7 @@ class SimulationCoreTest(unittest.TestCase):
         self.assertEqual(result["bountyIncome"], 400)
         self.assertEqual(result["battleLootIncome"], 26)
         self.assertEqual(result["warTotalCost"], 600)
+        self.assertEqual(result["campaignTotalDamage"], 200000)
         self.assertEqual(result["remainingBudget"], 1026)
         self.assertAlmostEqual(result["budgetUsagePct"], 36.900369, places=6)
 

@@ -116,6 +116,7 @@ function summarizeCampaign(campaign) {
         battleLootIncome: campaign.battleLootIncome,
         availableBudget: campaign.availableBudget,
         warTotalCost: campaign.warTotalCost,
+        campaignTotalDamage: campaign.campaignTotalDamage,
         remainingBudget: campaign.remainingBudget,
         budgetUsagePct: campaign.budgetUsagePct,
         sustainable: campaign.sustainable,

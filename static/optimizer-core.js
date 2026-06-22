@@ -855,8 +855,9 @@
         const days = campaignWarDays(options);
         const simulatedDays = Math.max(0, Math.floor(days));
         const dailySpend = Number(dailyNetCost) || 0;
-        const dailyBountyIncome = bountyIncomeForDamage(totalDamage, options);
-        const dailyBattleLootIncome = battleLootIncomeForDamage(totalDamage, options);
+        const dailyDamage = Math.max(0, Number(totalDamage) || 0);
+        const dailyBountyIncome = bountyIncomeForDamage(dailyDamage, options);
+        const dailyBattleLootIncome = battleLootIncomeForDamage(dailyDamage, options);
         const initialStockpile = campaignInitialStockpile(options);
         const dailyIncome = campaignWarProfitDay(options) + dailyBountyIncome + dailyBattleLootIncome;
         const dayBudgets = [];
@@ -904,6 +905,7 @@
         const battleLootIncome = dailyBattleLootIncome * days;
         const availableBudget = campaignInitialStockpile(options) + campaignWarProfitDay(options) * days + bountyIncome + battleLootIncome;
         const warTotalCost = dailySpend * days;
+        const campaignTotalDamage = dailyDamage * days;
         return {
             dailyNetCost: dailySpend,
             dailyBountyIncome,
@@ -917,6 +919,7 @@
             bountyIncome,
             battleLootIncome,
             warTotalCost,
+            campaignTotalDamage,
             budgetUsagePct: availableBudget > 0 ? warTotalCost / availableBudget * 100 : 0,
             dayBudgets,
         };

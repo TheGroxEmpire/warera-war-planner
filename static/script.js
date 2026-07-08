@@ -576,10 +576,9 @@ document.addEventListener("DOMContentLoaded", () => {
         for (let day = 1; day <= warDays; day += 1) {
             const startingStockpile = stockpile;
             lowestStartingBudget = Math.min(lowestStartingBudget, stockpile);
-            const spendShortfall = Math.max(0, dailyNetCost - startingStockpile);
             stockpile = startingStockpile - dailyNetCost + campaign.warProfitDay + dailyBountyIncome + dailyBattleLootIncome;
             const endingShortfall = stockpile < -0.000001 ? -stockpile : 0;
-            const shortfall = Math.max(spendShortfall, endingShortfall);
+            const shortfall = endingShortfall;
             const overBudget = shortfall > 0.000001;
             if (overBudget) {
                 sustainable = false;

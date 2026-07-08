@@ -111,7 +111,7 @@ class SimulationCoreTest(unittest.TestCase):
         self.assertIn("from bounty", script)
         self.assertIn("from battle loot", script)
 
-    def test_campaign_fails_when_future_income_would_be_needed(self):
+    def test_campaign_allows_one_day_cost_when_same_day_income_covers_it(self):
         result = self.run_node_json(
             """
             const harness = require("./scripts/simulation-harness");
@@ -129,13 +129,39 @@ class SimulationCoreTest(unittest.TestCase):
             """
         )
 
-        self.assertFalse(result["sustainable"])
-        self.assertEqual(result["failedDay"], 1)
-        self.assertEqual(result["largestShortfall"], 50)
+        self.assertTrue(result["sustainable"])
+        self.assertIsNone(result["failedDay"])
+        self.assertEqual(result["largestShortfall"], 0)
         self.assertEqual(result["remainingBudget"], 150)
         self.assertEqual(result["dayBudgets"][0]["startingStockpile"], 50)
         self.assertEqual(result["dayBudgets"][0]["endingStockpile"], 150)
-        self.assertEqual(result["dayBudgets"][0]["shortfall"], 50)
+        self.assertFalse(result["dayBudgets"][0]["overBudget"])
+        self.assertEqual(result["dayBudgets"][0]["shortfall"], 0)
+
+    def test_campaign_fails_when_day_ends_over_budget(self):
+        result = self.run_node_json(
+            """
+            const harness = require("./scripts/simulation-harness");
+            const result = harness.simulateCampaignForBuild(
+                { net_cost: 100, total_damage: 0 },
+                {
+                    campaignWarDays: 1,
+                    campaignInitialStockpile: 50,
+                    campaignWarProfitDay: 20,
+                    bountyPer1kDamage: 0,
+                    battleLootPer1kDamage: 0,
+                }
+            );
+            console.log(JSON.stringify(result));
+            """
+        )
+
+        self.assertFalse(result["sustainable"])
+        self.assertEqual(result["failedDay"], 1)
+        self.assertEqual(result["largestShortfall"], 30)
+        self.assertEqual(result["remainingBudget"], -30)
+        self.assertTrue(result["dayBudgets"][0]["overBudget"])
+        self.assertEqual(result["dayBudgets"][0]["shortfall"], 30)
 
     def test_campaign_applies_bounty_and_battle_loot_per_day(self):
         result = self.run_node_json(
@@ -201,9 +227,9 @@ class SimulationCoreTest(unittest.TestCase):
 
         self.assertGreater(result["allBuildCount"], result["returnedBuildCount"])
         self.assertGreaterEqual(result["allDamage"], result["returnedDamage"])
-        self.assertEqual(result["allDamage"], 4470680)
+        self.assertEqual(result["allDamage"], 4732826)
 
-    def test_campaign_search_matches_old_frontier_for_level_31_screenshot_case(self):
+    def test_campaign_search_matches_frontier_for_level_31_screenshot_case(self):
         result = self.run_node_json(
             """
             require("./static/optimizer-core.js");
@@ -258,12 +284,12 @@ class SimulationCoreTest(unittest.TestCase):
             """
         )
 
-        self.assertEqual(result["damage"], 1296851)
+        self.assertEqual(result["damage"], 1326813)
         self.assertEqual(result["gear"], ["sniper", "purple", "purple", "purple", "purple", "purple"])
         self.assertEqual(result["ammo"], "lightAmmo")
         self.assertEqual(result["food"], "cookedFish")
-        self.assertEqual(result["skills"][8], 4)
-        self.assertLess(result["dailyNetCost"], 690)
+        self.assertEqual(result["skills"][8], 2)
+        self.assertLess(result["dailyNetCost"], 710)
         self.assertTrue(90 <= result["budgetUsagePct"] <= 100)
 
     def test_campaign_progress_matches_loot_search_plan_without_changing_results(self):

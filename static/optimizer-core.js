@@ -820,11 +820,9 @@
 
     function campaignDayShortfall(initialStockpile, dailySpend, dailyIncome, day) {
         const delta = dailyIncome - dailySpend;
-        const startingStockpile = initialStockpile + (day - 1) * delta;
         const endingStockpile = initialStockpile + day * delta;
-        const spendShortfall = Math.max(0, dailySpend - startingStockpile);
         const endingShortfall = endingStockpile < -0.000001 ? -endingStockpile : 0;
-        return Math.max(spendShortfall, endingShortfall);
+        return endingShortfall;
     }
 
     function firstCampaignFailureDay(initialStockpile, dailySpend, dailyIncome, simulatedDays) {
@@ -885,9 +883,8 @@
             for (let day = 1; day <= days; day += 1) {
                 const startingStockpile = stockpile;
                 stockpile = startingStockpile - dailySpend + dailyIncome;
-                const spendShortfall = Math.max(0, dailySpend - startingStockpile);
                 const endingShortfall = stockpile < -0.000001 ? -stockpile : 0;
-                const shortfall = Math.max(spendShortfall, endingShortfall);
+                const shortfall = endingShortfall;
                 const overBudget = shortfall > 0.000001;
                 dayBudgets.push({
                     day,

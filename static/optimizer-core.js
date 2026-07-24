@@ -410,17 +410,46 @@
         return Math.min(budget, MAX_OPTIMIZED_SKILL_BUDGET);
     }
 
-    function damageCombatConfigCount() {
-        const ammoChoices = WEAPON_TIERS.reduce((sum, _, weaponIdx) => {
-            return sum + (weaponIdx <= 1 ? 1 : AMMO_NAMES.length - 1);
-        }, 0);
-        return ammoChoices * GEAR_TIERS.length * GEAR_TIERS.length;
+    function pinnedArray(options, key, length) {
+        const values = options && Array.isArray(options[key]) ? options[key] : [];
+        return Array.from({ length }, (_, index) => values[index] == null ? null : values[index]);
+    }
+
+    function pinnedIndex(options, key) {
+        const value = options ? options[key] : null;
+        return value == null ? null : value;
+    }
+
+    function damageCombatConfigCount(options) {
+        const gearPins = pinnedArray(options, "pinnedGear", GEAR_SLOTS.length);
+        const ammoPin = pinnedIndex(options, "pinnedAmmo");
+        let count = 0;
+        for (let weaponIdx = 0; weaponIdx < WEAPON_TIERS.length; weaponIdx += 1) {
+            if (gearPins[0] !== null && gearPins[0] !== weaponIdx) continue;
+            const ammoIndexes = weaponIdx <= 1 ? [0] : [1, 2, 3];
+            const ammoCount = ammoPin === null
+                ? ammoIndexes.length
+                : Number(ammoIndexes.includes(ammoPin));
+            if (!ammoCount) continue;
+            const helmetCount = gearPins[1] === null ? GEAR_TIERS.length : 1;
+            const glovesCount = gearPins[2] === null ? GEAR_TIERS.length : 1;
+            count += ammoCount * helmetCount * glovesCount;
+        }
+        return count;
+    }
+
+    function sustainConfigCount(options) {
+        const gearPins = pinnedArray(options, "pinnedGear", GEAR_SLOTS.length);
+        return (gearPins[3] === null ? GEAR_TIERS.length : 1)
+            * (gearPins[4] === null ? GEAR_TIERS.length : 1)
+            * (gearPins[5] === null ? GEAR_TIERS.length : 1)
+            * (pinnedIndex(options, "pinnedFood") === null ? FOOD_NAMES.length : 1);
     }
 
     function getSearchPlan(options) {
         const budget = skillBudget(options);
-        const combatCount = damageCombatConfigCount();
-        const sustainCount = GEAR_TIERS.length * GEAR_TIERS.length * GEAR_TIERS.length * FOOD_NAMES.length;
+        const combatCount = damageCombatConfigCount(options);
+        const sustainCount = sustainConfigCount(options);
         const splitChecks = budgetSplitCount(budget, options);
         return {
             budget,
@@ -452,6 +481,10 @@
     }
 
     function lootSkillLevelsForBudget(budget, options) {
+        const lootPin = pinnedArray(options, "pinnedSkills", 9)[8];
+        if (lootPin !== null) {
+            return SKILL_LEVEL_COST[lootPin] <= budget ? [lootPin] : [];
+        }
         if (!usesLootSkillBudget(options)) return [0];
         return Array.from({ length: MAX_SKILL_LEVEL + 1 }, (_, level) => level)
             .filter((level) => SKILL_LEVEL_COST[level] <= budget);
@@ -463,12 +496,13 @@
         ), 0);
     }
 
-    function makeDamageCombatPatterns(budget) {
+    function makeDamageCombatPatterns(budget, options) {
+        const pins = pinnedArray(options, "pinnedSkills", 9);
         const patterns = [];
-        for (let atk = 0; atk <= MAX_SKILL_LEVEL; atk += 1) {
-            for (let prc = 0; prc <= MAX_SKILL_LEVEL; prc += 1) {
-                for (let critc = 0; critc <= MAX_SKILL_LEVEL; critc += 1) {
-                    for (let critd = 0; critd <= MAX_SKILL_LEVEL; critd += 1) {
+        for (let atk = pins[0] === null ? 0 : pins[0]; atk <= (pins[0] === null ? MAX_SKILL_LEVEL : pins[0]); atk += 1) {
+            for (let prc = pins[1] === null ? 0 : pins[1]; prc <= (pins[1] === null ? MAX_SKILL_LEVEL : pins[1]); prc += 1) {
+                for (let critc = pins[2] === null ? 0 : pins[2]; critc <= (pins[2] === null ? MAX_SKILL_LEVEL : pins[2]); critc += 1) {
+                    for (let critd = pins[3] === null ? 0 : pins[3]; critd <= (pins[3] === null ? MAX_SKILL_LEVEL : pins[3]); critd += 1) {
                         const cost = SKILL_LEVEL_COST[atk] + SKILL_LEVEL_COST[prc] + SKILL_LEVEL_COST[critc] + SKILL_LEVEL_COST[critd];
                         if (cost <= budget) patterns.push({ cost, levels: [atk, prc, critc, critd] });
                     }
@@ -478,12 +512,13 @@
         return patterns;
     }
 
-    function makeSustainPatterns(budget) {
+    function makeSustainPatterns(budget, options) {
+        const pins = pinnedArray(options, "pinnedSkills", 9);
         const patterns = [];
-        for (let arm = 0; arm <= MAX_SKILL_LEVEL; arm += 1) {
-            for (let ddg = 0; ddg <= MAX_SKILL_LEVEL; ddg += 1) {
-                for (let hp = 0; hp <= MAX_SKILL_LEVEL; hp += 1) {
-                    for (let hun = 0; hun <= MAX_SKILL_LEVEL; hun += 1) {
+        for (let arm = pins[4] === null ? 0 : pins[4]; arm <= (pins[4] === null ? MAX_SKILL_LEVEL : pins[4]); arm += 1) {
+            for (let ddg = pins[5] === null ? 0 : pins[5]; ddg <= (pins[5] === null ? MAX_SKILL_LEVEL : pins[5]); ddg += 1) {
+                for (let hp = pins[6] === null ? 0 : pins[6]; hp <= (pins[6] === null ? MAX_SKILL_LEVEL : pins[6]); hp += 1) {
+                    for (let hun = pins[7] === null ? 0 : pins[7]; hun <= (pins[7] === null ? MAX_SKILL_LEVEL : pins[7]); hun += 1) {
                         const cost = SKILL_LEVEL_COST[arm] + SKILL_LEVEL_COST[ddg] + SKILL_LEVEL_COST[hp] + SKILL_LEVEL_COST[hun];
                         if (cost <= budget) patterns.push({ cost, levels: [arm, ddg, hp, hun] });
                     }
@@ -493,16 +528,22 @@
         return patterns;
     }
 
-    function makeDamageCombatConfigs(ctx) {
+    function makeDamageCombatConfigs(ctx, options) {
+        const gearPins = pinnedArray(options, "pinnedGear", GEAR_SLOTS.length);
+        const ammoPin = pinnedIndex(options, "pinnedAmmo");
         const configs = [];
         for (let weaponIdx = 0; weaponIdx < WEAPON_TIERS.length; weaponIdx += 1) {
+            if (gearPins[0] !== null && gearPins[0] !== weaponIdx) continue;
             const weapon = ctx.gear.weapon[WEAPON_TIERS[weaponIdx]];
             const ammoIndexes = weaponIdx <= 1 ? [0] : [1, 2, 3];
             for (let helmetIdx = 0; helmetIdx < GEAR_TIERS.length; helmetIdx += 1) {
+                if (gearPins[1] !== null && gearPins[1] !== helmetIdx) continue;
                 const helmet = ctx.gear.helmet[GEAR_TIERS[helmetIdx]];
                 for (let glovesIdx = 0; glovesIdx < GEAR_TIERS.length; glovesIdx += 1) {
+                    if (gearPins[2] !== null && gearPins[2] !== glovesIdx) continue;
                     const gloves = ctx.gear.gloves[GEAR_TIERS[glovesIdx]];
                     for (const ammoIdx of ammoIndexes) {
+                        if (ammoPin !== null && ammoPin !== ammoIdx) continue;
                         configs.push({
                             weaponIdx,
                             helmetIdx,
@@ -521,15 +562,21 @@
         return configs;
     }
 
-    function makeSustainConfigs(ctx) {
+    function makeSustainConfigs(ctx, options) {
+        const gearPins = pinnedArray(options, "pinnedGear", GEAR_SLOTS.length);
+        const foodPin = pinnedIndex(options, "pinnedFood");
         const configs = [];
         for (let chestIdx = 0; chestIdx < GEAR_TIERS.length; chestIdx += 1) {
+            if (gearPins[3] !== null && gearPins[3] !== chestIdx) continue;
             const chest = ctx.gear.chest[GEAR_TIERS[chestIdx]];
             for (let pantsIdx = 0; pantsIdx < GEAR_TIERS.length; pantsIdx += 1) {
+                if (gearPins[4] !== null && gearPins[4] !== pantsIdx) continue;
                 const pants = ctx.gear.pants[GEAR_TIERS[pantsIdx]];
                 for (let bootsIdx = 0; bootsIdx < GEAR_TIERS.length; bootsIdx += 1) {
+                    if (gearPins[5] !== null && gearPins[5] !== bootsIdx) continue;
                     const boots = ctx.gear.boots[GEAR_TIERS[bootsIdx]];
                     for (let foodIdx = 0; foodIdx < FOOD_NAMES.length; foodIdx += 1) {
+                        if (foodPin !== null && foodPin !== foodIdx) continue;
                         configs.push({
                             chestIdx,
                             pantsIdx,
@@ -1424,10 +1471,10 @@
         const ctx = createModelContext(options.priceOverrides);
         const plan = getSearchPlan(options);
         const budget = plan.budget;
-        const combatConfigs = makeDamageCombatConfigs(ctx);
-        const sustainConfigs = makeSustainConfigs(ctx);
-        const combatPatterns = makeDamageCombatPatterns(budget);
-        const sustainPatterns = makeSustainPatterns(budget);
+        const combatConfigs = makeDamageCombatConfigs(ctx, options);
+        const sustainConfigs = makeSustainConfigs(ctx, options);
+        const combatPatterns = makeDamageCombatPatterns(budget, options);
+        const sustainPatterns = makeSustainPatterns(budget, options);
         const combatValueFn = (config, levels) => damageCombatValue(config, levels, options);
         const sustainValueFn = (config, levels) => sustainValue(config, levels, options);
         const sustainStart = Math.max(0, Math.min(sustainConfigs.length, Math.floor(options.sustainStart || 0)));
@@ -1435,7 +1482,8 @@
         const budgetTargets = normalizedBudgetTargets(options);
         const campaignBudget = campaignBudgetLimit(options);
         const hasCampaignBudget = Number.isFinite(campaignBudget);
-        const needsCandidateCosts = hasCampaignBudget || budgetTargets.length > 0;
+        const pinnedLootLevel = pinnedArray(options, "pinnedSkills", 9)[8];
+        const needsCandidateCosts = hasCampaignBudget || budgetTargets.length > 0 || (pinnedLootLevel !== null && pinnedLootLevel > 0);
         const combatTables = combatConfigs.map((config) => {
             const table = makeValueTable(config, combatPatterns, budget, combatValueFn);
             return needsCandidateCosts ? attachCombatEconomy(table, combatPatterns, budget, ctx) : table;

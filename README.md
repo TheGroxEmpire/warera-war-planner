@@ -4,6 +4,8 @@ Browser app for planning WarEra eco and war durations.
 
 The optimizer runs entirely in the browser. It uses Web Workers to split a deterministic exact search across local CPU threads and returns budget-tier build candidates for the selected objective.
 
+Skills, gear, ammo, and food can be pinned before a run so the optimizer only changes slots left on **Any**. A result card can also be copied back with **Pin Full Build**. Current pins and named skill/gear sets are stored locally in the browser.
+
 ## Configuration
 
 Runtime configuration is read from environment variables. Start from the sample file:

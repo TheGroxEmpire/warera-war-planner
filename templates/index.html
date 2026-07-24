@@ -146,6 +146,38 @@
 
                 </div>
 
+                <div id="constraints-panel" class="constraints-panel">
+                    <section class="constraints-section" aria-labelledby="pin-skills-heading">
+                        <div class="constraints-header">
+                            <div>
+                                <h3 id="pin-skills-heading">Pin Skills <span id="skill-pin-budget" class="skill-pin-budget">0 / 4 SP</span></h3>
+                                <p>Choose a level to lock it. Skills left on <strong>Any</strong> are optimized normally.</p>
+                            </div>
+                            <div id="skill-preset-controls" class="pin-preset-controls" aria-label="Saved skill pin sets"></div>
+                        </div>
+                        <div id="constraint-skills-grid" class="constraint-skills-grid"></div>
+                        <button type="button" id="reset-skill-pins" class="reset-pins-btn">Reset Skill Pins</button>
+                    </section>
+
+                    <section class="constraints-section" aria-labelledby="pin-gear-heading">
+                        <div class="constraints-header">
+                            <div>
+                                <h3 id="pin-gear-heading">Pin Gear &amp; Consumables</h3>
+                                <p>Lock items you already own, or leave slots on <strong>Any</strong> for the optimizer to choose.</p>
+                            </div>
+                            <div id="gear-preset-controls" class="pin-preset-controls" aria-label="Saved gear pin sets"></div>
+                        </div>
+                        <div id="constraint-items-grid" class="constraint-items-grid"></div>
+                        <button type="button" id="reset-gear-pins" class="reset-pins-btn">Reset Gear Pins</button>
+                    </section>
+
+                    <input type="hidden" id="pinned_skills" name="pinned_skills" value="[null,null,null,null,null,null,null,null,null]">
+                    <input type="hidden" id="pinned_gear" name="pinned_gear" value="[null,null,null,null,null,null]">
+                    <input type="hidden" id="pinned_ammo" name="pinned_ammo" value="null">
+                    <input type="hidden" id="pinned_food" name="pinned_food" value="null">
+                    <p id="pin-status" class="pin-status" aria-live="polite"></p>
+                </div>
+
                 <details id="advanced-config" class="advanced-config">
                     <summary>Advanced Configuration</summary>
                     <div class="advanced-controls">

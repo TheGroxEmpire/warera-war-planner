@@ -39,6 +39,212 @@ class SimulationCoreTest(unittest.TestCase):
             + script
         )
 
+    def test_all_pinned_skill_levels_are_honored(self):
+        result = self.run_node_json(
+            """
+            require("./static/optimizer-core.js");
+            const optimizer = globalThis.WareraOptimizer;
+            // Local skill order is Health, Hunger, Loot at indexes 6, 7, 8.
+            const pinnedSkills = [1, 0, 1, 0, 1, 0, 1, 2, 1];
+            const options = {
+                adjustedLevel: 2,
+                pill: false,
+                objective: "damage",
+                rankBonus: 1,
+                budgetTargets: [],
+                pinnedSkills,
+            };
+            const workerResult = optimizer.runSearch(options);
+            const response = optimizer.prepareResponse([workerResult], options);
+            console.log(JSON.stringify({
+                buildCount: response.all_builds.length,
+                skillLevels: Array.from(
+                    new Set(response.all_builds.map((build) => JSON.stringify(build.skill_lvls)))
+                ).map(JSON.parse),
+            }));
+            """
+        )
+
+        self.assertGreater(result["buildCount"], 0)
+        self.assertEqual(result["skillLevels"], [[1, 0, 1, 0, 1, 0, 1, 2, 1]])
+
+    def test_pinned_gear_ammo_and_food_are_honored(self):
+        result = self.run_node_json(
+            """
+            require("./static/optimizer-core.js");
+            const optimizer = globalThis.WareraOptimizer;
+            const pinnedGear = [2, 1, 2, 3, 4, 5];
+            const pinnedAmmo = 1;
+            const pinnedFood = 2;
+            const options = {
+                adjustedLevel: 1,
+                pill: false,
+                objective: "damage",
+                rankBonus: 1,
+                budgetTargets: [],
+                pinnedSkills: Array(9).fill(null),
+                pinnedGear,
+                pinnedAmmo,
+                pinnedFood,
+            };
+            const workerResult = optimizer.runSearch(options);
+            const response = optimizer.prepareResponse([workerResult], options);
+            console.log(JSON.stringify({
+                buildCount: response.all_builds.length,
+                allMatch: response.all_builds.every((build) => (
+                    JSON.stringify(build.gear_idx) === JSON.stringify(pinnedGear)
+                    && build.ammo_idx === pinnedAmmo
+                    && build.food_idx === pinnedFood
+                )),
+                gear: Array.from(new Set(response.all_builds.map((build) => JSON.stringify(build.gear_idx)))),
+                ammo: Array.from(new Set(response.all_builds.map((build) => build.ammo_idx))),
+                food: Array.from(new Set(response.all_builds.map((build) => build.food_idx))),
+            }));
+            """
+        )
+
+        self.assertGreater(result["buildCount"], 0)
+        self.assertTrue(result["allMatch"])
+        self.assertEqual(result["gear"], ["[2,1,2,3,4,5]"])
+        self.assertEqual(result["ammo"], [1])
+        self.assertEqual(result["food"], [2])
+
+    def test_impossible_pins_do_not_return_unconstrained_builds(self):
+        result = self.run_node_json(
+            """
+            require("./static/optimizer-core.js");
+            const optimizer = globalThis.WareraOptimizer;
+            const baseOptions = {
+                adjustedLevel: 1,
+                pill: false,
+                objective: "damage",
+                rankBonus: 1,
+                budgetTargets: [],
+            };
+
+            function attempt(extraOptions) {
+                const options = { ...baseOptions, ...extraOptions };
+                try {
+                    const plan = optimizer.getSearchPlan(options);
+                    const workerResult = optimizer.runSearch(options);
+                    const response = optimizer.prepareResponse([workerResult], options);
+                    return {
+                        threw: false,
+                        planChecks: plan.checks,
+                        workerTotal: workerResult.total,
+                        buildCount: response.all_builds.length,
+                    };
+                } catch (error) {
+                    return {
+                        threw: true,
+                        message: error && error.message ? error.message : String(error),
+                    };
+                }
+            }
+
+            console.log(JSON.stringify({
+                overBudget: attempt({
+                    // Attack 3 costs 6 SP, but adjusted level 1 only has 4 SP.
+                    pinnedSkills: [3, null, null, null, null, null, null, null, null],
+                }),
+                incompatibleItems: attempt({
+                    // A knife cannot consume light ammo in the optimizer's gear model.
+                    pinnedGear: [1, null, null, null, null, null],
+                    pinnedAmmo: 1,
+                }),
+            }));
+            """
+        )
+
+        for name in ("overBudget", "incompatibleItems"):
+            attempt = result[name]
+            if attempt["threw"]:
+                self.assertRegex(attempt["message"].lower(), r"pin|skill|budget|point|ammo|weapon")
+            else:
+                self.assertEqual(attempt["buildCount"], 0)
+
+    def test_pinned_search_plan_totals_match_run_totals(self):
+        result = self.run_node_json(
+            """
+            require("./static/optimizer-core.js");
+            const optimizer = globalThis.WareraOptimizer;
+            const options = {
+                adjustedLevel: 2,
+                pill: false,
+                objective: "damage",
+                rankBonus: 1,
+                budgetTargets: [],
+                pinnedSkills: [1, null, null, null, null, null, null, 1, 0],
+                pinnedGear: [2, 1, 1, 1, 1, 1],
+                pinnedAmmo: 1,
+                pinnedFood: 1,
+            };
+            const plan = optimizer.getSearchPlan(options);
+            const workerResult = optimizer.runSearch(options);
+            console.log(JSON.stringify({
+                plan,
+                evaluated: workerResult.evaluated,
+                total: workerResult.total,
+                buildCount: workerResult.builds.length,
+            }));
+            """
+        )
+
+        self.assertGreater(result["plan"]["checks"], 0)
+        self.assertEqual(result["plan"]["combatCount"], 1)
+        self.assertEqual(result["plan"]["sustainCount"], 1)
+        self.assertGreater(result["buildCount"], 0)
+        self.assertEqual(result["evaluated"], result["plan"]["checks"])
+        self.assertEqual(result["total"], result["plan"]["checks"])
+
+    def test_explicit_empty_pins_match_legacy_no_pin_search(self):
+        result = self.run_node_json(
+            """
+            require("./static/optimizer-core.js");
+            const optimizer = globalThis.WareraOptimizer;
+            const baseOptions = {
+                adjustedLevel: 1,
+                pill: false,
+                objective: "damage",
+                rankBonus: 1,
+                budgetTargets: [],
+            };
+            const emptyPinOptions = {
+                ...baseOptions,
+                pinnedSkills: Array(9).fill(null),
+                pinnedGear: Array(6).fill(null),
+                pinnedAmmo: null,
+                pinnedFood: null,
+            };
+            function summary(options) {
+                const plan = optimizer.getSearchPlan(options);
+                const workerResult = optimizer.runSearch(options);
+                const response = optimizer.prepareResponse([workerResult], options);
+                return {
+                    plan,
+                    evaluated: workerResult.evaluated,
+                    total: workerResult.total,
+                    builds: response.all_builds.map((build) => ({
+                        key: [
+                            build.skill_lvls.join(","),
+                            build.gear_idx.join(","),
+                            build.ammo_idx,
+                            build.food_idx,
+                        ].join("|"),
+                        damage: Number(build.total_damage.toFixed(8)),
+                        netCost: Number(build.net_cost.toFixed(8)),
+                    })),
+                };
+            }
+            console.log(JSON.stringify({
+                legacy: summary(baseOptions),
+                explicitEmpty: summary(emptyPinOptions),
+            }));
+            """
+        )
+
+        self.assertEqual(result["explicitEmpty"], result["legacy"])
+
     def test_recommendations_filter_and_sort_by_displayed_efficiency(self):
         result = self.run_script_helper_json(
             """

@@ -26,6 +26,38 @@
         return ["1", "true", "on", "yes"].includes(String(value).toLowerCase());
     }
 
+    function parseJsonOption(value, name, fallback) {
+        if (value == null || String(value).trim() === "") return fallback;
+        try {
+            return JSON.parse(String(value));
+        } catch (error) {
+            throw new Error(`${name} must be valid JSON`);
+        }
+    }
+
+    function parsePinnedArray(value, name, length, maxValue) {
+        const parsed = parseJsonOption(value, name, Array(length).fill(null));
+        if (!Array.isArray(parsed) || parsed.length !== length) {
+            throw new Error(`${name} must be a JSON array with ${length} entries`);
+        }
+        return parsed.map((entry, index) => {
+            if (entry === null) return null;
+            if (!Number.isInteger(entry) || entry < 0 || entry > maxValue) {
+                throw new Error(`${name}[${index}] must be null or an integer from 0 to ${maxValue}`);
+            }
+            return entry;
+        });
+    }
+
+    function parsePinnedIndex(value, name, maxValue) {
+        const parsed = parseJsonOption(value, name, null);
+        if (parsed === null) return null;
+        if (!Number.isInteger(parsed) || parsed < 0 || parsed > maxValue) {
+            throw new Error(`${name} must be null or an integer from 0 to ${maxValue}`);
+        }
+        return parsed;
+    }
+
     function parseOptimizationRequest(formData) {
         const objective = formData.get("objective") || "damage";
         if (objective !== "damage") {
@@ -48,6 +80,17 @@
 
         const totalSkillPoints = level * WareraOptimizer.constants.SKILL_POINTS_PER_LEVEL;
         const skillPointReserve = Math.min(totalSkillPoints, importedSkillReserve);
+        const pinnedSkills = parsePinnedArray(formData.get("pinned_skills"), "pinned_skills", 9, 10);
+        const pinnedGear = parsePinnedArray(formData.get("pinned_gear"), "pinned_gear", 6, 6);
+        const pinnedAmmo = parsePinnedIndex(formData.get("pinned_ammo"), "pinned_ammo", 3);
+        const pinnedFood = parsePinnedIndex(formData.get("pinned_food"), "pinned_food", 3);
+        const availableSkillPoints = Math.max(0, Math.floor(totalSkillPoints - skillPointReserve));
+        const pinnedSkillCost = pinnedSkills.reduce((total, skillLevel) => (
+            total + (skillLevel === null ? 0 : WareraOptimizer.constants.SKILL_LEVEL_COST[skillLevel])
+        ), 0);
+        if (pinnedSkillCost > availableSkillPoints) {
+            throw new Error(`Pinned skills cost ${pinnedSkillCost} SP, but only ${availableSkillPoints} SP are available after reserves.`);
+        }
         const campaignImported = parseBoolOption(formData.get("eco_export_imported"), false);
         const ecoDays = parseIntOption(formData.get("eco_days"), "eco_days", 0, 0);
         const warDays = parseIntOption(formData.get("war_days"), "war_days", 1, 1);
@@ -87,6 +130,10 @@
             level,
             skillPointReserve,
             adjustedLevel: Math.max(0.0, (totalSkillPoints - skillPointReserve) / WareraOptimizer.constants.SKILL_POINTS_PER_LEVEL),
+            pinnedSkills,
+            pinnedGear,
+            pinnedAmmo,
+            pinnedFood,
             pill: formData.get("pill") === "on",
             objective,
             rankBonus: rankBonus * battleBonus,

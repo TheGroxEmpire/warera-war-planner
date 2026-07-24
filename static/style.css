@@ -1001,6 +1001,257 @@ th, td {
 }
 
 /* ============================================================
+   PINNED BUILD CONSTRAINTS
+   ============================================================ */
+.constraints-panel {
+    display: grid;
+    gap: 0.8em;
+    margin-top: 0.7em;
+    padding: 0.9em;
+    background: var(--bg-base);
+    border: 1px solid var(--border-subtle);
+    border-left: 2px solid var(--accent-amber);
+    border-radius: 4px;
+}
+
+.constraints-section {
+    min-width: 0;
+    padding: 0.8em;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: 4px;
+}
+
+.constraints-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.8em;
+    margin-bottom: 0.75em;
+}
+
+.constraints-header h3 {
+    align-items: baseline;
+    gap: 0.55em;
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 0.8em;
+}
+
+.constraints-header p {
+    margin: 0.3em 0 0;
+    color: var(--text-muted);
+    font-size: 0.78em;
+    line-height: 1.35;
+}
+
+.constraints-header p strong {
+    color: var(--text-secondary);
+}
+
+.skill-pin-budget {
+    color: var(--accent-green);
+    font-family: 'Share Tech Mono', 'Courier New', monospace;
+    font-size: 0.9em;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+}
+
+.skill-pin-budget.over {
+    color: var(--accent-red);
+}
+
+.constraint-skills-grid,
+.constraint-items-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(76px, 1fr));
+    gap: 0.55em;
+}
+
+.pin-slot {
+    display: grid;
+    gap: 0.3em;
+    min-width: 0;
+}
+
+.pin-slot-label {
+    overflow: hidden;
+    color: var(--text-secondary);
+    font-size: 0.68em;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    line-height: 1.1;
+    text-align: center;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.pin-tile {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 62px;
+    overflow: hidden;
+    background: var(--bg-raised);
+    border: 1px solid var(--border-strong);
+    border-radius: 4px;
+    transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+}
+
+.pin-tile:hover,
+.pin-tile:focus-within {
+    border-color: var(--accent-amber);
+    box-shadow: 0 0 0 2px var(--accent-amber-glow);
+}
+
+.pin-tile.is-pinned {
+    background: var(--bg-overlay);
+    border-color: var(--accent-amber);
+}
+
+.pin-tile select {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.pin-tile-display {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.18em;
+    width: 100%;
+    height: 100%;
+    padding: 0.35em;
+    box-sizing: border-box;
+    pointer-events: none;
+}
+
+.pin-tile-display svg {
+    width: 1.65em;
+    height: 1.65em;
+}
+
+.pin-tile-display img {
+    width: 38px;
+    height: 38px;
+    object-fit: contain;
+}
+
+.pin-empty-icon {
+    color: var(--text-muted);
+    font-family: 'Share Tech Mono', 'Courier New', monospace;
+    font-size: 1.45em;
+    line-height: 1;
+}
+
+.pin-tile-value {
+    max-width: 100%;
+    overflow: hidden;
+    color: var(--text-primary);
+    font-family: 'Share Tech Mono', 'Courier New', monospace;
+    font-size: 0.72em;
+    font-weight: 700;
+    line-height: 1.1;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.pin-tile:not(.is-pinned) .pin-tile-value {
+    color: var(--text-muted);
+}
+
+.reset-pins-btn,
+.pin-preset-controls button,
+.pin-preset-controls select {
+    min-height: 30px;
+    padding: 0.3em 0.65em;
+    background: var(--bg-raised);
+    border-color: var(--border-strong);
+    color: var(--text-secondary);
+    font-size: 0.7em;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+}
+
+.reset-pins-btn {
+    margin-top: 0.65em;
+}
+
+.reset-pins-btn:hover,
+.pin-preset-controls button:hover,
+.pin-preset-controls select:hover {
+    border-color: var(--accent-red);
+    color: var(--text-primary);
+}
+
+.pin-preset-controls {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.35em;
+}
+
+.pin-preset-controls select {
+    max-width: 130px;
+    text-transform: none;
+}
+
+.pin-preset-delete {
+    padding-inline: 0.55em !important;
+}
+
+.pin-status {
+    display: none;
+    grid-column: 1 / -1;
+    margin: 0;
+    color: var(--accent-green);
+    font-size: 0.78em;
+    letter-spacing: 0.04em;
+}
+
+.pin-status.visible {
+    display: block;
+}
+
+.pin-status.error {
+    color: var(--accent-red);
+}
+
+.pin-full-build-btn {
+    width: 100%;
+    padding: 0.7em 1em;
+    background: var(--bg-raised);
+    border: 0;
+    border-top: 1px solid var(--border-strong);
+    border-radius: 0 0 4px 4px;
+    color: var(--text-secondary);
+    font-size: 0.78em;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    position: relative;
+}
+
+.pin-full-build-btn:hover {
+    background: var(--accent-red-dim);
+    color: var(--text-primary);
+}
+
+@media (min-width: 1600px) {
+    .constraints-panel {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+}
+
+/* ============================================================
    DEV MODE
    ============================================================ */
 #dev-mode-wrapper {
@@ -1474,6 +1725,10 @@ select, button {
     .import-link-btn { flex: 1 1 auto; width: 100%; box-sizing: border-box; text-align: center; }
     .form-controls-row .pill-wrapper { flex: 1 1 100%; max-width: none; }
     .advanced-controls .input-group { flex: 1 1 100%; }
+    .constraints-header { flex-direction: column; }
+    .pin-preset-controls { justify-content: flex-start; width: 100%; }
+    .constraint-skills-grid,
+    .constraint-items-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
     .filter-slider-wrapper { flex: 1 1 100%; }
     .credit-links { justify-content: stretch; }
     .credit-links a { flex: 1 1 auto; text-align: center; }
@@ -1489,6 +1744,8 @@ select, button {
     #results { grid-template-columns: 1fr; }
     .btn-row { flex-direction: column; }
     .credit-links { flex-direction: column; }
+    .constraint-skills-grid,
+    .constraint-items-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 /* ============================================================

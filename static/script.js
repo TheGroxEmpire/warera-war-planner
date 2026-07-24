@@ -2,6 +2,47 @@ const SKILL_NAMES = ["Attack", "Precision", "Crit. Chance", "Crit. Dmg", "Armor"
 const STATIC_BASE = String(window.WARERA_STATIC_BASE || "static").replace(/\/$/, "");
 const ASSET_BASE = String(window.WARERA_ASSET_BASE || "assets").replace(/\/$/, "");
 const ASSET_VERSION = String(window.WARERA_ASSET_VERSION || "");
+const PIN_CONSTRAINTS_STORAGE_KEY = "wbt_constraints";
+const SAVED_SKILL_PINS_STORAGE_KEY = "wbt_saved_skill_sets";
+const SAVED_GEAR_PINS_STORAGE_KEY = "wbt_saved_gear_sets";
+
+function emptyPinnedConstraints() {
+    return {
+        skills: Array(9).fill(null),
+        gear: Array(6).fill(null),
+        ammo: null,
+        food: null,
+    };
+}
+
+function normalizedNullableIndex(value, maxValue) {
+    if (value === null || value === undefined || value === "") return null;
+    const parsed = Number(value);
+    return Number.isInteger(parsed) && parsed >= 0 && parsed <= maxValue ? parsed : null;
+}
+
+function normalizePinnedConstraints(value) {
+    const source = value && typeof value === "object" ? value : {};
+    const skills = Array.from({ length: 9 }, (_, index) => (
+        normalizedNullableIndex(Array.isArray(source.skills) ? source.skills[index] : null, 10)
+    ));
+    const gear = Array.from({ length: 6 }, (_, index) => (
+        normalizedNullableIndex(Array.isArray(source.gear) ? source.gear[index] : null, 6)
+    ));
+    return {
+        skills,
+        gear,
+        ammo: normalizedNullableIndex(source.ammo, 3),
+        food: normalizedNullableIndex(source.food, 3),
+    };
+}
+
+function pinnedSkillPointCost(skills) {
+    return (Array.isArray(skills) ? skills : []).reduce((total, level) => {
+        const normalized = normalizedNullableIndex(level, 10);
+        return total + (normalized === null ? 0 : normalized * (normalized + 1) / 2);
+    }, 0);
+}
 
 function staticAsset(path) {
     return `${STATIC_BASE}/${String(path || "").replace(/^\//, "")}`;
@@ -120,10 +161,24 @@ document.addEventListener("DOMContentLoaded", () => {
     const importedWarProfitDay = document.getElementById("imported-war-profit-day");
     const importedWarSkillPoints = document.getElementById("imported-war-skill-points");
     const importedEconomySummary = document.getElementById("imported-economy-summary");
+    const constraintsPanel = document.getElementById("constraints-panel");
+    const constraintSkillsGrid = document.getElementById("constraint-skills-grid");
+    const constraintItemsGrid = document.getElementById("constraint-items-grid");
+    const skillPinBudget = document.getElementById("skill-pin-budget");
+    const pinStatus = document.getElementById("pin-status");
+    const skillPresetControls = document.getElementById("skill-preset-controls");
+    const gearPresetControls = document.getElementById("gear-preset-controls");
+    const optimizerConstants = window.WareraOptimizer ? window.WareraOptimizer.constants : {};
+    const gearSlots = optimizerConstants.GEAR_SLOTS || ["weapon", "helmet", "gloves", "chest", "pants", "boots"];
+    const gearTiers = optimizerConstants.GEAR_TIERS || ["none", "grey", "green", "blue", "purple", "gold", "red"];
+    const weaponTiers = optimizerConstants.WEAPON_TIERS || ["none", "knife", "gun", "rifle", "sniper", "tank", "jet"];
+    const ammoNames = optimizerConstants.AMMO_NAMES || ["noAmmo", "lightAmmo", "ammo", "heavyAmmo"];
+    const foodNames = optimizerConstants.FOOD_NAMES || ["noFood", "bread", "steak", "cookedFish"];
 
     updateAdvancedPlaceholders();
 
     let allBuilds = [];
+    let displayedBuilds = [];
     let viewMode = 'card';
     let sortCol = null;
     let sortDir = 1;
@@ -131,6 +186,10 @@ document.addEventListener("DOMContentLoaded", () => {
     let hasEcoSimulatorImport = false;
     let importedEcoScenario = null;
     let importedWarScenario = null;
+    let pinnedConstraints = loadPinnedConstraints();
+    let pinsWithinBudget = true;
+    let pinStatusTimer = null;
+    let isOptimizing = false;
     const campaignRecommendationConfig = window.WARERA_CAMPAIGN_RECOMMENDATION_CONFIG || {};
     const campaignRecommendationLimit = Math.max(
         1,
@@ -186,11 +245,10 @@ document.addEventListener("DOMContentLoaded", () => {
     syncSliderAndInput("battle_bonus-slider", "battle_bonus-input");
 
     // --- Form Submission ---
-    let isOptimizing = false;
-
     buildForm.addEventListener("submit", async (event) => {
         event.preventDefault();
-        if (isOptimizing) return;
+        updatePinBudget();
+        if (isOptimizing || !pinsWithinBudget) return;
 
         const submitter = event.submitter || buildForm.querySelector(".optimize-btn");
         if (!submitter) return;
@@ -204,6 +262,10 @@ document.addEventListener("DOMContentLoaded", () => {
         data.set('war_days', getFormControlValue('war_days', '1'));
         data.set('stockpiled_money', getFormControlValue('stockpiled_money', '0'));
         data.set('bounty_per_1k_damage', getFormControlValue('bounty_per_1k_damage', '0'));
+        data.set('pinned_skills', JSON.stringify(pinnedConstraints.skills));
+        data.set('pinned_gear', JSON.stringify(pinnedConstraints.gear));
+        data.set('pinned_ammo', JSON.stringify(pinnedConstraints.ammo));
+        data.set('pinned_food', JSON.stringify(pinnedConstraints.food));
         [
             'earning_bounty_enabled',
             'earning_battle_loot_enabled',
@@ -218,9 +280,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
         resultsDiv.innerHTML = "";
         renderCampaignResults({ active: false }, []);
-        optimizeBtns.forEach(b => b.disabled = true);
-        submitter.innerHTML = `<span class="spinner"></span><span>OPTIMIZING</span>`;
         isOptimizing = true;
+        updateOptimizeButtonState();
+        submitter.innerHTML = `<span class="spinner"></span><span>OPTIMIZING</span>`;
 
         try {
             if (!window.WareraBrowserOptimizer) {
@@ -244,9 +306,9 @@ document.addEventListener("DOMContentLoaded", () => {
             console.error("Optimization error:", error);
             resultsDiv.innerHTML = `<p class="error">${escapeHtml(error.message || "An error occurred during optimization. Please try again later.")}</p>`;
         } finally {
-            optimizeBtns.forEach(b => b.disabled = false);
             submitter.innerHTML = submitterLabel;
             isOptimizing = false;
+            updateOptimizeButtonState();
         }
     });
 
@@ -309,6 +371,347 @@ document.addEventListener("DOMContentLoaded", () => {
     function saveStoredValue(storageKey, inputId) {
         const input = getFormControl(inputId);
         if (input) localStorage.setItem(storageKey, input.value);
+    }
+
+    function loadPinnedConstraints() {
+        try {
+            const stored = localStorage.getItem(PIN_CONSTRAINTS_STORAGE_KEY);
+            return stored ? normalizePinnedConstraints(JSON.parse(stored)) : emptyPinnedConstraints();
+        } catch (error) {
+            console.warn("Could not restore pinned build constraints.", error);
+            return emptyPinnedConstraints();
+        }
+    }
+
+    function persistPinnedConstraints() {
+        try {
+            localStorage.setItem(PIN_CONSTRAINTS_STORAGE_KEY, JSON.stringify(pinnedConstraints));
+        } catch (error) {
+            console.warn("Could not save pinned build constraints.", error);
+        }
+    }
+
+    function itemDisplayName(name) {
+        const labels = {
+            none: "None",
+            noAmmo: "None",
+            noFood: "None",
+            lightAmmo: "Light Ammo",
+            ammo: "Ammo",
+            heavyAmmo: "Heavy Ammo",
+            cookedFish: "Cooked Fish",
+        };
+        return labels[name] || String(name).replace(/([a-z])([A-Z])/g, "$1 $2");
+    }
+
+    function pinTierColor(name) {
+        const colors = {
+            grey: "rgb(58, 71, 83)",
+            green: "rgb(33, 88, 53)",
+            blue: "rgb(27, 54, 114)",
+            purple: "rgb(68, 46, 102)",
+            gold: "rgb(86, 83, 40)",
+            red: "rgb(103, 31, 31)",
+            knife: "rgb(58, 71, 83)",
+            gun: "rgb(33, 88, 53)",
+            rifle: "rgb(27, 54, 114)",
+            sniper: "rgb(68, 46, 102)",
+            tank: "rgb(86, 83, 40)",
+            jet: "rgb(103, 31, 31)",
+            lightAmmo: "rgb(33, 88, 53)",
+            ammo: "rgb(27, 54, 114)",
+            heavyAmmo: "rgb(68, 46, 102)",
+            bread: "rgb(33, 88, 53)",
+            steak: "rgb(27, 54, 114)",
+            cookedFish: "rgb(68, 46, 102)",
+        };
+        return colors[name] || "";
+    }
+
+    function selectOptionsHtml(choices, selectedIndex, anyLabel = "Any") {
+        const anySelected = selectedIndex === null ? " selected" : "";
+        return `<option value=""${anySelected}>${escapeHtml(anyLabel)}</option>${choices.map((choice, index) => (
+            `<option value="${index}"${selectedIndex === index ? " selected" : ""}>${escapeHtml(itemDisplayName(choice))}</option>`
+        )).join("")}`;
+    }
+
+    function skillPinHtml(index) {
+        const selectedLevel = pinnedConstraints.skills[index];
+        const levelOptions = Array.from({ length: 11 }, (_, level) => (
+            `<option value="${level}"${selectedLevel === level ? " selected" : ""}>Level ${level}</option>`
+        )).join("");
+        return `
+            <label class="pin-slot">
+                <span class="pin-slot-label">${escapeHtml(SKILL_NAMES[index])}</span>
+                <span class="pin-tile${selectedLevel === null ? "" : " is-pinned"}">
+                    <span class="pin-tile-display">
+                        <svg aria-hidden="true"><use xlink:href="#skill-svg-${index + 1}"></use></svg>
+                        <span class="pin-tile-value">${selectedLevel === null ? "Any" : `Lv ${selectedLevel}`}</span>
+                    </span>
+                    <select class="pin-select" data-pin-kind="skill" data-pin-index="${index}" aria-label="Pin ${escapeHtml(SKILL_NAMES[index])} level">
+                        <option value=""${selectedLevel === null ? " selected" : ""}>Any level</option>
+                        ${levelOptions}
+                    </select>
+                </span>
+            </label>`;
+    }
+
+    function itemPinDefinitions() {
+        const gearDefinitions = gearSlots.map((slot, index) => ({
+            kind: "gear",
+            index,
+            label: slot.charAt(0).toUpperCase() + slot.slice(1),
+            choices: index === 0 ? weaponTiers : gearTiers,
+            selectedIndex: pinnedConstraints.gear[index],
+        }));
+        return [
+            ...gearDefinitions,
+            { kind: "ammo", index: null, label: "Ammo", choices: ammoNames, selectedIndex: pinnedConstraints.ammo },
+            { kind: "food", index: null, label: "Food", choices: foodNames, selectedIndex: pinnedConstraints.food },
+        ];
+    }
+
+    function itemPinImageName(definition, selectedName) {
+        if (!selectedName || selectedName === "none" || selectedName === "noAmmo" || selectedName === "noFood") return null;
+        if (definition.kind === "gear") return definition.index === 0 ? selectedName : gearSlots[definition.index];
+        return selectedName;
+    }
+
+    function itemPinHtml(definition) {
+        const selectedIndex = definition.selectedIndex;
+        const selectedName = selectedIndex === null ? null : definition.choices[selectedIndex];
+        const imageName = itemPinImageName(definition, selectedName);
+        const displayName = selectedName === null ? "Any" : itemDisplayName(selectedName);
+        const color = selectedName ? pinTierColor(selectedName) : "";
+        const style = color ? ` style="background-color:${color}"` : "";
+        const indexData = definition.index === null ? "" : ` data-pin-index="${definition.index}"`;
+        const visual = imageName
+            ? `<img src="${itemIconAsset(`${imageName}.png`)}" alt="">`
+            : `<span class="pin-empty-icon" aria-hidden="true">${selectedName === null ? "?" : "—"}</span>`;
+        return `
+            <label class="pin-slot">
+                <span class="pin-slot-label">${escapeHtml(definition.label)}</span>
+                <span class="pin-tile${selectedIndex === null ? "" : " is-pinned"}"${style}>
+                    <span class="pin-tile-display">
+                        ${visual}
+                        <span class="pin-tile-value">${escapeHtml(displayName)}</span>
+                    </span>
+                    <select class="pin-select" data-pin-kind="${definition.kind}"${indexData} aria-label="Pin ${escapeHtml(definition.label)}">
+                        ${selectOptionsHtml(definition.choices, selectedIndex)}
+                    </select>
+                </span>
+            </label>`;
+    }
+
+    function syncPinnedFormFields() {
+        setFormControlValue("pinned_skills", JSON.stringify(pinnedConstraints.skills));
+        setFormControlValue("pinned_gear", JSON.stringify(pinnedConstraints.gear));
+        setFormControlValue("pinned_ammo", JSON.stringify(pinnedConstraints.ammo));
+        setFormControlValue("pinned_food", JSON.stringify(pinnedConstraints.food));
+    }
+
+    function updateOptimizeButtonState() {
+        optimizeBtns.forEach((button) => {
+            button.disabled = isOptimizing || !pinsWithinBudget;
+        });
+    }
+
+    function updatePinBudget() {
+        const level = Math.max(1, Math.floor(parseNumericInput("level-input", 1)));
+        const reservedSkillPoints = Math.max(0, parseNumericInput("reserved_skill_points", 0));
+        const availableSkillPoints = Math.max(0, Math.floor(level * 4 - reservedSkillPoints));
+        const usedSkillPoints = pinnedSkillPointCost(pinnedConstraints.skills);
+        pinsWithinBudget = usedSkillPoints <= availableSkillPoints;
+        if (skillPinBudget) {
+            skillPinBudget.textContent = `${usedSkillPoints} / ${availableSkillPoints} SP`;
+            skillPinBudget.classList.toggle("over", !pinsWithinBudget);
+        }
+        if (!pinsWithinBudget) {
+            showPinStatus(`Pinned skills need ${usedSkillPoints} SP, but only ${availableSkillPoints} SP are available.`, true, false);
+        } else if (pinStatus && pinStatus.classList.contains("budget-error")) {
+            hidePinStatus();
+        }
+        if (pinStatus) pinStatus.classList.toggle("budget-error", !pinsWithinBudget);
+        updateOptimizeButtonState();
+        return pinsWithinBudget;
+    }
+
+    function renderPinnedControls() {
+        if (constraintSkillsGrid) {
+            constraintSkillsGrid.innerHTML = SKILL_NAMES.map((_, index) => skillPinHtml(index)).join("");
+        }
+        if (constraintItemsGrid) {
+            constraintItemsGrid.innerHTML = itemPinDefinitions().map(itemPinHtml).join("");
+        }
+        syncPinnedFormFields();
+        updatePinBudget();
+    }
+
+    function showPinStatus(message, isError = false, autoHide = true) {
+        if (!pinStatus) return;
+        if (pinStatusTimer !== null) {
+            clearTimeout(pinStatusTimer);
+            pinStatusTimer = null;
+        }
+        pinStatus.textContent = message;
+        pinStatus.classList.add("visible");
+        pinStatus.classList.toggle("error", isError);
+        if (autoHide) {
+            pinStatusTimer = setTimeout(() => {
+                hidePinStatus();
+            }, 5000);
+        }
+    }
+
+    function hidePinStatus() {
+        if (!pinStatus) return;
+        if (pinStatusTimer !== null) clearTimeout(pinStatusTimer);
+        pinStatusTimer = null;
+        pinStatus.textContent = "";
+        pinStatus.classList.remove("visible", "error", "budget-error");
+    }
+
+    function applyPinnedConstraints(value, message) {
+        pinnedConstraints = normalizePinnedConstraints(value);
+        persistPinnedConstraints();
+        renderPinnedControls();
+        if (message && pinsWithinBudget) showPinStatus(message);
+    }
+
+    function updatePinFromSelect(select) {
+        const value = select.value === "" ? null : Number.parseInt(select.value, 10);
+        const kind = select.dataset.pinKind;
+        const index = Number.parseInt(select.dataset.pinIndex, 10);
+        if (kind === "skill") pinnedConstraints.skills[index] = normalizedNullableIndex(value, 10);
+        if (kind === "gear") pinnedConstraints.gear[index] = normalizedNullableIndex(value, 6);
+        if (kind === "ammo") pinnedConstraints.ammo = normalizedNullableIndex(value, 3);
+        if (kind === "food") pinnedConstraints.food = normalizedNullableIndex(value, 3);
+        persistPinnedConstraints();
+        renderPinnedControls();
+    }
+
+    function loadSavedPinSets(kind) {
+        const storageKey = kind === "skill" ? SAVED_SKILL_PINS_STORAGE_KEY : SAVED_GEAR_PINS_STORAGE_KEY;
+        try {
+            const parsed = JSON.parse(localStorage.getItem(storageKey) || "[]");
+            if (!Array.isArray(parsed)) return [];
+            return parsed.filter((entry) => entry && typeof entry.name === "string").map((entry) => {
+                if (kind === "skill") {
+                    return { name: entry.name, skills: normalizePinnedConstraints({ skills: entry.skills }).skills };
+                }
+                const normalized = normalizePinnedConstraints(entry);
+                return { name: entry.name, gear: normalized.gear, ammo: normalized.ammo, food: normalized.food };
+            });
+        } catch (error) {
+            console.warn(`Could not restore saved ${kind} pin sets.`, error);
+            return [];
+        }
+    }
+
+    function savePinSets(kind, sets) {
+        const storageKey = kind === "skill" ? SAVED_SKILL_PINS_STORAGE_KEY : SAVED_GEAR_PINS_STORAGE_KEY;
+        try {
+            localStorage.setItem(storageKey, JSON.stringify(sets));
+        } catch (error) {
+            console.warn(`Could not save ${kind} pin sets.`, error);
+        }
+    }
+
+    function renderPresetControls(kind) {
+        const container = kind === "skill" ? skillPresetControls : gearPresetControls;
+        if (!container) return;
+        const sets = loadSavedPinSets(kind);
+        const noun = kind === "skill" ? "Skills" : "Gear";
+        container.innerHTML = `
+            <button type="button" data-preset-action="save" title="Save the current ${noun.toLowerCase()} pins">Save ${noun}</button>
+            ${sets.length ? `
+                <select data-preset-action="load" aria-label="Load saved ${noun.toLowerCase()} pins">
+                    <option value="">Load set…</option>
+                    ${sets.map((set, index) => `<option value="${index}">${escapeHtml(set.name)}</option>`).join("")}
+                </select>
+                <button type="button" class="pin-preset-delete" data-preset-action="delete" title="Delete selected set" aria-label="Delete selected ${noun.toLowerCase()} set">✕</button>
+            ` : ""}`;
+    }
+
+    function bindPresetControls(container, kind) {
+        if (!container) return;
+        container.addEventListener("change", (event) => {
+            const select = event.target.closest('[data-preset-action="load"]');
+            if (!select || select.value === "") return;
+            const set = loadSavedPinSets(kind)[Number.parseInt(select.value, 10)];
+            if (!set) return;
+            if (kind === "skill") {
+                applyPinnedConstraints({ ...pinnedConstraints, skills: set.skills }, `Loaded skill set “${set.name}”.`);
+            } else {
+                applyPinnedConstraints({ ...pinnedConstraints, gear: set.gear, ammo: set.ammo, food: set.food }, `Loaded gear set “${set.name}”.`);
+            }
+        });
+        container.addEventListener("click", (event) => {
+            const action = event.target.closest("[data-preset-action]")?.dataset.presetAction;
+            if (action === "save") {
+                const name = window.prompt(`Name this ${kind} set:`);
+                if (!name || !name.trim()) return;
+                const sets = loadSavedPinSets(kind);
+                sets.push(kind === "skill"
+                    ? { name: name.trim(), skills: pinnedConstraints.skills.slice() }
+                    : { name: name.trim(), gear: pinnedConstraints.gear.slice(), ammo: pinnedConstraints.ammo, food: pinnedConstraints.food });
+                savePinSets(kind, sets);
+                renderPresetControls(kind);
+                showPinStatus(`Saved ${kind} set “${name.trim()}”.`);
+            }
+            if (action === "delete") {
+                const select = container.querySelector('[data-preset-action="load"]');
+                if (!select || select.value === "") return;
+                const index = Number.parseInt(select.value, 10);
+                const sets = loadSavedPinSets(kind);
+                const set = sets[index];
+                if (!set || !window.confirm(`Delete ${kind} set “${set.name}”?`)) return;
+                sets.splice(index, 1);
+                savePinSets(kind, sets);
+                renderPresetControls(kind);
+                showPinStatus(`Deleted ${kind} set “${set.name}”.`);
+            }
+        });
+    }
+
+    function pinFullBuild(build) {
+        if (!build) return;
+        applyPinnedConstraints({
+            skills: build.skill_lvls,
+            gear: build.gear_idx,
+            ammo: build.ammo_idx,
+            food: build.food_idx,
+        }, "Pinned the full build. Change any locked slot, then optimize again.");
+        if (constraintsPanel && typeof constraintsPanel.scrollIntoView === "function") {
+            constraintsPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }
+    }
+
+    function initializePinnedControls() {
+        renderPinnedControls();
+        renderPresetControls("skill");
+        renderPresetControls("gear");
+        constraintSkillsGrid?.addEventListener("change", (event) => {
+            const select = event.target.closest(".pin-select");
+            if (select) updatePinFromSelect(select);
+        });
+        constraintItemsGrid?.addEventListener("change", (event) => {
+            const select = event.target.closest(".pin-select");
+            if (select) updatePinFromSelect(select);
+        });
+        document.getElementById("reset-skill-pins")?.addEventListener("click", () => {
+            applyPinnedConstraints({ ...pinnedConstraints, skills: Array(9).fill(null) }, "All skill pins reset to Any.");
+        });
+        document.getElementById("reset-gear-pins")?.addEventListener("click", () => {
+            applyPinnedConstraints({ ...pinnedConstraints, gear: Array(6).fill(null), ammo: null, food: null }, "All gear and consumable pins reset to Any.");
+        });
+        bindPresetControls(skillPresetControls, "skill");
+        bindPresetControls(gearPresetControls, "gear");
+        resultsDiv.addEventListener("click", (event) => {
+            const button = event.target.closest(".pin-full-build-btn");
+            if (!button) return;
+            pinFullBuild(displayedBuilds[Number.parseInt(button.dataset.buildIndex, 10)]);
+        });
     }
 
     function setInputValue(id, value) {
@@ -949,6 +1352,7 @@ document.addEventListener("DOMContentLoaded", () => {
     buildForm.addEventListener('change', saveFormState);
     buildForm.addEventListener('input', updateAdvancedPlaceholders);
     buildForm.addEventListener('input', () => updateWarSkillSummary(importedWarScenario));
+    buildForm.addEventListener('input', updatePinBudget);
     if (importEcoLinkBtn && ecoExportUrlInput) {
         importEcoLinkBtn.addEventListener('click', importEcoSimulatorLink);
         ecoExportUrlInput.addEventListener('keydown', (event) => {
@@ -961,16 +1365,23 @@ document.addEventListener("DOMContentLoaded", () => {
         advancedConfig.addEventListener('toggle', saveFormState);
     }
 
+    initializePinnedControls();
     restoreFormState();
     updateWarSkillSummary(importedWarScenario);
+    updatePinBudget();
     updateAdvancedPlaceholders();
 
 
     // --- Render Builds ---
     function renderBuilds(builds, objective = 'damage') {
+        displayedBuilds = Array.isArray(builds) ? builds : [];
         if (!builds || builds.length === 0) {
             viewControls.style.display = 'none';
-            resultsDiv.innerHTML = "<p>No optimal builds found. Please adjust your parameters and try again.</p>";
+            const hasPins = [...pinnedConstraints.skills, ...pinnedConstraints.gear, pinnedConstraints.ammo, pinnedConstraints.food]
+                .some((value) => value !== null);
+            resultsDiv.innerHTML = hasPins
+                ? "<p>No builds match the current pins. Check the pinned weapon/ammo combination or reset some slots to Any.</p>"
+                : "<p>No optimal builds found. Please adjust your parameters and try again.</p>";
             return;
         }
 
@@ -981,7 +1392,7 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-        resultsDiv.innerHTML = builds.map(d => {
+        resultsDiv.innerHTML = builds.map((d, buildIndex) => {
             const skillsHtml = d.skill_lvls.map((level, i) => {
                 const statVal = d.diag && d.diag.skill_stats ? d.diag.skill_stats[i] : null;
                 let tooltipText = SKILL_NAMES[i];
@@ -1054,6 +1465,7 @@ document.addEventListener("DOMContentLoaded", () => {
                             </div>` : ''}
                         </div>
                     </div>
+                    <button type='button' class='pin-full-build-btn' data-build-index='${buildIndex}' title='Pin all skill levels, gear, ammo, and food from this build for another optimization'>Pin Full Build</button>
                 </div>
             `;
         }).join("");

@@ -87,6 +87,15 @@ class AppFactoryTest(unittest.TestCase):
         self.assertIn('"damageGapRatio": 0.08', text)
         self.assertIn('"costGapRatio": 0.12', text)
 
+    def test_optimizer_loading_tip_is_included_in_script_asset(self):
+        app = create_app(Settings())
+        client = app.test_client()
+
+        response = client.get("/static/script.js")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Warera War Planner runs faster on a more powerful CPU", response.get_data(as_text=True))
+
     def test_prefixed_static_asset_is_served(self):
         app = create_app(Settings(app_base_path="/war-planner"))
         client = app.test_client()

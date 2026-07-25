@@ -1902,6 +1902,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         <span>Auto</span>
                     </div>
                     <div class="progress-track"><div class="progress-fill indeterminate"></div></div>
+                    <div class="progress-note">Tip: Warera War Planner runs faster on a more powerful CPU, such as a desktop PC or laptop.</div>
                 </div>
             `;
             return;
@@ -1915,6 +1916,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         <span>API</span>
                     </div>
                     <div class="progress-track"><div class="progress-fill indeterminate"></div></div>
+                    <div class="progress-note">Tip: Warera War Planner runs faster on a more powerful CPU, such as a desktop PC or laptop.</div>
                 </div>
             `;
             return;
@@ -1928,6 +1930,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         <span>Local</span>
                     </div>
                     <div class="progress-track"><div class="progress-fill" style="width:100%"></div></div>
+                    <div class="progress-note">Tip: Warera War Planner runs faster on a more powerful CPU, such as a desktop PC or laptop.</div>
                 </div>
             `;
             return;
@@ -1946,6 +1949,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     <span>${workerLabel}</span>
                 </div>
                 <div class="progress-track"><div class="progress-fill" style="width:${percent.toFixed(1)}%"></div></div>
+                <div class="progress-note">Tip: Warera War Planner runs faster on a more powerful CPU, such as a desktop PC or laptop.</div>
             </div>
         `;
     }

@@ -6,9 +6,15 @@ The optimizer runs entirely in the browser. It uses Web Workers to split a deter
 
 Skills, gear, ammo, and food can be pinned before a run so the optimizer only changes slots left on **Any**. A result card can also be copied back with **Pin Full Build**. Current pins and named skill/gear sets are stored locally in the browser.
 
+## WarEra Profile Import
+
+**Import Profile** searches WarEra's public player profiles and always imports the selected player's level and military-rank damage bonus. The preview also lets the user independently replace combat skill pins and recognized equipped gear/ammo pins with the player's current values. Unchecked or unavailable pin groups stay unchanged, and the existing food pin is preserved because WarEra does not expose current food in its equipped-loadout response.
+
+Profile requests go directly from the browser to `api2.warera.io`, and raw API responses are never stored. For the **Recent** shortcut, the browser keeps only the last player's ID, username, avatar URL, and level in local storage; clearing this site's browser data removes it. The shared API key remains in the browser and is sent only to WarEra.
+
 ## Economy Profile Integration
 
-The Eco Simulator's **Use in War Planner** action saves its active scenario as a credential-free `EcoProfileV1` profile and opens the planner with `?ecoProfile=latest`. Both tools are served from the same origin, so the handoff stays in browser storage and never includes the WarEra API token.
+The Eco Simulator's **Use in War Planner** action saves its active scenario as a credential-free `EcoProfileV1` profile and opens the planner with `?ecoProfile=latest`. Both tools are served from the same origin, so the handoff stays in browser storage and never includes the WarEra API key.
 
 War Planner recalculates the imported profile with the Eco Simulator's shared browser engine. War mode supports minimum required eco skills, the imported skill allocation, or custom eco skills, along with explicit company selection and optional workers. The resulting daily profit and eco skill-point reserve feed the existing campaign and combat optimizer.
 
@@ -20,7 +26,9 @@ Runtime configuration is read from environment variables. Start from the sample 
 cp .env.example .env
 ```
 
-Users must enter a WarEra API key in the web form when running an optimization. The key stays in browser storage and is used by the browser to refresh market prices.
+Users must enter a WarEra API key when running an optimization. War Planner and Economy Simulator share one logical key through the same-origin browser-storage key `warera-toolkit-api-key-v1`, so saving or clearing it in either tool updates the other (including already-open tabs). Existing keys from both tools are migrated automatically; a mismatch is surfaced for the user to resolve instead of silently choosing a credential.
+
+The key is device- and browser-profile-specific. It is sent only to WarEra as `X-API-Key` and is never placed in URLs, shared configurations, or `EcoProfileV1` data. Production sharing works because both tools use paths on the same `https://warera.xorgress.com` origin; separate localhost ports do not share browser storage.
 
 Useful variables:
 

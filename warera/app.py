@@ -79,7 +79,15 @@ def _static_asset_version(flask_app: Flask) -> str:
     if not static_folder:
         return "1"
 
-    candidates = ("style.css", "optimizer-core.js", "browser-optimizer.js", "eco-engine.js", "script.js")
+    candidates = (
+        "style.css",
+        "optimizer-core.js",
+        "browser-optimizer.js",
+        "eco-engine.js",
+        "profile-import.js",
+        "api-key.js",
+        "script.js",
+    )
     mtimes = []
     for filename in candidates:
         path = os.path.join(static_folder, filename)

@@ -97,6 +97,7 @@ class EcoProfileContractTest(unittest.TestCase):
 
             hostile.apiToken = "secret-envelope";
             hostile.profile.apiToken = "secret-profile";
+            hostile.profile.wareraApiKey = "secret-warera-key";
             hostile.profile.wareraApiToken = "secret-warera-token";
             hostile.profile.config.apiKey = "secret-config";
             hostile.profile.prices.unknown_market_item = 999;

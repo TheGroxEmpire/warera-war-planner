@@ -6,6 +6,7 @@ const PIN_CONSTRAINTS_STORAGE_KEY = "wbt_constraints";
 const SAVED_SKILL_PINS_STORAGE_KEY = "wbt_saved_skill_sets";
 const SAVED_GEAR_PINS_STORAGE_KEY = "wbt_saved_gear_sets";
 const ECO_PROFILE_OPTIONS_STORAGE_KEY = "wbt_eco_profile_options_v1";
+const RECENT_PROFILE_IMPORT_STORAGE_KEY = "wbt_last_import_profile";
 
 function emptyPinnedConstraints() {
     return {
@@ -174,6 +175,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const resultsDiv = document.getElementById("results");
     const campaignResultsDiv = document.getElementById("campaign-results");
     const buildForm = document.getElementById("build-form");
+    const apiKeyCard = document.getElementById("warera-api-key-card");
+    const apiKeyInput = document.getElementById("warera_api_key");
+    const apiKeyStatus = document.getElementById("warera-api-key-status");
+    const apiKeySaveBtn = document.getElementById("warera-api-key-save");
+    const apiKeyClearBtn = document.getElementById("warera-api-key-clear");
+    const apiKeyToggleBtn = document.getElementById("warera-api-key-toggle");
     const optimizeBtns = buildForm.querySelectorAll(".optimize-btn");
     const workersInput = document.getElementById("workers");
     const advancedConfig = document.getElementById("advanced-config");
@@ -203,6 +210,20 @@ document.addEventListener("DOMContentLoaded", () => {
     const pinStatus = document.getElementById("pin-status");
     const skillPresetControls = document.getElementById("skill-preset-controls");
     const gearPresetControls = document.getElementById("gear-preset-controls");
+    const importProfileBtn = document.getElementById("import-profile-btn");
+    const profileImportDialog = document.getElementById("profile-import-dialog");
+    const profileImportBack = document.getElementById("profile-import-back");
+    const profileImportSearchView = document.getElementById("profile-import-search-view");
+    const profileImportPreview = document.getElementById("profile-import-preview");
+    const profileImportSearch = document.getElementById("profile-import-search");
+    const profileImportSearchStatus = document.getElementById("profile-import-search-status");
+    const profileImportResults = document.getElementById("profile-import-results");
+    const profileImportPinSkills = document.getElementById("profile-import-pin-skills");
+    const profileImportPinLoadout = document.getElementById("profile-import-pin-loadout");
+    const profileImportSkills = document.getElementById("profile-import-skills");
+    const profileImportLoadout = document.getElementById("profile-import-loadout");
+    const profileImportLoadoutStatus = document.getElementById("profile-import-loadout-status");
+    const profileImportApplyStatus = document.getElementById("profile-import-apply-status");
     const optimizerConstants = window.WareraOptimizer ? window.WareraOptimizer.constants : {};
     const gearSlots = optimizerConstants.GEAR_SLOTS || ["weapon", "helmet", "gloves", "chest", "pants", "boots"];
     const gearTiers = optimizerConstants.GEAR_TIERS || ["none", "grey", "green", "blue", "purple", "gold", "red"];
@@ -229,6 +250,13 @@ document.addEventListener("DOMContentLoaded", () => {
     let pinsWithinBudget = true;
     let pinStatusTimer = null;
     let isOptimizing = false;
+    let savedSharedApiKey = "";
+    let profileImportSearchTimer = null;
+    let profileImportSearchController = null;
+    let profileImportLoadController = null;
+    let profileImportSearchSequence = 0;
+    let profileImportMatches = [];
+    let selectedImportProfile = null;
     const campaignRecommendationConfig = window.WARERA_CAMPAIGN_RECOMMENDATION_CONFIG || {};
     const campaignRecommendationLimit = Math.max(
         1,
@@ -286,6 +314,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // --- Form Submission ---
     buildForm.addEventListener("submit", async (event) => {
         event.preventDefault();
+        if (!persistSharedApiKey({ focusWhenMissing: true })) return;
         updatePinBudget();
         if (isOptimizing || !pinsWithinBudget || !ecoCalculationReady) {
             if (!ecoCalculationReady) {
@@ -348,7 +377,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
         } catch (error) {
             console.error("Optimization error:", error);
-            resultsDiv.innerHTML = `<p class="error">${escapeHtml(error.message || "An error occurred during optimization. Please try again later.")}</p>`;
+            const errorMessage = error.message || "An error occurred during optimization. Please try again later.";
+            if (/\b(?:401|403)\b|unauthori[sz]ed|invalid api key/i.test(errorMessage)) {
+                setApiKeyUi("error", "WarEra rejected this API key. Replace it here once to update both tools.");
+            }
+            resultsDiv.innerHTML = `<p class="error">${escapeHtml(errorMessage)}</p>`;
         } finally {
             submitter.innerHTML = submitterLabel;
             isOptimizing = false;
@@ -758,6 +791,426 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
+    function profileImportAdapter() {
+        if (!window.WareraProfileImport) {
+            throw new Error("The WarEra profile importer did not load. Refresh the page and try again.");
+        }
+        return window.WareraProfileImport;
+    }
+
+    function profileImportApiOptions(signal) {
+        return {
+            apiKey: String(getFormControlValue("warera_api_key", "") || "").trim(),
+            signal,
+        };
+    }
+
+    function safeAvatarUrl(value) {
+        const raw = String(value || "").trim();
+        if (!raw) return "";
+        try {
+            const url = new URL(raw);
+            return ["http:", "https:"].includes(url.protocol) ? url.href : "";
+        } catch (error) {
+            return "";
+        }
+    }
+
+    function normalizeRecentProfileImport(value) {
+        if (!value || typeof value !== "object") return null;
+        const id = String(value.id || "").trim();
+        const username = String(value.username || "").trim();
+        const level = Math.min(50, Math.max(1, Math.floor(Number(value.level) || 1)));
+        if (!id || !username) return null;
+        return {
+            id,
+            username,
+            level,
+            avatarUrl: safeAvatarUrl(value.avatarUrl),
+        };
+    }
+
+    function readRecentProfileImport() {
+        try {
+            return normalizeRecentProfileImport(JSON.parse(
+                localStorage.getItem(RECENT_PROFILE_IMPORT_STORAGE_KEY) || "null",
+            ));
+        } catch (error) {
+            console.warn("Could not restore the recent profile import.", error);
+            return null;
+        }
+    }
+
+    function saveRecentProfileImport(profile) {
+        const recent = normalizeRecentProfileImport(profile);
+        if (!recent) return;
+        try {
+            localStorage.setItem(RECENT_PROFILE_IMPORT_STORAGE_KEY, JSON.stringify(recent));
+        } catch (error) {
+            console.warn("Could not save the recent profile import.", error);
+        }
+    }
+
+    function profileImportResultHtml(player) {
+        const avatarUrl = safeAvatarUrl(player.avatarUrl);
+        const fallback = escapeHtml(player.username.trim().charAt(0).toUpperCase() || "?");
+        const avatar = avatarUrl
+            ? `<img class="profile-import-result-avatar" src="${escapeHtml(avatarUrl)}" alt=""><span class="profile-import-result-placeholder" aria-hidden="true" hidden>${fallback}</span>`
+            : `<span class="profile-import-result-placeholder" aria-hidden="true">${fallback}</span>`;
+        return `<button type="button" class="profile-import-result" data-profile-id="${escapeHtml(player.id)}">
+            ${avatar}
+            <span class="profile-import-result-name">${escapeHtml(player.username)}</span>
+            <span class="profile-import-result-level">Lvl ${player.level}</span>
+        </button>`;
+    }
+
+    function bindProfileImportAvatarFallbacks() {
+        profileImportResults?.querySelectorAll(".profile-import-result-avatar").forEach((avatar) => {
+            avatar.addEventListener("error", () => {
+                avatar.hidden = true;
+                avatar.nextElementSibling?.removeAttribute("hidden");
+                avatar.removeAttribute("src");
+            }, { once: true });
+        });
+    }
+
+    function setProfileImportStatus(element, message, isError = false) {
+        if (!element) return;
+        element.textContent = message || "";
+        element.hidden = !message;
+        element.classList.toggle("profile-import-error", Boolean(isError));
+    }
+
+    function showRecentProfileImport() {
+        if (!profileImportResults) return;
+        const recent = readRecentProfileImport();
+        profileImportMatches = recent ? [recent] : [];
+        profileImportResults.innerHTML = recent
+            ? `<p class="profile-import-recent-label">Recent</p>${profileImportResultHtml(recent)}`
+            : "";
+        bindProfileImportAvatarFallbacks();
+    }
+
+    function cancelProfileImportRequests() {
+        if (profileImportSearchTimer !== null) clearTimeout(profileImportSearchTimer);
+        profileImportSearchTimer = null;
+        profileImportSearchController?.abort();
+        profileImportLoadController?.abort();
+        profileImportSearchController = null;
+        profileImportLoadController = null;
+        profileImportSearchSequence += 1;
+    }
+
+    function closeProfileImportDialog() {
+        cancelProfileImportRequests();
+        if (!profileImportDialog) return;
+        if (typeof profileImportDialog.close === "function" && profileImportDialog.open) {
+            profileImportDialog.close();
+        } else {
+            profileImportDialog.removeAttribute("open");
+        }
+    }
+
+    function showProfileImportSearch() {
+        selectedImportProfile = null;
+        if (profileImportSearchView) profileImportSearchView.hidden = false;
+        if (profileImportPreview) profileImportPreview.hidden = true;
+        if (profileImportBack) profileImportBack.hidden = true;
+        if (profileImportPinSkills) {
+            profileImportPinSkills.checked = false;
+            profileImportPinSkills.disabled = false;
+        }
+        if (profileImportPinLoadout) {
+            profileImportPinLoadout.checked = false;
+            profileImportPinLoadout.disabled = false;
+        }
+        if (profileImportSkills) profileImportSkills.hidden = true;
+        if (profileImportLoadout) profileImportLoadout.hidden = true;
+        setProfileImportStatus(profileImportApplyStatus, "");
+        setProfileImportStatus(profileImportLoadoutStatus, "");
+    }
+
+    function openProfileImportDialog() {
+        try {
+            profileImportAdapter();
+        } catch (error) {
+            showPinStatus(error.message, true);
+            return;
+        }
+        cancelProfileImportRequests();
+        showProfileImportSearch();
+        if (profileImportSearch) profileImportSearch.value = "";
+        setProfileImportStatus(profileImportSearchStatus, "Type at least 2 characters to search.");
+        showRecentProfileImport();
+        if (!profileImportDialog) return;
+        if (typeof profileImportDialog.showModal === "function") {
+            if (!profileImportDialog.open) profileImportDialog.showModal();
+        } else {
+            profileImportDialog.setAttribute("open", "");
+        }
+        window.setTimeout(() => profileImportSearch?.focus(), 0);
+    }
+
+    async function performProfileImportSearch(query, sequence) {
+        const controller = new AbortController();
+        profileImportSearchController = controller;
+        try {
+            const matches = await profileImportAdapter().searchUsers(
+                query,
+                profileImportApiOptions(controller.signal),
+            );
+            if (sequence !== profileImportSearchSequence || controller.signal.aborted) return;
+            profileImportMatches = matches;
+            if (profileImportResults) {
+                profileImportResults.innerHTML = matches.map(profileImportResultHtml).join("");
+                bindProfileImportAvatarFallbacks();
+            }
+            setProfileImportStatus(
+                profileImportSearchStatus,
+                matches.length
+                    ? `${matches.length} player${matches.length === 1 ? "" : "s"} found.`
+                    : `No players found for “${query}”.`,
+            );
+        } catch (error) {
+            if (error?.name === "AbortError" || sequence !== profileImportSearchSequence) return;
+            profileImportMatches = [];
+            if (profileImportResults) profileImportResults.innerHTML = "";
+            setProfileImportStatus(
+                profileImportSearchStatus,
+                error.message || "Could not search WarEra profiles.",
+                true,
+            );
+        } finally {
+            if (profileImportSearchController === controller) profileImportSearchController = null;
+        }
+    }
+
+    function queueProfileImportSearch() {
+        if (profileImportSearchTimer !== null) clearTimeout(profileImportSearchTimer);
+        profileImportSearchTimer = null;
+        profileImportSearchController?.abort();
+        profileImportSearchController = null;
+        profileImportLoadController?.abort();
+        profileImportLoadController = null;
+        const sequence = ++profileImportSearchSequence;
+        const query = String(profileImportSearch?.value || "").trim();
+        if (query.length < 2) {
+            if (!query) showRecentProfileImport();
+            else {
+                profileImportMatches = [];
+                if (profileImportResults) profileImportResults.innerHTML = "";
+            }
+            setProfileImportStatus(profileImportSearchStatus, "Type at least 2 characters to search.");
+            return;
+        }
+        profileImportMatches = [];
+        if (profileImportResults) profileImportResults.innerHTML = "";
+        setProfileImportStatus(profileImportSearchStatus, "Searching WarEra…");
+        profileImportSearchTimer = window.setTimeout(() => {
+            profileImportSearchTimer = null;
+            performProfileImportSearch(query, sequence);
+        }, 300);
+    }
+
+    function profileImportSkillPreview(profile) {
+        return SKILL_NAMES.map((name, index) => `<div class="profile-import-skill">
+            <small title="${escapeHtml(name)}">${escapeHtml(name)}</small>
+            <div class="profile-import-skill-visual">
+                <svg aria-hidden="true"><use xlink:href="#skill-svg-${index + 1}"></use></svg>
+                <span>Lv ${profile.skillLevels[index]}</span>
+            </div>
+        </div>`).join("");
+    }
+
+    function profileImportLoadoutPreview(profile) {
+        const definitions = [
+            ...gearSlots.map((slot, index) => ({
+                label: slot.charAt(0).toUpperCase() + slot.slice(1),
+                index: profile.gearTiers[index],
+                choices: index === 0 ? weaponTiers : gearTiers,
+                image: (name) => index === 0 ? name : slot,
+            })),
+            {
+                label: "Ammo",
+                index: profile.ammoIndex,
+                choices: ammoNames,
+                image: (name) => name,
+            },
+        ];
+        return definitions.map((definition) => {
+            const selectedName = definition.index === null ? null : definition.choices[definition.index];
+            const hasItem = selectedName && !["none", "noAmmo"].includes(selectedName);
+            const color = selectedName ? pinTierColor(selectedName) : "";
+            const style = color ? ` style="background-color:${color}"` : "";
+            const visual = hasItem
+                ? `<img src="${itemIconAsset(`${definition.image(selectedName)}.png`)}" alt="">`
+                : `<span aria-hidden="true">—</span>`;
+            const value = selectedName === null ? "Unknown · unchanged" : itemDisplayName(selectedName);
+            return `<div class="profile-import-item">
+                <small title="${escapeHtml(definition.label)}">${escapeHtml(definition.label)}</small>
+                <div class="profile-import-item-visual${hasItem ? "" : " is-unknown"}"${style}>${visual}</div>
+                <small title="${escapeHtml(value)}">${escapeHtml(value)}</small>
+            </div>`;
+        }).join("");
+    }
+
+    function updateProfileImportPreviewVisibility() {
+        if (profileImportSkills) profileImportSkills.hidden = !profileImportPinSkills?.checked;
+        if (profileImportLoadout) profileImportLoadout.hidden = !profileImportPinLoadout?.checked;
+    }
+
+    function renderProfileImportPreview(profile, searchMatch) {
+        selectedImportProfile = profile;
+        if (profileImportSearchView) profileImportSearchView.hidden = true;
+        if (profileImportPreview) profileImportPreview.hidden = false;
+        if (profileImportBack) profileImportBack.hidden = false;
+        const username = document.getElementById("profile-import-username");
+        const levelBadge = document.getElementById("profile-import-level-badge");
+        const level = document.getElementById("profile-import-level");
+        const rank = document.getElementById("profile-import-rank");
+        if (username) username.textContent = profile.username;
+        if (levelBadge) levelBadge.textContent = `Level ${profile.level}`;
+        if (level) level.textContent = String(profile.level);
+        if (rank) rank.textContent = `${Number(profile.rankBonusPct.toFixed(2))}%`;
+
+        const avatar = document.getElementById("profile-import-avatar");
+        const avatarPlaceholder = document.getElementById("profile-import-avatar-placeholder");
+        const avatarUrl = safeAvatarUrl(profile.avatarUrl || searchMatch?.avatarUrl);
+        if (avatar && avatarPlaceholder) {
+            avatar.hidden = !avatarUrl;
+            avatarPlaceholder.hidden = Boolean(avatarUrl);
+            avatarPlaceholder.textContent = profile.username.trim().charAt(0).toUpperCase() || "?";
+            avatar.onerror = () => {
+                avatar.hidden = true;
+                avatarPlaceholder.hidden = false;
+            };
+            if (avatarUrl) avatar.src = avatarUrl;
+            else avatar.removeAttribute("src");
+        }
+
+        if (profileImportSkills) profileImportSkills.innerHTML = profileImportSkillPreview(profile);
+        if (profileImportLoadout) profileImportLoadout.innerHTML = profileImportLoadoutPreview(profile);
+        if (profileImportPinSkills) {
+            profileImportPinSkills.checked = false;
+            profileImportPinSkills.disabled = !profile.skillsAvailable;
+        }
+        if (profileImportPinLoadout) {
+            profileImportPinLoadout.checked = false;
+            profileImportPinLoadout.disabled = !profile.loadoutAvailable;
+        }
+        const loadoutMessage = profile.loadoutError
+            || (profile.loadoutWarnings?.length
+                ? `${profile.loadoutWarnings.join(", ")}. Those pins will stay unchanged.`
+                : "");
+        setProfileImportStatus(profileImportLoadoutStatus, loadoutMessage, Boolean(loadoutMessage));
+        setProfileImportStatus(profileImportApplyStatus, profile.skillsError || "", Boolean(profile.skillsError));
+        updateProfileImportPreviewVisibility();
+        profileImportBack?.focus();
+    }
+
+    async function selectProfileImportResult(userId) {
+        const searchMatch = profileImportMatches.find((entry) => entry.id === userId) || null;
+        profileImportLoadController?.abort();
+        const controller = new AbortController();
+        profileImportLoadController = controller;
+        setProfileImportStatus(
+            profileImportSearchStatus,
+            `Loading ${searchMatch?.username || "player"}…`,
+        );
+        try {
+            const profile = await profileImportAdapter().loadProfile(
+                userId,
+                profileImportApiOptions(controller.signal),
+            );
+            if (controller.signal.aborted) return;
+            renderProfileImportPreview(profile, searchMatch);
+        } catch (error) {
+            if (controller.signal.aborted
+                || profileImportLoadController !== controller
+                || error?.name === "AbortError") return;
+            setProfileImportStatus(
+                profileImportSearchStatus,
+                error.message || "Could not load that WarEra profile.",
+                true,
+            );
+        } finally {
+            if (profileImportLoadController === controller) profileImportLoadController = null;
+        }
+    }
+
+    function applySelectedProfileImport() {
+        if (!selectedImportProfile) return;
+        const pinSkills = Boolean(profileImportPinSkills?.checked);
+        const pinLoadout = Boolean(profileImportPinLoadout?.checked);
+        if (pinSkills && !selectedImportProfile.skillsAvailable) {
+            setProfileImportStatus(profileImportApplyStatus, selectedImportProfile.skillsError, true);
+            return;
+        }
+        if (pinLoadout && !selectedImportProfile.loadoutAvailable) {
+            setProfileImportStatus(profileImportApplyStatus, selectedImportProfile.loadoutError, true);
+            return;
+        }
+
+        setSliderPair("level", selectedImportProfile.level);
+        setSliderPair("rank_bonus", selectedImportProfile.rankBonusPct);
+        const importedParts = [];
+        if (pinSkills) importedParts.push("current skills");
+        if (pinLoadout) importedParts.push("equipped loadout");
+        const message = `Imported ${selectedImportProfile.username}’s level and rank${
+            importedParts.length ? `, plus ${importedParts.join(" and ")}` : ""
+        }.`;
+        if (pinSkills || pinLoadout) {
+            const nextConstraints = profileImportAdapter().buildImportedConstraints(
+                pinnedConstraints,
+                selectedImportProfile,
+                { pinSkills, pinLoadout },
+            );
+            applyPinnedConstraints(nextConstraints, message);
+        } else {
+            updatePinBudget();
+            if (pinsWithinBudget) showPinStatus(message);
+        }
+        saveRecentProfileImport({
+            id: selectedImportProfile.id,
+            username: selectedImportProfile.username,
+            avatarUrl: selectedImportProfile.avatarUrl,
+            level: selectedImportProfile.level,
+        });
+        saveFormState();
+        closeProfileImportDialog();
+    }
+
+    function initializeProfileImport() {
+        if (!importProfileBtn || !profileImportDialog) return;
+        importProfileBtn.addEventListener("click", openProfileImportDialog);
+        profileImportSearch?.addEventListener("input", queueProfileImportSearch);
+        profileImportResults?.addEventListener("click", (event) => {
+            const result = event.target.closest("[data-profile-id]");
+            if (result) selectProfileImportResult(result.dataset.profileId);
+        });
+        profileImportPinSkills?.addEventListener("change", updateProfileImportPreviewVisibility);
+        profileImportPinLoadout?.addEventListener("change", updateProfileImportPreviewVisibility);
+        profileImportBack?.addEventListener("click", () => {
+            profileImportLoadController?.abort();
+            if (profileImportSearch) profileImportSearch.value = "";
+            showProfileImportSearch();
+            setProfileImportStatus(profileImportSearchStatus, "Type at least 2 characters to search.");
+            showRecentProfileImport();
+            profileImportSearch?.focus();
+        });
+        document.getElementById("profile-import-close")?.addEventListener("click", closeProfileImportDialog);
+        document.getElementById("profile-import-cancel")?.addEventListener("click", closeProfileImportDialog);
+        document.getElementById("profile-import-apply")?.addEventListener("click", applySelectedProfileImport);
+        profileImportDialog.addEventListener("close", cancelProfileImportRequests);
+        profileImportDialog.addEventListener("click", (event) => {
+            if (event.target !== profileImportDialog) return;
+            const rect = profileImportDialog.getBoundingClientRect();
+            const inside = event.clientX >= rect.left && event.clientX <= rect.right
+                && event.clientY >= rect.top && event.clientY <= rect.bottom;
+            if (!inside) closeProfileImportDialog();
+        });
+    }
+
     function setInputValue(id, value) {
         const input = getFormControl(id);
         if (!input || value === undefined || value === null) return;
@@ -1068,7 +1521,10 @@ document.addEventListener("DOMContentLoaded", () => {
         renderEcoProfileCard(envelope);
         activeEcoProfileOptions = restoreEcoProfileOptions(envelope.profile);
         applyEcoProfileOptionsToControls(envelope.profile, activeEcoProfileOptions);
-        setSliderPair("level", envelope.profile.config.level);
+        const savedPlannerLevel = localStorage.getItem("wbt_level");
+        if (!restored || savedPlannerLevel === null) {
+            setSliderPair("level", envelope.profile.config.level);
+        }
         if (ecoImportStatus) {
             const username = envelope.profile.importMeta?.user?.username;
             ecoImportStatus.textContent = `${restored ? "Restored" : "Imported"}${username ? ` ${username}'s` : ""} economy profile. War-mode changes recalculate with Eco Simulator.`;
@@ -1500,13 +1956,167 @@ document.addEventListener("DOMContentLoaded", () => {
         return String(Math.floor(value));
     }
 
+    // --- Shared WarEra API key ---
+    function apiKeyStorage() {
+        return window.WareraApiKey || null;
+    }
+
+    function browserApiKeyStorage() {
+        try {
+            return window.localStorage;
+        } catch (error) {
+            return null;
+        }
+    }
+
+    function setApiKeyUi(state, message) {
+        if (apiKeyCard) apiKeyCard.dataset.state = state;
+        if (apiKeyStatus) apiKeyStatus.textContent = message;
+    }
+
+    function hideApiKeyVisibility() {
+        if (apiKeyInput) apiKeyInput.type = "password";
+        if (apiKeyToggleBtn) {
+            apiKeyToggleBtn.textContent = "Show";
+            apiKeyToggleBtn.setAttribute("aria-label", "Show API key");
+            apiKeyToggleBtn.setAttribute("aria-pressed", "false");
+        }
+    }
+
+    function loadSharedApiKeySetting({ updatedInAnotherTab = false } = {}) {
+        const manager = apiKeyStorage();
+        if (!manager) {
+            setApiKeyUi("error", "The shared API-key helper did not load. Refresh this page before optimizing.");
+            return;
+        }
+
+        const result = manager.load(browserApiKeyStorage());
+        if (result.status === "saved") {
+            savedSharedApiKey = result.value;
+            if (apiKeyInput) apiKeyInput.value = result.value;
+            const message = result.compatibilityMirrored === false
+                ? "API key saved for both current tools, but an older open version could not be updated. Refresh both tools."
+                : (updatedInAnotherTab
+                    ? "API key updated in another Toolkit tab and is ready here."
+                    : (result.migrated
+                        ? "Your existing API key was upgraded and is now shared with both tools."
+                        : "API key saved for War Planner and Economy Simulator on this browser."));
+            setApiKeyUi("saved", message);
+            return;
+        }
+
+        savedSharedApiKey = "";
+        if (apiKeyInput) apiKeyInput.value = "";
+        hideApiKeyVisibility();
+        if (result.status === "conflict") {
+            setApiKeyUi("conflict", "Two older saved keys differ. Paste the key you want to keep, then save it once for both tools.");
+            return;
+        }
+        if (result.status === "unavailable") {
+            setApiKeyUi("error", "Browser storage is unavailable. You can use a key in this tab, but it cannot be shared with Economy Simulator.");
+            return;
+        }
+        setApiKeyUi("missing", "An API key is required to refresh prices and optimize. Save it here or in Economy Simulator.");
+    }
+
+    function persistSharedApiKey({ focusWhenMissing = false } = {}) {
+        const manager = apiKeyStorage();
+        const value = manager
+            ? manager.normalize(apiKeyInput?.value)
+            : String(apiKeyInput?.value || "").trim();
+        if (!value) {
+            setApiKeyUi("error", "Paste your WarEra API key before optimizing.");
+            if (focusWhenMissing) {
+                apiKeyCard?.scrollIntoView({ behavior: "smooth", block: "center" });
+                apiKeyInput?.focus();
+            }
+            return false;
+        }
+        if (!manager) {
+            setApiKeyUi("error", "The key can be used in this tab, but the shared browser-storage helper is unavailable.");
+            return true;
+        }
+
+        const result = manager.save(browserApiKeyStorage(), value);
+        if (result.status !== "saved") {
+            setApiKeyUi("error", "The key can be used in this tab, but this browser would not save it for the Toolkit.");
+            return true;
+        }
+
+        savedSharedApiKey = result.value;
+        if (apiKeyInput) apiKeyInput.value = result.value;
+        const message = result.compatibilityMirrored === false
+            ? "API key saved for both current tools, but an older open version could not be updated. Refresh both tools."
+            : "API key saved for War Planner and Economy Simulator on this browser.";
+        setApiKeyUi("saved", message);
+        return true;
+    }
+
+    function clearSharedApiKey() {
+        const manager = apiKeyStorage();
+        const result = manager ? manager.clear(browserApiKeyStorage()) : { status: "unavailable" };
+        if (result.status === "unavailable") {
+            const message = result.compatibilityCleared === false
+                ? "Could not clear every saved copy of the API key. Check browser storage permissions, then try again."
+                : "This browser would not clear the saved Toolkit key. Check browser storage permissions.";
+            setApiKeyUi("error", message);
+            return;
+        }
+        savedSharedApiKey = "";
+        if (apiKeyInput) {
+            apiKeyInput.value = "";
+            apiKeyInput.focus();
+        }
+        hideApiKeyVisibility();
+        setApiKeyUi("missing", "API key cleared from both tools on this browser.");
+    }
+
+    function markApiKeyInputChanged() {
+        const manager = apiKeyStorage();
+        const value = manager
+            ? manager.normalize(apiKeyInput?.value)
+            : String(apiKeyInput?.value || "").trim();
+        if (value && value === savedSharedApiKey) {
+            setApiKeyUi("saved", "API key saved for War Planner and Economy Simulator on this browser.");
+        } else if (value) {
+            setApiKeyUi("dirty", "Unsaved change. Save the key now, or it will be saved when you optimize.");
+        } else {
+            setApiKeyUi("missing", "An API key is required to refresh prices and optimize.");
+        }
+    }
+
+    function toggleApiKeyVisibility() {
+        if (!apiKeyInput || !apiKeyToggleBtn) return;
+        const shouldShow = apiKeyInput.type === "password";
+        apiKeyInput.type = shouldShow ? "text" : "password";
+        apiKeyToggleBtn.textContent = shouldShow ? "Hide" : "Show";
+        apiKeyToggleBtn.setAttribute("aria-label", `${shouldShow ? "Hide" : "Show"} API key`);
+        apiKeyToggleBtn.setAttribute("aria-pressed", String(shouldShow));
+        apiKeyInput.focus();
+    }
+
+    function initializeSharedApiKeyControls() {
+        apiKeySaveBtn?.addEventListener("click", () => persistSharedApiKey({ focusWhenMissing: true }));
+        apiKeyClearBtn?.addEventListener("click", clearSharedApiKey);
+        apiKeyToggleBtn?.addEventListener("click", toggleApiKeyVisibility);
+        apiKeyInput?.addEventListener("input", markApiKeyInputChanged);
+        apiKeyInput?.addEventListener("invalid", () => {
+            setApiKeyUi("error", "Paste your WarEra API key before optimizing.");
+            apiKeyCard?.scrollIntoView({ behavior: "smooth", block: "center" });
+        });
+        apiKeyInput?.addEventListener("keydown", (event) => {
+            if (event.key !== "Enter") return;
+            event.preventDefault();
+            persistSharedApiKey({ focusWhenMissing: true });
+        });
+    }
+
     // --- localStorage Persistence ---
     function saveFormState() {
         [
             ['wbt_level', 'level-input'],
             ['wbt_rank_bonus', 'rank_bonus-input'],
             ['wbt_battle_bonus', 'battle_bonus-input'],
-            ['wbt_warera_api_key', 'warera_api_key'],
             ['wbt_workers', 'workers'],
             ['wbt_eco_days', 'eco_days'],
             ['wbt_war_days', 'war_days'],
@@ -1550,8 +2160,7 @@ document.addEventListener("DOMContentLoaded", () => {
             setFormControlValue('battle_bonus-slider', battleBonus);
         }
 
-        const apiKey = localStorage.getItem('wbt_warera_api_key');
-        if (apiKey) setFormControlValue('warera_api_key', apiKey);
+        loadSharedApiKeySetting();
 
         const pill = localStorage.getItem('wbt_pill');
         if (pill !== null) setFormControlChecked('pill', pill === 'true');
@@ -1628,6 +2237,13 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
     window.addEventListener("storage", (event) => {
+        const storage = browserApiKeyStorage();
+        if (
+            apiKeyStorage()?.handlesStorageKey(event.key)
+            && (!event.storageArea || !storage || event.storageArea === storage)
+        ) {
+            loadSharedApiKeySetting({ updatedInAnotherTab: true });
+        }
         if (event.key === window.WareraEcoEngine?.STORAGE_KEY && event.newValue) {
             applyEcoProfileEnvelope(event.newValue, true).catch((error) => {
                 console.warn("Could not apply the updated economy profile.", error);
@@ -1639,6 +2255,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     initializePinnedControls();
+    initializeProfileImport();
+    initializeSharedApiKeyControls();
     restoreFormState();
     updateWarSkillSummary(importedWarScenario);
     updatePinBudget();

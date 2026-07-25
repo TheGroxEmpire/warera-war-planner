@@ -39,6 +39,14 @@ class AppFactoryTest(unittest.TestCase):
         self.assertIn("earning_companies_enabled", response.get_data(as_text=True))
         self.assertIn("Pin Skills", response.get_data(as_text=True))
         self.assertIn("Pin Gear &amp; Consumables", response.get_data(as_text=True))
+        self.assertIn('id="import-profile-btn"', response.get_data(as_text=True))
+        self.assertIn('id="profile-import-dialog"', response.get_data(as_text=True))
+        self.assertIn('id="profile-import-pin-skills"', response.get_data(as_text=True))
+        self.assertIn('id="profile-import-pin-loadout"', response.get_data(as_text=True))
+        self.assertIn('aria-describedby="profile-import-apply-status"', response.get_data(as_text=True))
+        self.assertIn('aria-describedby="profile-import-loadout-status"', response.get_data(as_text=True))
+        self.assertIn('id="profile-import-loadout-status" class="profile-import-status profile-import-error" role="status" aria-live="polite"', response.get_data(as_text=True))
+        self.assertIn("Level and rank bonus are always imported.", response.get_data(as_text=True))
         self.assertIn('name="pinned_skills"', response.get_data(as_text=True))
         self.assertIn('name="pinned_gear"', response.get_data(as_text=True))
         self.assertIn('name="pinned_ammo"', response.get_data(as_text=True))
@@ -57,6 +65,7 @@ class AppFactoryTest(unittest.TestCase):
         text = response.get_data(as_text=True)
         self.assertIn('href="/war-planner/static/style.css?v=', text)
         self.assertIn('src="/war-planner/static/eco-engine.js?v=', text)
+        self.assertIn('src="/war-planner/static/profile-import.js?v=', text)
         self.assertIn('src="/war-planner/static/script.js?v=', text)
         self.assertIn('window.WARERA_ASSET_BASE = "/war-planner/assets"', text)
 
@@ -89,6 +98,12 @@ class AppFactoryTest(unittest.TestCase):
         response.close()
 
         response = client.get("/war-planner/static/eco-engine.js")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("javascript", response.content_type)
+        response.close()
+
+        response = client.get("/war-planner/static/profile-import.js")
 
         self.assertEqual(response.status_code, 200)
         self.assertIn("javascript", response.content_type)

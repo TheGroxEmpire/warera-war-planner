@@ -29,6 +29,34 @@
         </header>
         <div class="top-section">
             <form id="build-form">
+                <section id="warera-api-key-card" class="api-key-card" data-state="missing" aria-labelledby="warera-api-key-title">
+                    <div class="api-key-card-head">
+                        <div class="api-key-card-title">
+                            <span class="api-key-icon" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" fill="none"><path d="M12 3.5 19 6v5.2c0 4.5-2.8 7.7-7 9.3-4.2-1.6-7-4.8-7-9.3V6l7-2.5Z" stroke="currentColor" stroke-width="1.7"/><path d="m9.1 12 1.8 1.8 4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            </span>
+                            <div>
+                                <h2 id="warera-api-key-title">WarEra connection</h2>
+                                <p>One API key for War Planner and Economy Simulator. Find it in WarEra under Profile &rarr; Settings.</p>
+                            </div>
+                        </div>
+                        <span class="api-key-badge">Required</span>
+                    </div>
+                    <div class="api-key-controls">
+                        <div class="api-key-field">
+                            <label for="warera_api_key">WarEra API key</label>
+                            <span class="api-key-input-row">
+                                <input type="password" id="warera_api_key" name="warera_api_key" autocomplete="off" spellcheck="false" placeholder="Paste your key" aria-describedby="warera-api-key-status warera-api-key-privacy" required>
+                                <button type="button" id="warera-api-key-toggle" class="api-key-quiet-btn" aria-label="Show API key" aria-pressed="false">Show</button>
+                            </span>
+                        </div>
+                        <button type="button" id="warera-api-key-save" class="api-key-save-btn">Save API key</button>
+                        <button type="button" id="warera-api-key-clear" class="api-key-quiet-btn">Clear</button>
+                    </div>
+                    <p id="warera-api-key-status" class="api-key-status" role="status" aria-live="polite">An API key is required to refresh prices and optimize.</p>
+                    <p id="warera-api-key-privacy" class="api-key-privacy">Saved only in this browser for warera.xorgress.com, sent only to WarEra as <code>X-API-Key</code>, and never included in shared profiles or links.</p>
+                </section>
+
                 <div class="campaign-panel">
                     <div class="campaign-header">
                         <div>
@@ -154,6 +182,17 @@
                     <p id="war-skill-summary" class="campaign-status" role="status" aria-live="polite">Import an Economy Profile to calculate the war-mode skill reserve.</p>
                 </div>
 
+                <div class="build-parameters-header">
+                    <div>
+                        <h2>Build Parameters</h2>
+                        <p>Set these manually or import the latest public profile data from WarEra.</p>
+                    </div>
+                    <button type="button" id="import-profile-btn" class="import-profile-btn">
+                        <svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"></path></svg>
+                        Import Profile
+                    </button>
+                </div>
+
                 <!-- Row 1: sliders -->
                 <div class="form-sliders-row">
                     <div class="slider-container small">
@@ -186,12 +225,6 @@
 
                 <!-- Row 2: controls -->
                 <div class="form-controls-row">
-                    <div class="input-group api-key-group">
-                        <label for="warera_api_key">API Key</label>
-                        <input type="password" id="warera_api_key" name="warera_api_key" autocomplete="off" spellcheck="false" placeholder="Required" required>
-                        <span class="tooltip">Saved locally in this browser and used for market prices.</span>
-                    </div>
-
                     <div class="checkbox-wrapper">
                         <input type="checkbox" name="pill" id="pill">
                         <label for="pill">Pill</label>
@@ -255,6 +288,63 @@
         </div>
         <div id="results"></div>
     </div>
+
+    <dialog id="profile-import-dialog" class="profile-import-dialog" aria-labelledby="profile-import-title">
+        <div class="profile-import-shell">
+            <header class="profile-import-header">
+                <button type="button" id="profile-import-back" class="profile-import-back" aria-label="Back to player search" hidden>← Back</button>
+                <h2 id="profile-import-title">Import WarEra Profile</h2>
+                <button type="button" id="profile-import-close" class="profile-import-close" aria-label="Close profile import">✕</button>
+            </header>
+
+            <section id="profile-import-search-view">
+                <p class="profile-import-intro">Search for a player, then choose whether to import only level and rank or also replace pins with the current profile.</p>
+                <label class="profile-import-search-label" for="profile-import-search">Player username</label>
+                <input id="profile-import-search" class="profile-import-search" type="search" placeholder="Search username…" autocomplete="off" spellcheck="false">
+                <p id="profile-import-search-status" class="profile-import-status" role="status" aria-live="polite">Type at least 2 characters to search.</p>
+                <div id="profile-import-results" class="profile-import-results" aria-label="Player search results"></div>
+            </section>
+
+            <section id="profile-import-preview" hidden>
+                <div class="profile-import-player">
+                    <div id="profile-import-avatar-placeholder" class="profile-import-avatar-placeholder" aria-hidden="true">?</div>
+                    <img id="profile-import-avatar" class="profile-import-avatar" alt="" hidden>
+                    <div class="profile-import-player-copy">
+                        <strong id="profile-import-username">Player</strong>
+                        <span id="profile-import-level-badge">Level 1</span>
+                    </div>
+                </div>
+
+                <div class="profile-import-summary" aria-label="Profile values always imported">
+                    <span><small>Level</small><b id="profile-import-level">1</b></span>
+                    <span><small>Rank Bonus</small><b id="profile-import-rank">0%</b></span>
+                </div>
+                <p class="profile-import-always"><strong>Level and rank bonus are always imported.</strong> Unchecked pin sections stay unchanged.</p>
+
+                <div class="profile-import-options">
+                    <label class="profile-import-option">
+                        <input type="checkbox" id="profile-import-pin-skills" aria-describedby="profile-import-apply-status">
+                        <span><b>Pin current skills</b><small>Replace all nine combat skill pins with this profile’s current levels.</small></span>
+                    </label>
+                    <div id="profile-import-skills" class="profile-import-skills" hidden></div>
+
+                    <label class="profile-import-option">
+                        <input type="checkbox" id="profile-import-pin-loadout" aria-describedby="profile-import-loadout-status">
+                        <span><b>Pin current equipped loadout</b><small>Replace gear and ammo pins; empty slots become None. Unknown slots and food stay unchanged.</small></span>
+                    </label>
+                    <div id="profile-import-loadout" class="profile-import-loadout" hidden></div>
+                    <p id="profile-import-loadout-status" class="profile-import-status profile-import-error" role="status" aria-live="polite" hidden></p>
+                </div>
+
+                <p id="profile-import-apply-status" class="profile-import-status profile-import-error" role="alert" hidden></p>
+                <div class="profile-import-actions">
+                    <button type="button" id="profile-import-cancel" class="profile-import-cancel">Cancel</button>
+                    <button type="button" id="profile-import-apply" class="profile-import-apply">Import Profile</button>
+                </div>
+            </section>
+        </div>
+    </dialog>
+
     <script>
         window.WARERA_STATIC_BASE = {{ static_base|tojson }};
         window.WARERA_ASSET_BASE = {{ asset_base|tojson }};
@@ -264,6 +354,8 @@
     <script src="{{ static_base }}/optimizer-core.js?v={{ static_asset_version }}"></script>
     <script src="{{ static_base }}/browser-optimizer.js?v={{ static_asset_version }}"></script>
     <script src="{{ static_base }}/eco-engine.js?v={{ static_asset_version }}"></script>
+    <script src="{{ static_base }}/profile-import.js?v={{ static_asset_version }}"></script>
+    <script src="{{ static_base }}/api-key.js?v={{ static_asset_version }}"></script>
     <script src="{{ static_base }}/script.js?v={{ static_asset_version }}"></script>
 </body>
 </html>

@@ -5,6 +5,7 @@ const ASSET_VERSION = String(window.WARERA_ASSET_VERSION || "");
 const PIN_CONSTRAINTS_STORAGE_KEY = "wbt_constraints";
 const SAVED_SKILL_PINS_STORAGE_KEY = "wbt_saved_skill_sets";
 const SAVED_GEAR_PINS_STORAGE_KEY = "wbt_saved_gear_sets";
+const ECO_PROFILE_OPTIONS_STORAGE_KEY = "wbt_eco_profile_options_v1";
 
 function emptyPinnedConstraints() {
     return {
@@ -152,15 +153,25 @@ document.addEventListener("DOMContentLoaded", () => {
     const optimizeBtns = buildForm.querySelectorAll(".optimize-btn");
     const workersInput = document.getElementById("workers");
     const advancedConfig = document.getElementById("advanced-config");
-    const importEcoLinkBtn = document.getElementById("import-eco-link-btn");
-    const ecoExportUrlInput = document.getElementById("eco-export-url");
     const ecoImportStatus = document.getElementById("eco-import-status");
     const warSkillSummary = document.getElementById("war-skill-summary");
-    const ecoExportImportedInput = document.getElementById("eco_export_imported");
     const importedEcoProfitDay = document.getElementById("imported-eco-profit-day");
     const importedWarProfitDay = document.getElementById("imported-war-profit-day");
     const importedWarSkillPoints = document.getElementById("imported-war-skill-points");
+    const importedWarProfitDelta = document.getElementById("imported-war-profit-delta");
+    const importedActiveCompanies = document.getElementById("imported-active-companies");
+    const importedActiveWorkers = document.getElementById("imported-active-workers");
     const importedEconomySummary = document.getElementById("imported-economy-summary");
+    const ecoProfileCard = document.getElementById("eco-profile-card");
+    const ecoProfileAvatar = document.getElementById("eco-profile-avatar");
+    const ecoProfileName = document.getElementById("eco-profile-name");
+    const ecoProfileMeta = document.getElementById("eco-profile-meta");
+    const refreshEcoProfileBtn = document.getElementById("refresh-eco-profile-btn");
+    const warEconomyControls = document.getElementById("war-economy-controls");
+    const warCustomSkills = document.getElementById("war-custom-skills");
+    const warCompanyCount = document.getElementById("war-company-count");
+    const warCompanyList = document.getElementById("war-company-list");
+    const warIncludeWorkers = document.getElementById("war-include-workers");
     const constraintsPanel = document.getElementById("constraints-panel");
     const constraintSkillsGrid = document.getElementById("constraint-skills-grid");
     const constraintItemsGrid = document.getElementById("constraint-items-grid");
@@ -183,9 +194,13 @@ document.addEventListener("DOMContentLoaded", () => {
     let sortCol = null;
     let sortDir = 1;
     let currentObjective = 'damage';
-    let hasEcoSimulatorImport = false;
+    let hasEcoProfile = false;
     let importedEcoScenario = null;
     let importedWarScenario = null;
+    let activeEcoProfileEnvelope = null;
+    let activeEcoProfileOptions = null;
+    let ecoCalculationReady = true;
+    let ecoCalculationSequence = 0;
     let pinnedConstraints = loadPinnedConstraints();
     let pinsWithinBudget = true;
     let pinStatusTimer = null;
@@ -248,14 +263,19 @@ document.addEventListener("DOMContentLoaded", () => {
     buildForm.addEventListener("submit", async (event) => {
         event.preventDefault();
         updatePinBudget();
-        if (isOptimizing || !pinsWithinBudget) return;
+        if (isOptimizing || !pinsWithinBudget || !ecoCalculationReady) {
+            if (!ecoCalculationReady) {
+                resultsDiv.innerHTML = '<p class="error">Resolve the war-mode economy error before optimizing.</p>';
+            }
+            return;
+        }
 
         const submitter = event.submitter || buildForm.querySelector(".optimize-btn");
         if (!submitter) return;
         const data = new FormData(buildForm);
         const objective = submitter.value || 'damage';
         data.set('objective', objective);
-        data.set('eco_export_imported', hasEcoSimulatorImport ? '1' : '0');
+        data.set('eco_profile_imported', hasEcoProfile ? '1' : '0');
         data.set('eco_profit_day', getFormControlValue('eco_profit_day', '0'));
         data.set('war_profit_day', getFormControlValue('war_profit_day', '0'));
         data.set('eco_days', getFormControlValue('eco_days', '0'));
@@ -512,7 +532,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function updateOptimizeButtonState() {
         optimizeBtns.forEach((button) => {
-            button.disabled = isOptimizing || !pinsWithinBudget;
+            button.disabled = isOptimizing || !pinsWithinBudget || !ecoCalculationReady;
         });
     }
 
@@ -759,94 +779,344 @@ document.addEventListener("DOMContentLoaded", () => {
         return JSON.parse(new TextDecoder().decode(base64UrlToBytes(raw)));
     }
 
-    function extractExportPayloadValue(rawValue) {
-        const raw = String(rawValue || "").trim();
-        if (!raw) throw new Error("Paste the Eco Simulator export link first.");
-
-        let url = null;
-        try {
-            url = new URL(raw);
-        } catch {
-            return raw;
-        }
-        const plannerExport = url.searchParams.get("wareraPlannerExport") || url.searchParams.get("eco");
-        if (plannerExport) return plannerExport;
-        if (url.searchParams.has("wareraEcoConfig")) {
-            throw new Error("Paste the War Planner Export link, not the Share Simulation Configuration link.");
-        }
-        return raw;
+    function setEcoProfileState(imported) {
+        hasEcoProfile = Boolean(imported);
     }
 
-    function normalizeScenario(rawScenario) {
-        if (!rawScenario || typeof rawScenario !== "object") return null;
-        const skillLevels = rawScenario.skillLevels && typeof rawScenario.skillLevels === "object"
-            ? rawScenario.skillLevels
-            : {};
+    function ecoProfileEngine() {
+        if (!window.WareraEcoEngine) {
+            throw new Error("The economy profile adapter did not load. Refresh the page and try again.");
+        }
+        return window.WareraEcoEngine;
+    }
+
+    function profileOptionDefaults(profile) {
+        const companyCapacity = Math.min(profile.companyConfigs.length, 2 + profile.alloc.companies);
         return {
-            level: Math.max(1, Math.floor(Number(rawScenario.level) || 1)),
-            profitDay: Number(rawScenario.profitDay) || 0,
-            profitHour: Number(rawScenario.profitHour) || 0,
-            companiesActive: Math.max(0, Math.floor(Number(rawScenario.companiesActive) || 0)),
-            companiesConfigured: Math.max(0, Math.floor(Number(rawScenario.companiesConfigured) || 0)),
-            reservedSkillPoints: Math.max(0, Math.floor(Number(rawScenario.reservedSkillPoints) || 0)),
-            skillLevels: {
-                energy: Math.max(0, Math.floor(Number(skillLevels.energy) || 0)),
-                entrepreneurship: Math.max(0, Math.floor(Number(skillLevels.entrepreneurship) || 0)),
-                production: Math.max(0, Math.floor(Number(skillLevels.production) || 0)),
-                companies: Math.max(0, Math.floor(Number(skillLevels.companies) || 0)),
-                management: Math.max(0, Math.floor(Number(skillLevels.management) || 0)),
-            },
-            user: rawScenario.user && typeof rawScenario.user === "object" ? rawScenario.user : null,
+            signature: activeEcoProfileEnvelope?.generatedAt || profile.savedAt || "",
+            mode: "minimum",
+            companyCount: companyCapacity,
+            activeCompanyIds: profile.companyConfigs.slice(0, companyCapacity).map((company) => company.id),
+            includeWorkers: true,
+            customSkills: { ...profile.alloc },
         };
     }
 
-    async function parseEcoSimulatorExport(rawValue) {
-        const encoded = extractExportPayloadValue(rawValue);
-        const payload = await decodeBase64UrlJson(encoded);
-        if (!payload || payload.source !== "warera-eco-simulator" || !payload.scenarios) {
-            throw new Error("That link is not a WarEra Eco Simulator export.");
-        }
-        return {
-            eco: normalizeScenario(payload.scenarios.eco),
-            war: normalizeScenario(payload.scenarios.war),
-            generatedAt: payload.generatedAt || null,
-        };
-    }
-
-    function setEcoSimulatorImportState(imported) {
-        hasEcoSimulatorImport = Boolean(imported);
-        if (ecoExportImportedInput) {
-            ecoExportImportedInput.value = hasEcoSimulatorImport ? "1" : "0";
-        }
-    }
-
-    function importStatusText(imported, restored = false) {
-        const userLabel = imported?.war?.user?.username || imported?.eco?.user?.username || "";
-        const generatedLabel = imported?.generatedAt ? ` Exported ${new Date(imported.generatedAt).toLocaleString()}.` : "";
-        const prefix = restored ? "Restored" : "Imported";
-        return `${prefix} ${userLabel ? `${userLabel}'s ` : ""}eco and war factory config.${generatedLabel}`;
-    }
-
-    function saveImportedExport(imported) {
-        localStorage.setItem("wbt_eco_import_payload", JSON.stringify(imported));
-    }
-
-    function restoreImportedExport() {
-        const raw = localStorage.getItem("wbt_eco_import_payload");
-        if (!raw) return null;
+    function restoreEcoProfileOptions(profile) {
+        const defaults = profileOptionDefaults(profile);
         try {
-            const parsed = JSON.parse(raw);
+            const parsed = JSON.parse(localStorage.getItem(ECO_PROFILE_OPTIONS_STORAGE_KEY) || "null");
+            if (!parsed || parsed.signature !== defaults.signature) return defaults;
+            const knownIds = new Set(profile.companyConfigs.map((company) => company.id));
+            const selectedIds = Array.isArray(parsed.activeCompanyIds)
+                ? parsed.activeCompanyIds.map(Number).filter((id, index, values) => knownIds.has(id) && values.indexOf(id) === index)
+                : defaults.activeCompanyIds;
             return {
-                eco: normalizeScenario(parsed.eco),
-                war: normalizeScenario(parsed.war),
-                generatedAt: parsed.generatedAt || null,
+                signature: defaults.signature,
+                mode: ["minimum", "current", "custom"].includes(parsed.mode) ? parsed.mode : defaults.mode,
+                companyCount: selectedIds.length,
+                activeCompanyIds: selectedIds,
+                includeWorkers: parsed.includeWorkers !== false,
+                customSkills: Object.fromEntries(ecoProfileEngine().SKILL_KEYS.map((key) => [
+                    key,
+                    Math.min(10, Math.max(0, Math.floor(Number(parsed.customSkills?.[key] ?? profile.alloc[key]) || 0))),
+                ])),
             };
-        } catch {
-            return null;
+        } catch (error) {
+            console.warn("Could not restore war economy controls.", error);
+            return defaults;
         }
     }
 
-    function applyImportedDerivedFields(imported, dispatchEvents = false) {
+    function selectedWarCompanyIds() {
+        if (!warCompanyList) return [];
+        return Array.from(warCompanyList.querySelectorAll('input[type="checkbox"]:checked'))
+            .map((input) => Number(input.value))
+            .filter(Number.isFinite);
+    }
+
+    function currentWarEcoMode() {
+        return buildForm.querySelector('input[name="war_eco_mode"]:checked')?.value || "minimum";
+    }
+
+    function readEcoProfileOptions() {
+        const profile = activeEcoProfileEnvelope?.profile;
+        if (!profile) return null;
+        const customSkills = Object.fromEntries(ecoProfileEngine().SKILL_KEYS.map((key) => [
+            key,
+            parseNumericInput(`war-skill-${key}`, profile.alloc[key]),
+        ]));
+        const activeCompanyIds = selectedWarCompanyIds();
+        return {
+            signature: activeEcoProfileEnvelope.generatedAt || profile.savedAt || "",
+            mode: currentWarEcoMode(),
+            companyCount: activeCompanyIds.length,
+            activeCompanyIds,
+            includeWorkers: getFormControlChecked("war-include-workers", true),
+            customSkills,
+        };
+    }
+
+    function persistEcoProfileOptions(options) {
+        if (!options) return;
+        try {
+            localStorage.setItem(ECO_PROFILE_OPTIONS_STORAGE_KEY, JSON.stringify(options));
+        } catch (error) {
+            console.warn("Could not save war economy controls.", error);
+        }
+    }
+
+    function humanizeMaterial(value) {
+        return String(value || "company").replace(/_/g, " ");
+    }
+
+    function renderWarCompanyChoices(profile, selectedIds) {
+        if (!warCompanyList) return;
+        const selected = new Set(selectedIds.map(Number));
+        warCompanyList.innerHTML = profile.companyConfigs.map((company, index) => {
+            const workerCount = Array.isArray(company.workers) ? company.workers.length : 0;
+            return `<label class="war-company-option">
+                <input type="checkbox" value="${company.id}"${selected.has(company.id) ? " checked" : ""}>
+                <span><b>${escapeHtml(humanizeMaterial(company.specialization))} #${index + 1}</b><small>AE ${company.aeLevel} · ${workerCount} worker${workerCount === 1 ? "" : "s"}</small></span>
+            </label>`;
+        }).join("");
+    }
+
+    function applyEcoProfileOptionsToControls(profile, options) {
+        const modeInput = buildForm.querySelector(`input[name="war_eco_mode"][value="${options.mode}"]`);
+        if (modeInput) modeInput.checked = true;
+        setFormControlChecked("war-include-workers", options.includeWorkers);
+        for (const key of ecoProfileEngine().SKILL_KEYS) {
+            setFormControlValue(`war-skill-${key}`, options.customSkills[key]);
+        }
+        renderWarCompanyChoices(profile, options.activeCompanyIds);
+        if (warCompanyCount) {
+            warCompanyCount.max = String(profile.companyConfigs.length);
+            warCompanyCount.value = String(options.activeCompanyIds.length);
+        }
+        updateWarModeControlVisibility();
+    }
+
+    function updateWarModeControlVisibility() {
+        if (warCustomSkills) warCustomSkills.hidden = currentWarEcoMode() !== "custom";
+    }
+
+    function applyRequestedCompanyCount() {
+        if (!warCompanyList || !activeEcoProfileEnvelope) return;
+        const checkboxes = Array.from(warCompanyList.querySelectorAll('input[type="checkbox"]'));
+        const requested = Math.min(checkboxes.length, Math.max(0, Math.floor(parseNumericInput("war-company-count", 0))));
+        let selected = checkboxes.filter((input) => input.checked);
+        if (selected.length > requested) {
+            selected.slice(requested).forEach((input) => { input.checked = false; });
+        } else if (selected.length < requested) {
+            for (const input of checkboxes) {
+                if (!input.checked) {
+                    input.checked = true;
+                    selected.push(input);
+                }
+                if (selected.length >= requested) break;
+            }
+        }
+        if (warCompanyCount) warCompanyCount.value = String(selectedWarCompanyIds().length);
+    }
+
+    function formatProfileDate(value) {
+        if (!value) return "";
+        const date = new Date(value);
+        return Number.isFinite(date.getTime()) ? date.toLocaleString() : "";
+    }
+
+    function renderEcoProfileCard(envelope) {
+        const profile = envelope.profile;
+        const username = profile.importMeta?.user?.username || "Economy profile";
+        const workerCount = profile.companyConfigs.reduce((sum, company) => sum + company.workers.length, 0);
+        const priceTime = profile.syncMeta?.pricesSyncedAt || profile.savedAt || envelope.generatedAt;
+        if (ecoProfileCard) ecoProfileCard.hidden = false;
+        if (warEconomyControls) warEconomyControls.hidden = false;
+        if (ecoProfileName) ecoProfileName.textContent = username;
+        if (ecoProfileAvatar) ecoProfileAvatar.textContent = username.trim().charAt(0).toUpperCase() || "E";
+        if (ecoProfileMeta) {
+            const refreshed = formatProfileDate(priceTime);
+            ecoProfileMeta.textContent = `${profile.companyConfigs.length} companies · ${workerCount} workers${refreshed ? ` · prices ${refreshed}` : ""}`;
+        }
+    }
+
+    function hideEcoProfileControls() {
+        if (ecoProfileCard) ecoProfileCard.hidden = true;
+        if (warEconomyControls) warEconomyControls.hidden = true;
+    }
+
+    function profileScenario(profile, result) {
+        const skillLevels = result?.skillLevels && typeof result.skillLevels === "object"
+            ? result.skillLevels
+            : profile.alloc;
+        return normalizeScenario({
+            level: profile.config.level,
+            profitDay: result?.netProfitDay,
+            profitHour: result?.netProfitHour,
+            companiesActive: result?.companiesActive,
+            companiesConfigured: result?.configuredCompanies,
+            employeesActive: result?.employeesActive,
+            reservedSkillPoints: result?.totalSpentPoints,
+            skillLevels,
+            user: profile.importMeta?.user || null,
+        });
+    }
+
+    function setEcoCalculationReady(ready) {
+        ecoCalculationReady = Boolean(ready);
+        updateOptimizeButtonState();
+    }
+
+    async function recalculateProfileEconomy() {
+        const envelope = activeEcoProfileEnvelope;
+        if (!envelope) return;
+        const sequence = ++ecoCalculationSequence;
+        const options = readEcoProfileOptions();
+        activeEcoProfileOptions = options;
+        persistEcoProfileOptions(options);
+        setEcoCalculationReady(false);
+        if (warSkillSummary) {
+            warSkillSummary.textContent = "Calculating war-mode economy…";
+            warSkillSummary.classList.remove("imported");
+        }
+
+        try {
+            const calculation = await ecoProfileEngine().calculateWarMode(envelope.profile, options);
+            if (sequence !== ecoCalculationSequence || envelope !== activeEcoProfileEnvelope) return;
+            if (!calculation?.normal || !calculation?.war) {
+                throw new Error("Eco Simulator returned an incomplete calculation.");
+            }
+            importedEcoScenario = profileScenario(envelope.profile, calculation.normal);
+            importedWarScenario = profileScenario(envelope.profile, calculation.war);
+            applyProfileDerivedFields({ eco: importedEcoScenario, war: importedWarScenario });
+            updateImportedEconomySummary();
+            saveFormState();
+            updatePinBudget();
+
+            const normalRequiredPoints = Math.max(0, Math.floor(Number(calculation.normal.totalSpentPoints) || 0));
+            const requiredPoints = Math.max(0, Math.floor(Number(calculation.war.totalSpentPoints) || 0));
+            const availablePoints = envelope.profile.config.level * 4;
+            if (calculation.normal.isAllocationValid === false || normalRequiredPoints > availablePoints) {
+                setEcoCalculationReady(false);
+                if (warSkillSummary) {
+                    warSkillSummary.textContent = `The imported eco profile needs ${normalRequiredPoints} SP, but level ${envelope.profile.config.level} provides ${availablePoints}. Fix the profile in Eco Simulator before optimizing.`;
+                    warSkillSummary.classList.remove("imported");
+                }
+                return;
+            }
+            if (calculation.war.isAllocationValid === false || requiredPoints > availablePoints) {
+                setEcoCalculationReady(false);
+                if (warSkillSummary) {
+                    warSkillSummary.textContent = `This war eco setup needs ${requiredPoints} SP, but level ${envelope.profile.config.level} provides ${availablePoints}. Lower one or more eco skills before optimizing.`;
+                    warSkillSummary.classList.remove("imported");
+                }
+                return;
+            }
+
+            setEcoCalculationReady(true);
+            updateWarSkillSummary(importedWarScenario);
+        } catch (error) {
+            if (sequence !== ecoCalculationSequence || envelope !== activeEcoProfileEnvelope) return;
+            setEcoCalculationReady(false);
+            if (warSkillSummary) {
+                warSkillSummary.textContent = error.message || "Could not calculate the war-mode economy.";
+                warSkillSummary.classList.remove("imported");
+            }
+        }
+    }
+
+    function saveCanonicalEcoProfile(envelope) {
+        try {
+            localStorage.setItem(ecoProfileEngine().STORAGE_KEY, JSON.stringify(envelope));
+        } catch (error) {
+            console.warn("Could not save the economy profile.", error);
+        }
+    }
+
+    async function applyEcoProfileEnvelope(rawEnvelope, restored = false) {
+        const envelope = ecoProfileEngine().normalizeEnvelope(rawEnvelope);
+        activeEcoProfileEnvelope = envelope;
+        importedEcoScenario = null;
+        importedWarScenario = null;
+        setEcoProfileState(true);
+        saveCanonicalEcoProfile(envelope);
+        renderEcoProfileCard(envelope);
+        activeEcoProfileOptions = restoreEcoProfileOptions(envelope.profile);
+        applyEcoProfileOptionsToControls(envelope.profile, activeEcoProfileOptions);
+        setSliderPair("level", envelope.profile.config.level);
+        if (ecoImportStatus) {
+            const username = envelope.profile.importMeta?.user?.username;
+            ecoImportStatus.textContent = `${restored ? "Restored" : "Imported"}${username ? ` ${username}'s` : ""} economy profile. War-mode changes recalculate with Eco Simulator.`;
+            ecoImportStatus.classList.add("imported");
+        }
+        await recalculateProfileEconomy();
+    }
+
+    async function decodeDirectEcoProfile(value) {
+        const raw = String(value || "").trim();
+        if (!raw) throw new Error("The economy profile handoff is empty.");
+        if (raw.startsWith("{")) return JSON.parse(raw);
+        return decodeBase64UrlJson(raw);
+    }
+
+    function removeEcoProfileQueryParam() {
+        if (!window.location || !window.history?.replaceState) return;
+        const url = new URL(window.location.href);
+        if (!url.searchParams.has("ecoProfile")) return;
+        url.searchParams.delete("ecoProfile");
+        window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+    }
+
+    async function initializeEcoProfileHandoff() {
+        const handoff = new URL(window.location.href).searchParams.get("ecoProfile");
+        if (handoff) setEcoCalculationReady(false);
+        try {
+            let rawEnvelope;
+            if (handoff && handoff !== "latest") {
+                rawEnvelope = await decodeDirectEcoProfile(handoff);
+            } else {
+                const stored = localStorage.getItem(ecoProfileEngine().STORAGE_KEY);
+                if (!stored) {
+                    if (handoff === "latest") throw new Error("Eco Simulator did not leave an economy profile in this browser.");
+                    return;
+                }
+                rawEnvelope = stored;
+            }
+            await applyEcoProfileEnvelope(rawEnvelope, !handoff);
+            if (handoff) removeEcoProfileQueryParam();
+        } catch (error) {
+            if (handoff) removeEcoProfileQueryParam();
+            activeEcoProfileEnvelope = null;
+            activeEcoProfileOptions = null;
+            importedEcoScenario = null;
+            importedWarScenario = null;
+            hideEcoProfileControls();
+            setEcoProfileState(false);
+            setEcoCalculationReady(true);
+            updateImportedEconomySummary();
+            updateWarSkillSummary(null);
+            if (ecoImportStatus) {
+                ecoImportStatus.textContent = error.message || "Could not load the economy profile.";
+                ecoImportStatus.classList.remove("imported");
+            }
+        }
+    }
+
+    async function refreshEcoProfile() {
+        try {
+            const stored = localStorage.getItem(ecoProfileEngine().STORAGE_KEY);
+            if (!stored) throw new Error("No economy profile is saved. Open Eco Simulator and choose Use in War Planner.");
+            await applyEcoProfileEnvelope(stored);
+        } catch (error) {
+            if (ecoImportStatus) {
+                ecoImportStatus.textContent = error.message || "Could not refresh the economy profile.";
+                ecoImportStatus.classList.remove("imported");
+            }
+        }
+    }
+
+    function applyProfileDerivedFields(imported, dispatchEvents = false) {
         const setValue = dispatchEvents ? setInputValue : setFormControlValue;
         if (imported?.eco) setValue("eco_profit_day", imported.eco.profitDay.toFixed(2));
         if (imported?.war) {
@@ -859,16 +1129,24 @@ document.addEventListener("DOMContentLoaded", () => {
         const ecoProfitDay = importedEcoScenario ? importedEcoScenario.profitDay : parseNumericInput("eco_profit_day", 0);
         const warProfitDay = importedWarScenario ? importedWarScenario.profitDay : parseNumericInput("war_profit_day", 0);
         const reservedSkillPoints = importedWarScenario ? importedWarScenario.reservedSkillPoints : parseNumericInput("reserved_skill_points", 0);
+        const profitDelta = warProfitDay - ecoProfitDay;
         if (importedEcoProfitDay) importedEcoProfitDay.textContent = formatMoney(ecoProfitDay);
         if (importedWarProfitDay) importedWarProfitDay.textContent = formatMoney(warProfitDay);
+        if (importedWarProfitDelta) {
+            importedWarProfitDelta.textContent = `${profitDelta > 0 ? "+" : ""}${formatMoney(profitDelta)}`;
+            importedWarProfitDelta.classList.toggle("negative", profitDelta < 0);
+            importedWarProfitDelta.classList.toggle("positive", profitDelta > 0);
+        }
         if (importedWarSkillPoints) importedWarSkillPoints.textContent = String(Math.max(0, Math.floor(reservedSkillPoints)));
-        if (importedEconomySummary) importedEconomySummary.classList.toggle("imported", hasEcoSimulatorImport);
+        if (importedActiveCompanies) importedActiveCompanies.textContent = String(importedWarScenario?.companiesActive || 0);
+        if (importedActiveWorkers) importedActiveWorkers.textContent = String(importedWarScenario?.employeesActive || 0);
+        if (importedEconomySummary) importedEconomySummary.classList.toggle("imported", hasEcoProfile);
     }
 
     function updateWarSkillSummary(warScenario) {
-        if (!hasEcoSimulatorImport) {
+        if (!hasEcoProfile) {
             if (warSkillSummary) {
-                warSkillSummary.textContent = "Eco profit, war profit, and war eco skill points will be filled from Eco Simulator's War Planner Export.";
+                warSkillSummary.textContent = "Import an Economy Profile to calculate eco profit, war profit, and reserved eco skill points.";
                 warSkillSummary.classList.remove("imported");
             }
             updateImportedEconomySummary();
@@ -878,42 +1156,13 @@ document.addEventListener("DOMContentLoaded", () => {
         const companiesLevel = warScenario?.skillLevels?.companies || 0;
         const managementLevel = warScenario?.skillLevels?.management || 0;
         const activeCompanies = warScenario?.companiesActive || 0;
-        const text = `War eco skills reserve ${reserved} skill points before combat optimization. Companies skill ${companiesLevel}, management skill ${managementLevel}, active war companies ${activeCompanies}.`;
+        const activeWorkers = warScenario?.employeesActive || 0;
+        const text = `War mode reserves ${reserved} skill points before combat optimization. Companies ${companiesLevel}, Management ${managementLevel}; ${activeCompanies} companies and ${activeWorkers} workers are active.`;
         if (warSkillSummary) {
             warSkillSummary.textContent = text;
             warSkillSummary.classList.toggle("imported", reserved > 0);
         }
         updateImportedEconomySummary();
-    }
-
-    async function importEcoSimulatorLink() {
-        try {
-            const imported = await parseEcoSimulatorExport(getFormControlValue("eco-export-url"));
-            if (!imported.eco && !imported.war) {
-                throw new Error("The export does not include eco or war scenario data.");
-            }
-
-            setEcoSimulatorImportState(true);
-            importedEcoScenario = imported.eco || null;
-            importedWarScenario = imported.war || null;
-            const level = imported.war?.level || imported.eco?.level;
-            if (level) setSliderPair("level", level);
-            applyImportedDerivedFields(imported, true);
-
-            saveImportedExport(imported);
-            saveFormState();
-            updateWarSkillSummary(importedWarScenario);
-
-            if (ecoImportStatus) {
-                ecoImportStatus.textContent = importStatusText(imported);
-                ecoImportStatus.classList.add("imported");
-            }
-        } catch (error) {
-            if (ecoImportStatus) {
-                ecoImportStatus.textContent = error.message || "Could not import that export link.";
-                ecoImportStatus.classList.remove("imported");
-            }
-        }
     }
 
     function getCampaignSettings() {
@@ -946,7 +1195,7 @@ document.addEventListener("DOMContentLoaded", () => {
             ecoBudget,
             warIncome,
             totalBudget,
-            active: hasEcoSimulatorImport && (ecoDays > 0 || warDays > 0),
+            active: hasEcoProfile && (ecoDays > 0 || warDays > 0),
         };
     }
 
@@ -1235,7 +1484,6 @@ document.addEventListener("DOMContentLoaded", () => {
             ['wbt_battle_bonus', 'battle_bonus-input'],
             ['wbt_warera_api_key', 'warera_api_key'],
             ['wbt_workers', 'workers'],
-            ['wbt_eco_export_url', 'eco-export-url'],
             ['wbt_eco_days', 'eco_days'],
             ['wbt_war_days', 'war_days'],
             ['wbt_stockpiled_money', 'stockpiled_money'],
@@ -1256,7 +1504,6 @@ document.addEventListener("DOMContentLoaded", () => {
             const input = getFormControl(inputId);
             if (input) localStorage.setItem(storageKey, input.checked);
         });
-        localStorage.setItem('wbt_eco_export_imported', hasEcoSimulatorImport ? 'true' : 'false');
         if (advancedConfig) localStorage.setItem('wbt_advanced_open', advancedConfig.open);
     }
 
@@ -1281,9 +1528,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const apiKey = localStorage.getItem('wbt_warera_api_key');
         if (apiKey) setFormControlValue('warera_api_key', apiKey);
-
-        const ecoExportUrl = localStorage.getItem('wbt_eco_export_url');
-        if (ecoExportUrl) setFormControlValue('eco-export-url', ecoExportUrl);
 
         const pill = localStorage.getItem('wbt_pill');
         if (pill !== null) setFormControlChecked('pill', pill === 'true');
@@ -1313,17 +1557,6 @@ document.addEventListener("DOMContentLoaded", () => {
             const input = getFormControl(inputId);
             if (value !== null && input) input.value = value;
         });
-        setEcoSimulatorImportState(localStorage.getItem('wbt_eco_export_imported') === 'true');
-        if (hasEcoSimulatorImport) {
-            const restoredImport = restoreImportedExport();
-            importedEcoScenario = restoredImport?.eco || null;
-            importedWarScenario = restoredImport?.war || null;
-            applyImportedDerivedFields(restoredImport);
-            if (restoredImport && ecoImportStatus) {
-                ecoImportStatus.textContent = importStatusText(restoredImport, true);
-                ecoImportStatus.classList.add("imported");
-            }
-        }
         updateImportedEconomySummary();
 
         const advancedOpen = localStorage.getItem('wbt_advanced_open');
@@ -1351,16 +1584,32 @@ document.addEventListener("DOMContentLoaded", () => {
     buildForm.addEventListener('input', saveFormState);
     buildForm.addEventListener('change', saveFormState);
     buildForm.addEventListener('input', updateAdvancedPlaceholders);
-    buildForm.addEventListener('input', () => updateWarSkillSummary(importedWarScenario));
+    buildForm.addEventListener('input', () => {
+        if (!activeEcoProfileEnvelope) updateWarSkillSummary(importedWarScenario);
+    });
     buildForm.addEventListener('input', updatePinBudget);
-    if (importEcoLinkBtn && ecoExportUrlInput) {
-        importEcoLinkBtn.addEventListener('click', importEcoSimulatorLink);
-        ecoExportUrlInput.addEventListener('keydown', (event) => {
-            if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
-                importEcoSimulatorLink();
+    if (refreshEcoProfileBtn) {
+        refreshEcoProfileBtn.addEventListener("click", refreshEcoProfile);
+    }
+    if (warEconomyControls) {
+        warEconomyControls.addEventListener("input", (event) => {
+            if (!activeEcoProfileEnvelope) return;
+            if (event.target === warCompanyCount) {
+                applyRequestedCompanyCount();
+            } else if (event.target.closest?.("#war-company-list") && warCompanyCount) {
+                warCompanyCount.value = String(selectedWarCompanyIds().length);
             }
+            updateWarModeControlVisibility();
+            recalculateProfileEconomy();
         });
     }
+    window.addEventListener("storage", (event) => {
+        if (event.key === window.WareraEcoEngine?.STORAGE_KEY && event.newValue) {
+            applyEcoProfileEnvelope(event.newValue, true).catch((error) => {
+                console.warn("Could not apply the updated economy profile.", error);
+            });
+        }
+    });
     if (advancedConfig) {
         advancedConfig.addEventListener('toggle', saveFormState);
     }
@@ -1370,6 +1619,7 @@ document.addEventListener("DOMContentLoaded", () => {
     updateWarSkillSummary(importedWarScenario);
     updatePinBudget();
     updateAdvancedPlaceholders();
+    initializeEcoProfileHandoff();
 
 
     // --- Render Builds ---

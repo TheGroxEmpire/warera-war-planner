@@ -20,11 +20,16 @@ class AppFactoryTest(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn("Warera War Planner", response.get_data(as_text=True))
-        self.assertIn("Eco Simulator Import", response.get_data(as_text=True))
-        self.assertIn("War Planner Export", response.get_data(as_text=True))
+        self.assertIn("Economy Profile", response.get_data(as_text=True))
+        self.assertIn("War Mode Economy", response.get_data(as_text=True))
+        self.assertIn("Minimum SP", response.get_data(as_text=True))
+        self.assertIn('id="war-company-count"', response.get_data(as_text=True))
+        self.assertIn('id="war-company-list"', response.get_data(as_text=True))
+        self.assertNotIn("Legacy Eco Simulator Import", response.get_data(as_text=True))
+        self.assertNotIn("War Planner Export", response.get_data(as_text=True))
         self.assertIn('target="_blank"', response.get_data(as_text=True))
         self.assertIn("reserved_skill_points", response.get_data(as_text=True))
-        self.assertIn("eco_export_imported", response.get_data(as_text=True))
+        self.assertNotIn("eco_export_imported", response.get_data(as_text=True))
         self.assertIn("stockpiled_money", response.get_data(as_text=True))
         self.assertIn("Added to the eco stockpile before the first simulated war day.", response.get_data(as_text=True))
         self.assertIn("bounty_per_1k_damage", response.get_data(as_text=True))
@@ -51,6 +56,7 @@ class AppFactoryTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         text = response.get_data(as_text=True)
         self.assertIn('href="/war-planner/static/style.css?v=', text)
+        self.assertIn('src="/war-planner/static/eco-engine.js?v=', text)
         self.assertIn('src="/war-planner/static/script.js?v=', text)
         self.assertIn('window.WARERA_ASSET_BASE = "/war-planner/assets"', text)
 
@@ -80,6 +86,12 @@ class AppFactoryTest(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn("text/css", response.content_type)
+        response.close()
+
+        response = client.get("/war-planner/static/eco-engine.js")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("javascript", response.content_type)
         response.close()
 
     def test_prefixed_asset_is_served(self):

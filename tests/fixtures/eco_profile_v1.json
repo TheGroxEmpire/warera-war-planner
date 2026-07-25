@@ -1,0 +1,171 @@
+{
+  "v": 1,
+  "source": "warera-eco-simulator-profile",
+  "generatedAt": "2026-07-24T12:34:56.000Z",
+  "profile": {
+    "savedAt": "2026-07-24T12:30:00.000Z",
+    "config": {
+      "level": 20,
+      "workUsage": 100,
+      "entreUsage": 100,
+      "companyUtilization": 100,
+      "ownWage": 0.13,
+      "ignoreDepositBonuses": false,
+      "entrePlanSlots": [101, 102, 103, 104, 105],
+      "objective": "netProfitDay"
+    },
+    "alloc": {
+      "energy": 2,
+      "entrepreneurship": 1,
+      "production": 3,
+      "companies": 3,
+      "management": 2
+    },
+    "prices": {
+      "limestone": 1.1,
+      "iron": 2,
+      "petroleum": 1,
+      "wood": 1,
+      "concrete": 14,
+      "steel": 25,
+      "oil": 2,
+      "paper": 2,
+      "grain": 1,
+      "livestock": 18,
+      "fish": 35,
+      "bread": 12,
+      "steak": 24,
+      "cooked_fish": 42,
+      "lead": 1.2,
+      "light_ammo": 1.6,
+      "ammo": 6,
+      "heavy_ammo": 22,
+      "mysterious_plant": 1,
+      "pill": 260
+    },
+    "materialProductionBonuses": {
+      "iron": 10,
+      "steel": 20,
+      "bread": 5,
+      "light_ammo": 15,
+      "heavy_ammo": 25
+    },
+    "companyConfigs": [
+      {
+        "id": 101,
+        "specialization": "iron",
+        "aeLevel": 2,
+        "productionBonusPct": 10,
+        "manualActionsPer10h": 1,
+        "wagePerPP": 0.13,
+        "workers": [
+          {
+            "productionPerAction": 31,
+            "energyPer10h": 100,
+            "wagePerPP": 0.12,
+            "fidelityPct": 5
+          },
+          {
+            "productionPerAction": 28,
+            "energyPer10h": 90,
+            "wagePerPP": 0.11,
+            "fidelityPct": 2
+          }
+        ]
+      },
+      {
+        "id": 102,
+        "specialization": "steel",
+        "aeLevel": 3,
+        "productionBonusPct": 20,
+        "manualActionsPer10h": 1,
+        "wagePerPP": 0.14,
+        "workers": [
+          {
+            "productionPerAction": 30,
+            "energyPer10h": 100,
+            "wagePerPP": 0.13,
+            "fidelityPct": 3
+          },
+          {
+            "productionPerAction": 29,
+            "energyPer10h": 95,
+            "wagePerPP": 0.12,
+            "fidelityPct": 1
+          }
+        ]
+      },
+      {
+        "id": 103,
+        "specialization": "bread",
+        "aeLevel": 1,
+        "productionBonusPct": 5,
+        "manualActionsPer10h": 1,
+        "wagePerPP": 0.13,
+        "workers": [
+          {
+            "productionPerAction": 27,
+            "energyPer10h": 90,
+            "wagePerPP": 0.1,
+            "fidelityPct": 0
+          },
+          {
+            "productionPerAction": 26,
+            "energyPer10h": 85,
+            "wagePerPP": 0.1,
+            "fidelityPct": 0
+          }
+        ]
+      },
+      {
+        "id": 104,
+        "specialization": "light_ammo",
+        "aeLevel": 4,
+        "productionBonusPct": 15,
+        "manualActionsPer10h": 1,
+        "wagePerPP": 0.15,
+        "workers": [
+          {
+            "productionPerAction": 35,
+            "energyPer10h": 100,
+            "wagePerPP": 0.14,
+            "fidelityPct": 8
+          },
+          {
+            "productionPerAction": 32,
+            "energyPer10h": 100,
+            "wagePerPP": 0.13,
+            "fidelityPct": 4
+          }
+        ]
+      },
+      {
+        "id": 105,
+        "specialization": "heavy_ammo",
+        "aeLevel": 5,
+        "productionBonusPct": 25,
+        "manualActionsPer10h": 1,
+        "wagePerPP": 0.16,
+        "workers": [
+          {
+            "productionPerAction": 36,
+            "energyPer10h": 100,
+            "wagePerPP": 0.15,
+            "fidelityPct": 10
+          }
+        ]
+      }
+    ],
+    "hasCompanyConfigs": true,
+    "importMeta": {
+      "user": {
+        "id": "user-42",
+        "username": "FixtureCommander"
+      }
+    },
+    "syncMeta": {
+      "pricesSyncedAt": "2026-07-24T12:20:00.000Z",
+      "bonusesSyncedAt": "2026-07-24T12:25:00.000Z"
+    }
+  }
+}

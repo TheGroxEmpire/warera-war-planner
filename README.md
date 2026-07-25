@@ -6,6 +6,12 @@ The optimizer runs entirely in the browser. It uses Web Workers to split a deter
 
 Skills, gear, ammo, and food can be pinned before a run so the optimizer only changes slots left on **Any**. A result card can also be copied back with **Pin Full Build**. Current pins and named skill/gear sets are stored locally in the browser.
 
+## Economy Profile Integration
+
+The Eco Simulator's **Use in War Planner** action saves its active scenario as a credential-free `EcoProfileV1` profile and opens the planner with `?ecoProfile=latest`. Both tools are served from the same origin, so the handoff stays in browser storage and never includes the WarEra API token.
+
+War Planner recalculates the imported profile with the Eco Simulator's shared browser engine. War mode supports minimum required eco skills, the imported skill allocation, or custom eco skills, along with explicit company selection and optional workers. The resulting daily profit and eco skill-point reserve feed the existing campaign and combat optimizer.
+
 ## Configuration
 
 Runtime configuration is read from environment variables. Start from the sample file:

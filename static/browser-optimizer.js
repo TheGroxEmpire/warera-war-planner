@@ -91,7 +91,7 @@
         if (pinnedSkillCost > availableSkillPoints) {
             throw new Error(`Pinned skills cost ${pinnedSkillCost} SP, but only ${availableSkillPoints} SP are available after reserves.`);
         }
-        const campaignImported = parseBoolOption(formData.get("eco_export_imported"), false);
+        const campaignProfileImported = parseBoolOption(formData.get("eco_profile_imported"), false);
         const ecoDays = parseIntOption(formData.get("eco_days"), "eco_days", 0, 0);
         const warDays = parseIntOption(formData.get("war_days"), "war_days", 1, 1);
         const ecoProfitDay = parseFloatOption(formData.get("eco_profit_day"), "eco_profit_day", 0);
@@ -106,7 +106,7 @@
         const stockpiledMoney = parseFloatOption(formData.get("stockpiled_money"), "stockpiled_money", 0, 0);
         const ecoBudget = ecoProfitDay * ecoDays + stockpiledMoney;
         const campaignBudget = ecoBudget + warProfitDay * warDays;
-        const campaignActive = campaignImported && campaignBudget > 0 && warDays > 0;
+        const campaignActive = campaignProfileImported && campaignBudget > 0 && warDays > 0;
         const dailyBudget = campaignActive ? campaignBudget / warDays : null;
         const budgetTargets = campaignActive ? [
             campaignBudget * 0.10,

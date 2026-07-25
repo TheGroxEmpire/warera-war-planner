@@ -38,6 +38,30 @@ function normalizePinnedConstraints(value) {
     };
 }
 
+function normalizeCalculatedScenario(rawScenario) {
+    if (!rawScenario || typeof rawScenario !== "object") return null;
+    const skillLevels = rawScenario.skillLevels && typeof rawScenario.skillLevels === "object"
+        ? rawScenario.skillLevels
+        : {};
+    return {
+        level: Math.max(1, Math.floor(Number(rawScenario.level) || 1)),
+        profitDay: Number(rawScenario.profitDay) || 0,
+        profitHour: Number(rawScenario.profitHour) || 0,
+        companiesActive: Math.max(0, Math.floor(Number(rawScenario.companiesActive) || 0)),
+        companiesConfigured: Math.max(0, Math.floor(Number(rawScenario.companiesConfigured) || 0)),
+        employeesActive: Math.max(0, Math.floor(Number(rawScenario.employeesActive) || 0)),
+        reservedSkillPoints: Math.max(0, Math.floor(Number(rawScenario.reservedSkillPoints) || 0)),
+        skillLevels: {
+            energy: Math.max(0, Math.floor(Number(skillLevels.energy) || 0)),
+            entrepreneurship: Math.max(0, Math.floor(Number(skillLevels.entrepreneurship) || 0)),
+            production: Math.max(0, Math.floor(Number(skillLevels.production) || 0)),
+            companies: Math.max(0, Math.floor(Number(skillLevels.companies) || 0)),
+            management: Math.max(0, Math.floor(Number(skillLevels.management) || 0)),
+        },
+        user: rawScenario.user && typeof rawScenario.user === "object" ? rawScenario.user : null,
+    };
+}
+
 function pinnedSkillPointCost(skills) {
     return (Array.isArray(skills) ? skills : []).reduce((total, level) => {
         const normalized = normalizedNullableIndex(level, 10);
@@ -950,7 +974,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const skillLevels = result?.skillLevels && typeof result.skillLevels === "object"
             ? result.skillLevels
             : profile.alloc;
-        return normalizeScenario({
+        return normalizeCalculatedScenario({
             level: profile.config.level,
             profitDay: result?.netProfitDay,
             profitHour: result?.netProfitHour,

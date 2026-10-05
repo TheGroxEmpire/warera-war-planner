@@ -77,6 +77,10 @@ class SimulationCoreTest(unittest.TestCase):
                 adjustedLevel: 0, pill: false, objective: "damage", rankBonus: 1,
                 pinnedSkills: Array(9).fill(0),
                 pinnedGear: [2, 1, 2, 3, 4, 5], pinnedAmmo: 1, pinnedFood: 0,
+                priceOverrides: {
+                    gearCosts: { weapon: { gun: 8.75 }, helmet: { grey: 0 } },
+                    ammoCosts: { lightAmmo: 0.23 }, foodCosts: { steak: 4.12 },
+                },
             };
             const response = optimizer.prepareResponse([optimizer.runSearch(options)], options);
             const gear = response.all_builds[0].gear;
@@ -86,6 +90,13 @@ class SimulationCoreTest(unittest.TestCase):
                 mods: gear.map(item => item.mods),
                 cards: gear.map(item => sandbox.gearCardHtml(item)),
                 cells: gear.map(item => sandbox.gearTableCellHtml(item)),
+                unitCosts: gear.map(item => item.unit_cost),
+                ammoCost: response.all_builds[0].ammo_unit_cost,
+                foodCost: response.all_builds[0].food_unit_cost,
+                ammoCard: sandbox.consumableCardHtml("lightAmmo", "grey", 40, response.all_builds[0].ammo_unit_cost),
+                foodCard: sandbox.consumableCardHtml("steak", "blue", 5, optimizer.createModelContext(options.priceOverrides).food.steak.cost),
+                emptyAmmoCard: sandbox.consumableCardHtml("noAmmo", "grey", 0, 0),
+                emptyFoodCard: sandbox.consumableCardHtml("noFood", "grey", 0, 0),
                 emptyMods: empty.mods,
                 emptyCard: sandbox.gearCardHtml(empty),
                 emptyCell: sandbox.gearTableCellHtml(empty),
@@ -106,12 +117,28 @@ class SimulationCoreTest(unittest.TestCase):
                 for label in labels:
                     self.assertIn(label, html)
                 self.assertIn("Gear durability consumed per day", html)
+            for html, icons in zip(result[view], [[1, 3], [4], [2], [5], [5], [6]]):
+                for icon in icons:
+                    self.assertIn(f'xlink:href="#skill-svg-{icon}"', html)
+                self.assertIn('class="skill gear-stat"', html)
+                self.assertIn('class="item-cost"', html)
+                self.assertIn('Estimated price per item', html)
+            self.assertIn('>8.75</span>', result[view][0])
+            self.assertIn('>0.00</span>', result[view][1])
             self.assertNotIn("Armor +14%", result[view][3])
             self.assertNotIn("Dodge +36%", result[view][5])
         self.assertEqual(result["emptyMods"], {})
         self.assertEqual(result["emptyCard"], "")
         self.assertIn("None", result["emptyCell"])
         self.assertNotIn("%", result["emptyCell"])
+        self.assertNotIn("item-cost", result["emptyCell"])
+        self.assertEqual(result["unitCosts"], [8.75, 0, 7, 27, 70, 240])
+        self.assertEqual(result["ammoCost"], 0.23)
+        self.assertEqual(result["foodCost"], 0)
+        self.assertIn(">0.23</span>", result["ammoCard"])
+        self.assertIn(">4.12</span>", result["foodCard"])
+        self.assertEqual(result["emptyAmmoCard"], "")
+        self.assertEqual(result["emptyFoodCard"], "")
 
     def test_pinned_gear_ammo_and_food_are_honored(self):
         result = self.run_node_json(

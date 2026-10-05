@@ -84,26 +84,60 @@ function buildPrimaryValue(build, objective) {
     return Number.isFinite(Number(value)) ? Number(value) : Number.NEGATIVE_INFINITY;
 }
 
-function gearStatLines(gear) {
+function gearStatEntries(gear) {
     if (!gear || gear.is_none) return [];
     const labels = {
-        atk: ["Attack", ""],
-        critc: ["Crit chance", "%"],
-        critd: ["Crit damage", "%"],
-        prc: ["Precision", "%"],
-        arm: ["Armor", ""],
-        ddg: ["Dodge", ""],
+        atk: ["Attack", "", 1],
+        prc: ["Precision", "%", 2],
+        critc: ["Crit chance", "%", 3],
+        critd: ["Crit damage", "%", 4],
+        arm: ["Armor", "", 5],
+        ddg: ["Dodge", "", 6],
     };
     return Object.entries(gear.mods || {}).flatMap(([stat, value]) => {
         if (!labels[stat] || !Number.isFinite(value)) return [];
-        const [label, unit] = labels[stat];
+        const [label, unit, icon] = labels[stat];
         const amount = Number(value.toFixed(2));
-        return [`${label} ${amount >= 0 ? "+" : ""}${amount}${unit}`];
+        const formatted = `${amount >= 0 ? "+" : ""}${amount}${unit}`;
+        return [{ label: `${label} ${formatted}`, formatted, icon }];
     });
 }
 
 function gearStatsHtml(gear) {
-    return gearStatLines(gear).map(line => `<span>${line}</span>`).join("");
+    return gearStatEntries(gear).map(stat => `
+        <span class="skill gear-stat" aria-label="${stat.label}" title="${stat.label}">
+            <svg aria-hidden="true"><use xlink:href="#skill-svg-${stat.icon}"></use></svg>
+            ${stat.formatted}
+            <span class="skill-name">${stat.label}</span>
+        </span>
+    `).join("");
+}
+
+function formatMoney(value) {
+    const num = Number(value || 0);
+    const sign = num < 0 ? "-" : "";
+    const abs = Math.abs(num);
+    if (abs >= 1000000) return `${sign}${(abs / 1000000).toFixed(2)}M`;
+    if (abs >= 1000) return `${sign}${(abs / 1000).toFixed(1)}K`;
+    return `${sign}${abs.toFixed(2)}`;
+}
+
+function moneyIconHtml() {
+    return `<svg aria-hidden="true" stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 24 24" height="1em" width="1em"><path d="M12 5C7.031 5 2 6.546 2 9.5S7.031 14 12 14c4.97 0 10-1.546 10-4.5S16.97 5 12 5zm-5 9.938v3c1.237.299 2.605.482 4 .541v-3a21.166 21.166 0 0 1-4-.541zm6 .54v3a20.994 20.994 0 0 0 4-.541v-3a20.994 20.994 0 0 1-4 .541zm6-1.181v3c1.801-.755 3-1.857 3-3.297v-3c0 1.44-1.199 2.542-3 3.297zm-14 3v-3C3.2 13.542 2 12.439 2 11v3c0 1.439 1.2 2.542 3 3.297z"></path></svg>`;
+}
+
+function itemCostHtml(unitCost) {
+    if (!Number.isFinite(unitCost) || unitCost < 0) return "";
+    return `<span class="item-cost" title="Estimated price per item" aria-label="Estimated price ${unitCost.toFixed(2)} per item"><span class="item-cost-amount">${moneyIconHtml()}<span class="net-cost-value">${formatMoney(unitCost)}</span></span><small>each</small></span>`;
+}
+
+function consumableCardHtml(name, color, quantity, unitCost) {
+    if (name === "noAmmo" || name === "noFood") return "";
+    return `<div class='gear-item' style='background-color: ${color}'>
+        <img src='${itemIconAsset(`${name}.png`)}' alt='${name}'>
+        <span class='quantity-label' title='Consumables needed per day'>${quantity}</span>
+        ${itemCostHtml(unitCost)}
+    </div>`;
 }
 
 function gearCardHtml(gear) {
@@ -115,13 +149,14 @@ function gearCardHtml(gear) {
             <span class='gear-name'>${name}</span>
             <span class='gear-stats'>${gearStatsHtml(gear)}</span>
             <span class='quantity-label' title='Gear durability consumed per day'>x ${(Number(gear.quantity) * 100).toFixed(0)} %</span>
+            ${itemCostHtml(gear.unit_cost)}
         </div>
     `;
 }
 
 function gearTableCellHtml(gear) {
     if (gear.is_none) return `<td class="td-gear">None</td>`;
-    return `<td class="td-gear" style="background-color:${gear.color}">${gear.tier}<span class="gear-stats">${gearStatsHtml(gear)}</span><small title="Gear durability consumed per day">${(Number(gear.quantity) * 100).toFixed(0)}%</small></td>`;
+    return `<td class="td-gear" style="background-color:${gear.color}">${gear.tier}<span class="gear-stats">${gearStatsHtml(gear)}</span><small title="Gear durability consumed per day">${(Number(gear.quantity) * 100).toFixed(0)}%</small>${itemCostHtml(gear.unit_cost)}</td>`;
 }
 
 function buildCostValue(build) {
@@ -436,15 +471,6 @@ document.addEventListener("DOMContentLoaded", () => {
             .replace(/>/g, "&gt;")
             .replace(/"/g, "&quot;")
             .replace(/'/g, "&#039;");
-    }
-
-    function formatMoney(value) {
-        const num = Number(value || 0);
-        const sign = num < 0 ? "-" : "";
-        const abs = Math.abs(num);
-        if (abs >= 1000000) return `${sign}${(abs / 1000000).toFixed(2)}M`;
-        if (abs >= 1000) return `${sign}${(abs / 1000).toFixed(1)}K`;
-        return `${sign}${abs.toFixed(2)}`;
     }
 
     function formatCompactNumber(value) {
@@ -2376,7 +2402,7 @@ document.addEventListener("DOMContentLoaded", () => {
             return `
                 <div class='card${cardClass}'>
                     <div class='card-damage'>${primaryStatHtml}</div>
-                    <div class='card-cost'><div class='cost-left'><svg stroke='currentColor' fill='currentColor' stroke-width='0' viewBox='0 0 24 24' height='1em' width='1em' xmlns='http://www.w3.org/2000/svg' style='width: 1em; height: 1em; paint-order: stroke; stroke-linecap: round; stroke-linejoin: round;'><path d='M12 5C7.031 5 2 6.546 2 9.5S7.031 14 12 14c4.97 0 10-1.546 10-4.5S16.97 5 12 5zm-5 9.938v3c1.237.299 2.605.482 4 .541v-3a21.166 21.166 0 0 1-4-.541zm6 .54v3a20.994 20.994 0 0 0 4-.541v-3a20.994 20.994 0 0 1-4 .541zm6-1.181v3c1.801-.755 3-1.857 3-3.297v-3c0 1.44-1.199 2.542-3 3.297zm-14 3v-3C3.2 13.542 2 12.439 2 11v3c0 1.439 1.2 2.542 3 3.297z'></path></svg><span class='net-cost-value'>${formatMoney(displayedDailyCost)}</span><div class='cost-label'>Daily net cost<div class='cost-breakdown'><span class='cost-line negative'>- ${d.total_cost_formatted} gear and consumables</span><span class='cost-line positive'>+ ${d.monetary_value_from_scrap_formatted} from scrap</span><span class='cost-line positive'>+ ${d.case_value_formatted} from ${d.cases_per_day_formatted} cases</span>${d.elite_cases_per_day > 0 ? `<span class='cost-line positive'>+ ${d.elite_case_value_formatted} from ${d.elite_cases_per_day_formatted} elite cases</span>` : ''}${dailyRewardsHtml}</div></div></div><span class='card-efficiency'>${efficiencyHtml}</span></div>
+                    <div class='card-cost'><div class='cost-left'>${moneyIconHtml()}<span class='net-cost-value'>${formatMoney(displayedDailyCost)}</span><div class='cost-label'>Daily net cost<div class='cost-breakdown'><span class='cost-line negative'>- ${d.total_cost_formatted} gear and consumables</span><span class='cost-line positive'>+ ${d.monetary_value_from_scrap_formatted} from scrap</span><span class='cost-line positive'>+ ${d.case_value_formatted} from ${d.cases_per_day_formatted} cases</span>${d.elite_cases_per_day > 0 ? `<span class='cost-line positive'>+ ${d.elite_case_value_formatted} from ${d.elite_cases_per_day_formatted} elite cases</span>` : ''}${dailyRewardsHtml}</div></div></div><span class='card-efficiency'>${efficiencyHtml}</span></div>
                     ${campaignHtml}
                     <div class='card-skills'>
                         <h3>Skills</h3>
@@ -2384,17 +2410,11 @@ document.addEventListener("DOMContentLoaded", () => {
                     </div>
                     <div class='card-items'>
                         <h3>Gear &amp; Consumables</h3>
-                        <p class='gear-stat-note'>Stat targets used in this simulation. Actual gear rolls vary.</p>
+                        <p class='gear-stat-note'>Stat targets used in this simulation. Actual gear rolls vary. Estimated prices are per item.</p>
                         <div class='items-grid'>
                             ${gearHtml}
-                            ${d.ammo_name !== 'noAmmo' ? `<div class='gear-item' style='background-color: ${d.ammo_color}'>
-                                <img src='${itemIconAsset(`${d.ammo_name}.png`)}' alt='${d.ammo_name}'>
-                                <span class='quantity-label'>${d.ammo_quantity}</span>
-                            </div>` : ''}
-                            ${d.food_name !== 'noFood' ? `<div class='gear-item' style='background-color: ${d.food_color}'>
-                                <img src='${itemIconAsset(`${d.food_name}.png`)}' alt='${d.food_name}'>
-                                <span class='quantity-label'>${d.food_quantity}</span>
-                            </div>` : ''}
+                            ${consumableCardHtml(d.ammo_name, d.ammo_color, d.ammo_quantity, d.ammo_unit_cost)}
+                            ${consumableCardHtml(d.food_name, d.food_color, d.food_quantity, d.food_unit_cost)}
                         </div>
                     </div>
                     <button type='button' class='pin-full-build-btn' data-build-index='${buildIndex}' title='Pin all skill levels, gear, ammo, and food from this build for another optimization'>Pin Full Build</button>
@@ -2465,14 +2485,14 @@ document.addEventListener("DOMContentLoaded", () => {
                     <td class="td-eff">${efficiencyValue}</td>
                     ${skillCells}
                     ${gearCells}
-                    <td class="td-gear" style="background-color:${d.ammo_color}">${d.ammo_name}<br><small>×${d.ammo_quantity}</small></td>
-                    <td class="td-gear" style="background-color:${d.food_color}">${d.food_name}<br><small>×${d.food_quantity}</small></td>
+                    <td class="td-gear" style="background-color:${d.ammo_color}">${d.ammo_name}<br><small>×${d.ammo_quantity}</small>${d.ammo_name !== 'noAmmo' ? itemCostHtml(d.ammo_unit_cost) : ''}</td>
+                    <td class="td-gear" style="background-color:${d.food_color}">${d.food_name}<br><small>×${d.food_quantity}</small>${d.food_name !== 'noFood' ? itemCostHtml(d.food_unit_cost) : ''}</td>
                 </tr>`;
         }).join("");
 
         resultsDiv.innerHTML = `
             <div class="table-wrapper">
-                <p class="gear-stat-note">Gear stats are the stat targets used in this simulation. Actual gear rolls vary; gear percentages show daily durability consumption.</p>
+                <p class="gear-stat-note">Gear stats are the stat targets used in this simulation. Actual gear rolls vary; gear percentages show daily durability consumption. Estimated prices are per item.</p>
                 <table class="builds-table">
                     <thead>
                         <tr>

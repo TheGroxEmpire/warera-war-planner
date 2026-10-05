@@ -8,6 +8,8 @@ Skills, gear, ammo, and food can be pinned before a run so the optimizer only ch
 
 Gear recommendations show the per-item stat targets used by the simulation in both Cards and Detailed View: weapon attack and crit chance, helmet crit damage, gloves precision, chest/pants armor, and boots dodge. These are the model's representative tier bonuses, not individual market rolls or total character stats. Live prices update costs; actual gear rolls can differ. Gear quantity percentages indicate daily durability consumption.
 
+Item stat bonuses use the same icons and typography as the skill tiles. Each recommended gear item, ammo, and food shows its estimated price per item with the same money icon and typography as daily net cost. Prices come from the run's live market overrides, with the model's bundled costs used for unavailable individual prices.
+
 ## WarEra Profile Import
 
 **Import Profile** searches WarEra's public player profiles and always imports the selected player's level and military-rank damage bonus. The preview also lets the user independently replace combat skill pins and recognized equipped gear/ammo pins with the player's current values. Unchecked or unavailable pin groups stay unchanged, and the existing food pin is preserved because WarEra does not expose current food in its equipped-loadout response.

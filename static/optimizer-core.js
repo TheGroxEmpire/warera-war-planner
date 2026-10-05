@@ -2141,6 +2141,7 @@
                 image_name: imageName,
                 slot,
                 mods: { ...ctx.gear[slot][tier].mods },
+                unit_cost: ctx.gear[slot][tier].cost,
                 quantity,
                 is_none: tier === "none",
                 color: getTierColor(tier),
@@ -2160,6 +2161,8 @@
         build.food_name = FOOD_NAMES[build.food_idx];
         build.ammo_quantity = ammoQuantity(build);
         build.food_quantity = foodQuantity(build, pill);
+        build.ammo_unit_cost = ctx.ammo[build.ammo_name].bullet_cost;
+        build.food_unit_cost = ctx.food[build.food_name].cost;
         build.gear = gearEntries(build, ctx);
         build.ammo_color = getConsumableColor(build.ammo_name);
         build.food_color = getConsumableColor(build.food_name);

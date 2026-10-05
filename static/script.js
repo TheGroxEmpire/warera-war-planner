@@ -84,6 +84,46 @@ function buildPrimaryValue(build, objective) {
     return Number.isFinite(Number(value)) ? Number(value) : Number.NEGATIVE_INFINITY;
 }
 
+function gearStatLines(gear) {
+    if (!gear || gear.is_none) return [];
+    const labels = {
+        atk: ["Attack", ""],
+        critc: ["Crit chance", "%"],
+        critd: ["Crit damage", "%"],
+        prc: ["Precision", "%"],
+        arm: ["Armor", ""],
+        ddg: ["Dodge", ""],
+    };
+    return Object.entries(gear.mods || {}).flatMap(([stat, value]) => {
+        if (!labels[stat] || !Number.isFinite(value)) return [];
+        const [label, unit] = labels[stat];
+        const amount = Number(value.toFixed(2));
+        return [`${label} ${amount >= 0 ? "+" : ""}${amount}${unit}`];
+    });
+}
+
+function gearStatsHtml(gear) {
+    return gearStatLines(gear).map(line => `<span>${line}</span>`).join("");
+}
+
+function gearCardHtml(gear) {
+    if (gear.is_none) return "";
+    const name = `${gear.slot[0].toUpperCase()}${gear.slot.slice(1)} · ${gear.tier}`;
+    return `
+        <div class='gear-item' style='background-color: ${gear.color}'>
+            <img src='${itemIconAsset(`${gear.image_name}.png`)}' alt='${name}'>
+            <span class='gear-name'>${name}</span>
+            <span class='gear-stats'>${gearStatsHtml(gear)}</span>
+            <span class='quantity-label' title='Gear durability consumed per day'>x ${(Number(gear.quantity) * 100).toFixed(0)} %</span>
+        </div>
+    `;
+}
+
+function gearTableCellHtml(gear) {
+    if (gear.is_none) return `<td class="td-gear">None</td>`;
+    return `<td class="td-gear" style="background-color:${gear.color}">${gear.tier}<span class="gear-stats">${gearStatsHtml(gear)}</span><small title="Gear durability consumed per day">${(Number(gear.quantity) * 100).toFixed(0)}%</small></td>`;
+}
+
 function buildCostValue(build) {
     const value = build.campaign ? build.campaign.warTotalCost : build.net_cost;
     return Number.isFinite(Number(value)) ? Number(value) : Number.POSITIVE_INFINITY;
@@ -2311,12 +2351,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 `;
             }).join("");
 
-            const gearHtml = d.gear.filter(g => !g.is_none).map(g => `
-                <div class='gear-item' style='background-color: ${g.color}'>
-                    <img src='${itemIconAsset(`${g.image_name}.png`)}' alt='${g.slot}'>
-                    <span class='quantity-label'>x ${(Number(g.quantity)*100).toFixed(0)} %</span>
-                </div>
-            `).join("");
+            const gearHtml = d.gear.map(gearCardHtml).join("");
 
             const primaryStatHtml = `${d.total_damage_formatted} DMG<span class='damage-label'>Average daily damage</span>`;
             const displayedDailyCost = effectiveDailyCost(d);
@@ -2349,6 +2384,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     </div>
                     <div class='card-items'>
                         <h3>Gear &amp; Consumables</h3>
+                        <p class='gear-stat-note'>Stat targets used in this simulation. Actual gear rolls vary.</p>
                         <div class='items-grid'>
                             ${gearHtml}
                             ${d.ammo_name !== 'noAmmo' ? `<div class='gear-item' style='background-color: ${d.ammo_color}'>
@@ -2414,7 +2450,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const rows = sorted.map(d => {
             const skillCells = d.skill_lvls.map(lvl => `<td>${lvl}</td>`).join("");
-            const gearCells = d.gear.map(g => `<td class="td-gear" style="background-color:${g.color}">${g.tier}<br><small>${(Number(g.quantity)*100).toFixed(0)}%</small></td>`).join("");
+            const gearCells = d.gear.map(gearTableCellHtml).join("");
             const campaignCells = hasCampaign
                 ? `<td class="td-campaign${d.campaign?.sustainable ? "" : " over-budget"}">${d.campaign?.sustainable ? "Yes" : "No"}</td><td class="td-campaign${d.campaign?.sustainable ? "" : " over-budget"}">${d.campaign ? budgetFailureLabel(d.campaign) : "-"}</td><td class="td-campaign">${d.campaign ? formatMoney(d.campaign.remainingBudget) : "-"}</td><td class="td-campaign td-daily-budget">${dailyBudgetHtml(d.campaign)}</td>`
                 : "";
@@ -2436,6 +2472,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         resultsDiv.innerHTML = `
             <div class="table-wrapper">
+                <p class="gear-stat-note">Gear stats are the stat targets used in this simulation. Actual gear rolls vary; gear percentages show daily durability consumption.</p>
                 <table class="builds-table">
                     <thead>
                         <tr>

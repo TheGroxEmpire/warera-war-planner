@@ -2140,6 +2140,7 @@
                 tier,
                 image_name: imageName,
                 slot,
+                mods: { ...ctx.gear[slot][tier].mods },
                 quantity,
                 is_none: tier === "none",
                 color: getTierColor(tier),

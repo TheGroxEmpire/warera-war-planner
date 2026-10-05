@@ -68,6 +68,51 @@ class SimulationCoreTest(unittest.TestCase):
         self.assertGreater(result["buildCount"], 0)
         self.assertEqual(result["skillLevels"], [[1, 0, 1, 0, 1, 0, 1, 2, 1]])
 
+    def test_gear_recommendations_show_item_bonuses_in_both_views(self):
+        result = self.run_script_helper_json(
+            """
+            require("./static/optimizer-core.js");
+            const optimizer = globalThis.WareraOptimizer;
+            const options = {
+                adjustedLevel: 0, pill: false, objective: "damage", rankBonus: 1,
+                pinnedSkills: Array(9).fill(0),
+                pinnedGear: [2, 1, 2, 3, 4, 5], pinnedAmmo: 1, pinnedFood: 0,
+            };
+            const response = optimizer.prepareResponse([optimizer.runSearch(options)], options);
+            const gear = response.all_builds[0].gear;
+            const emptyOptions = { ...options, pinnedGear: Array(6).fill(0), pinnedAmmo: 0 };
+            const empty = optimizer.prepareResponse([optimizer.runSearch(emptyOptions)], emptyOptions).all_builds[0].gear[0];
+            console.log(JSON.stringify({
+                mods: gear.map(item => item.mods),
+                cards: gear.map(item => sandbox.gearCardHtml(item)),
+                cells: gear.map(item => sandbox.gearTableCellHtml(item)),
+                emptyMods: empty.mods,
+                emptyCard: sandbox.gearCardHtml(empty),
+                emptyCell: sandbox.gearTableCellHtml(empty),
+            }));
+            """
+        )
+
+        self.assertEqual(result["mods"], [
+            {"atk": 68, "critc": 9}, {"critd": 15}, {"prc": 9},
+            {"arm": 14}, {"arm": 27}, {"ddg": 36},
+        ])
+        expected = [
+            ["Attack +68", "Crit chance +9%"], ["Crit damage +15%"],
+            ["Precision +9%"], ["Armor +14"], ["Armor +27"], ["Dodge +36"],
+        ]
+        for view in ("cards", "cells"):
+            for html, labels in zip(result[view], expected):
+                for label in labels:
+                    self.assertIn(label, html)
+                self.assertIn("Gear durability consumed per day", html)
+            self.assertNotIn("Armor +14%", result[view][3])
+            self.assertNotIn("Dodge +36%", result[view][5])
+        self.assertEqual(result["emptyMods"], {})
+        self.assertEqual(result["emptyCard"], "")
+        self.assertIn("None", result["emptyCell"])
+        self.assertNotIn("%", result["emptyCell"])
+
     def test_pinned_gear_ammo_and_food_are_honored(self):
         result = self.run_node_json(
             """

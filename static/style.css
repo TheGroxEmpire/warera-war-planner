@@ -1301,6 +1301,42 @@ h1 {
     height: auto;
 }
 
+.gear-name {
+    margin-top: 0.25em;
+    color: #fff;
+    font-size: 0.68em;
+    line-height: 1.25;
+    text-align: center;
+    text-transform: capitalize;
+    overflow-wrap: anywhere;
+}
+
+.gear-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15em;
+    margin: 0.35em 0;
+    color: #fff;
+    font-size: 0.72em;
+    line-height: 1.3;
+    text-align: center;
+}
+
+.gear-stats span {
+    display: block;
+}
+
+.gear-stat-note {
+    margin: 0 0 0.75em;
+    color: var(--text-secondary);
+    font-size: 0.75em;
+    line-height: 1.4;
+}
+
+.builds-table .gear-stats {
+    font-size: 0.9em;
+}
+
 /* ============================================================
    TOOLTIP (global)
    ============================================================ */

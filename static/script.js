@@ -2412,7 +2412,6 @@ document.addEventListener("DOMContentLoaded", () => {
                     </div>
                     <div class='card-items'>
                         <h3>Gear &amp; Consumables</h3>
-                        <p class='gear-stat-note'>Stat targets used in this simulation. Actual gear rolls vary. Estimated costs cover the daily durability or quantity shown.</p>
                         <div class='items-grid'>
                             ${gearHtml}
                             ${consumableCardHtml(d.ammo_name, d.ammo_color, d.ammo_quantity, d.ammo_unit_cost)}
@@ -2494,7 +2493,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
         resultsDiv.innerHTML = `
             <div class="table-wrapper">
-                <p class="gear-stat-note">Gear stats are the stat targets used in this simulation. Actual gear rolls vary; gear percentages show daily durability consumption. Estimated costs cover the daily durability or quantity shown.</p>
                 <table class="builds-table">
                     <thead>
                         <tr>

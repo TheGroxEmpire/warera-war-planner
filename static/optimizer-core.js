@@ -1186,7 +1186,7 @@
         return createRawBuild(candidate, totals, econ, econ.net_cost / denominator, ctx);
     }
 
-    function runBestDamageSearch(options, onProgress, ctx, plan, budget, combatTables, sustainConfigs, combatPatterns, sustainPatterns, sustainValueFn) {
+    function runBestDamageSearch(options, onProgress, ctx, plan, budget, combatTables, sustainConfigs, combatPatterns, sustainPatterns, sustainValueFn, reportStage) {
         const sustainStart = Math.max(0, Math.min(sustainConfigs.length, Math.floor(options.sustainStart || 0)));
         const sustainEnd = Math.max(sustainStart, Math.min(sustainConfigs.length, Math.floor(options.sustainEnd == null ? sustainConfigs.length : options.sustainEnd)));
         const evaluated = (sustainEnd - sustainStart) * plan.combatCount * (budget + 1);
@@ -1209,13 +1209,14 @@
 
         for (let sustainIndex = sustainStart; sustainIndex < sustainEnd; sustainIndex += 1) {
             const table = attachSustainEconomy(
-                makeValueTable(sustainConfigs[sustainIndex], sustainPatterns, budget, sustainValueFn),
+                makeValueTable(sustainConfigs[sustainIndex], sustainPatterns, budget, sustainValueFn, ctx.rollSearch),
                 sustainPatterns,
                 budget,
                 options,
                 ctx
             );
             sustainTables.push(table);
+            reportStage(0.3, 0.6, sustainIndex - sustainStart + 1, sustainEnd - sustainStart);
             for (let cost = 0; cost <= budget; cost += 1) {
                 const value = table.values[cost];
                 if (!Number.isFinite(value) || table.patternIndexes[cost] < 0) continue;
@@ -1284,9 +1285,11 @@
             );
         }
 
-        const economyCombatTables = combatTables.map((table) => (
-            table.economy ? table : attachCombatEconomy(table, combatPatterns, budget, ctx)
-        ));
+        const economyCombatTables = combatTables.map((table, index) => {
+            const result = table.economy ? table : attachCombatEconomy(table, combatPatterns, budget, ctx);
+            reportStage(0.6, 0.65, index + 1, combatTables.length);
+            return result;
+        });
         const frontierCandidates = Array(frontierBucketCount).fill(null);
         const cheapCandidates = [];
         const cheapCandidateIndexes = new Map();
@@ -1340,7 +1343,7 @@
             const cheapSorter = (a, b) => a.costHint - b.costHint || b.value - a.value;
             const caseIncomePerAttack = ctx.rewards.case1_price * 0.02 + ctx.rewards.case2_price * 0.0002;
 
-            for (const table of economyCombatTables) {
+            for (const [tableIndex, table] of economyCombatTables.entries()) {
                 for (let cost = 0; cost <= budget; cost += 1) {
                     const value = table.values[cost];
                     const prc = table.economy && table.economy.prc[cost];
@@ -1359,6 +1362,7 @@
                     addSortedEntry(byBudget[cost].value, entry, 12, valueSorter);
                     addSortedEntry(byBudget[cost].cheap, entry, 8, cheapSorter);
                 }
+                reportStage(0.65, 0.72, tableIndex + 1, economyCombatTables.length);
             }
 
             return byBudget.map((bucket) => mergeEntryLists(bucket.value, bucket.cheap));
@@ -1369,7 +1373,7 @@
             const valueSorter = (a, b) => b.value - a.value || a.costHint - b.costHint;
             const cheapSorter = (a, b) => a.costHint - b.costHint || b.value - a.value;
 
-            for (const table of sustainTables) {
+            for (const [tableIndex, table] of sustainTables.entries()) {
                 for (let cost = 0; cost <= budget; cost += 1) {
                     const value = table.values[cost];
                     const economy = table.economy;
@@ -1386,6 +1390,7 @@
                     addSortedEntry(byBudget[cost].value, entry, 12, valueSorter);
                     addSortedEntry(byBudget[cost].cheap, entry, 8, cheapSorter);
                 }
+                reportStage(0.72, 0.8, tableIndex + 1, sustainTables.length);
             }
 
             return byBudget.map((bucket) => mergeEntryLists(bucket.value, bucket.cheap));
@@ -1496,6 +1501,11 @@
 
         const combatBudgetCandidates = buildCombatBudgetCandidates();
         const sustainBudgetCandidates = buildSustainBudgetCandidates();
+        if (ctx.rollSearch) {
+            combatTables.length = 0;
+            economyCombatTables.length = 0;
+            sustainTables.length = 0;
+        }
         for (let combatBudget = 0; combatBudget <= budget; combatBudget += 1) {
             const sustainBudget = budget - combatBudget;
             for (const combatEntry of combatBudgetCandidates[combatBudget]) {
@@ -1523,6 +1533,7 @@
                     ));
                 }
             }
+            reportStage(0.8, 1, combatBudget + 1, budget + 1);
         }
 
         if (onProgress) onProgress(evaluated);
@@ -1540,7 +1551,7 @@
         };
     }
 
-    function runSearch(options, onProgress) {
+    function runSearch(options, onProgress, onStageProgress) {
         const ctx = createModelContext(options.priceOverrides);
         const plan = getSearchPlan(options);
         const budget = plan.budget;
@@ -1552,14 +1563,33 @@
         const sustainValueFn = (config, levels) => sustainValue(config, levels, options);
         const sustainStart = Math.max(0, Math.min(sustainConfigs.length, Math.floor(options.sustainStart || 0)));
         const sustainEnd = Math.max(sustainStart, Math.min(sustainConfigs.length, Math.floor(options.sustainEnd == null ? sustainConfigs.length : options.sustainEnd)));
+        let stageFraction = 0;
+        function emitStage(fraction) {
+            stageFraction = Math.max(stageFraction, Math.min(1, fraction));
+            if (onStageProgress) onStageProgress(stageFraction);
+        }
+        function reportStage(start, end, completed, total) {
+            if (onStageProgress && (completed === total || completed % Math.max(1, Math.ceil(total / 100)) === 0)) {
+                emitStage(start + (end - start) * completed / Math.max(1, total));
+            }
+        }
+        const numericProgress = onProgress;
+        const workerChecks = plan.sustainCount > 0 ? plan.checks * (sustainEnd - sustainStart) / plan.sustainCount : 0;
+        onProgress = evaluated => {
+            if (numericProgress) numericProgress(evaluated);
+            if (onStageProgress) emitStage(0.8 + 0.2 * Math.min(1, evaluated / Math.max(1, workerChecks)));
+        };
+        if (onStageProgress) onStageProgress(0);
         const budgetTargets = normalizedBudgetTargets(options);
         const campaignBudget = campaignBudgetLimit(options);
         const hasCampaignBudget = Number.isFinite(campaignBudget);
         const pinnedLootLevel = pinnedArray(options, "pinnedSkills", 9)[8];
         const needsCandidateCosts = hasCampaignBudget || budgetTargets.length > 0 || (pinnedLootLevel !== null && pinnedLootLevel > 0);
-        const combatTables = combatConfigs.map((config) => {
-            const table = makeValueTable(config, combatPatterns, budget, combatValueFn, ctx.rollSearch && needsCandidateCosts && !options.exactCampaignSearch);
-            return needsCandidateCosts ? attachCombatEconomy(table, combatPatterns, budget, ctx) : table;
+        const combatTables = combatConfigs.map((config, index) => {
+            const table = makeValueTable(config, combatPatterns, budget, combatValueFn, ctx.rollSearch && !(needsCandidateCosts && options.exactCampaignSearch));
+            const result = needsCandidateCosts ? attachCombatEconomy(table, combatPatterns, budget, ctx) : table;
+            reportStage(0, 0.3, index + 1, combatConfigs.length);
+            return result;
         });
 
         if (!needsCandidateCosts) {
@@ -1573,7 +1603,8 @@
                 sustainConfigs,
                 combatPatterns,
                 sustainPatterns,
-                sustainValueFn
+                sustainValueFn,
+                reportStage
             );
         }
 
@@ -1713,6 +1744,7 @@
                 options,
                 ctx
             ));
+            reportStage(0.3, 0.6, sustainIndex - sustainStart + 1, sustainEnd - sustainStart);
         }
 
         function sideCandidateKey(entry) {
@@ -1802,7 +1834,7 @@
             const cheapSorter = (a, b) => a.costHint - b.costHint || b.value - a.value;
             const caseIncomePerAttack = ctx.rewards.case1_price * 0.02 + ctx.rewards.case2_price * 0.0002;
 
-            for (const table of combatTables) {
+            for (const [tableIndex, table] of combatTables.entries()) {
                 for (let cost = 0; cost <= budget; cost += 1) {
                     const value = table.values[cost];
                     const prc = table.economy && table.economy.prc[cost];
@@ -1822,6 +1854,7 @@
                     addSortedEntry(byBudget[cost].cheap, entry, 10, cheapSorter);
                     retainFrontierEntry(byBudget[cost].frontier, entry);
                 }
+                reportStage(0.6, 0.7, tableIndex + 1, combatTables.length);
             }
 
             return byBudget.map((bucket) => mergeEntryLists(
@@ -1836,7 +1869,7 @@
             const valueSorter = (a, b) => b.value - a.value || a.costHint - b.costHint;
             const cheapSorter = (a, b) => a.costHint - b.costHint || b.value - a.value;
 
-            for (const table of sustainTables) {
+            for (const [tableIndex, table] of sustainTables.entries()) {
                 for (let cost = 0; cost <= budget; cost += 1) {
                     const value = table.values[cost];
                     const economy = table.economy;
@@ -1854,6 +1887,7 @@
                     addSortedEntry(byBudget[cost].cheap, entry, 10, cheapSorter);
                     retainFrontierEntry(byBudget[cost].frontier, entry);
                 }
+                reportStage(0.7, 0.8, tableIndex + 1, sustainTables.length);
             }
 
             return byBudget.map((bucket) => mergeEntryLists(

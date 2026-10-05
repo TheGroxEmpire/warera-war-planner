@@ -2,7 +2,10 @@
     "use strict";
 
     const currentScript = document.currentScript;
-    const WORKER_URL = new URL("optimizer-worker.js", currentScript ? currentScript.src : window.location.href).href;
+    const scriptUrl = new URL(currentScript ? currentScript.src : window.location.href);
+    const workerUrl = new URL("optimizer-worker.js", scriptUrl);
+    workerUrl.search = scriptUrl.search;
+    const WORKER_URL = workerUrl.href;
     const API_BASE_URL = "https://api2.warera.io/trpc";
     const ROLL_CACHE_KEY = "wbt-gear-market-curves-v1";
     const STAT_KEYS = { attack: "atk", criticalChance: "critc", criticalDamages: "critd", precision: "prc", armor: "arm", dodge: "ddg" };
@@ -437,14 +440,61 @@
         return ranges;
     }
 
+    function createOptimizerWorker(onMessage, onError) {
+        const worker = new Worker(WORKER_URL);
+        let ready = false;
+        let closed = false;
+        let pending;
+        let timer;
+        const terminate = () => {
+            if (closed) return;
+            closed = true;
+            clearTimeout(timer);
+            worker.terminate();
+        };
+        const fail = error => {
+            if (closed) return;
+            terminate();
+            onError(error);
+        };
+        const armTimeout = milliseconds => {
+            clearTimeout(timer);
+            timer = setTimeout(() => fail(new Error("The optimizer stopped responding. Please reload the page and retry.")), milliseconds);
+        };
+        worker.onmessage = event => {
+            if (closed) return;
+            const message = event.data || {};
+            if (message.type === "ready") {
+                if (message.protocol !== 2) { fail(new Error("The optimizer needs a page reload to update.")); return; }
+                ready = true;
+                armTimeout(120000);
+                if (pending) worker.postMessage(pending);
+                pending = null;
+                return;
+            }
+            armTimeout(120000);
+            onMessage(message);
+        };
+        worker.onerror = event => fail(new Error(event.message || "Worker optimization failed"));
+        worker.onmessageerror = () => fail(new Error("The optimizer could not read its worker result."));
+        armTimeout(30000);
+        return {
+            terminate,
+            postMessage: message => {
+                if (ready) worker.postMessage(message);
+                else pending = message;
+            },
+        };
+    }
+
     function runOnMainThread(options, plan, onProgress) {
         const result = WareraOptimizer.runSearch({
             ...options,
             workerId: 0,
             sustainStart: 0,
             sustainEnd: plan.sustainCount,
-        }, (evaluated) => {
-            if (onProgress) onProgress({ evaluated, total: plan.checks, workers: 1 });
+        }, null, (fraction) => {
+            if (onProgress) onProgress({ evaluated: fraction, total: 1, workers: 1 });
         });
         return WareraOptimizer.prepareResponse([result], options);
     }
@@ -467,46 +517,38 @@
                 for (const worker of workers) worker.terminate();
             }
 
-            ranges.forEach(([sustainStart, sustainEnd], workerId) => {
-                const worker = new Worker(WORKER_URL);
-                workers.push(worker);
-                const workerTotal = plan.sustainCount > 0
-                    ? (sustainEnd - sustainStart) * plan.checks / plan.sustainCount
-                    : 0;
+            function fail(error) {
+                if (failed) return;
+                failed = true;
+                terminateAll();
+                reject(error);
+            }
 
-                worker.onmessage = (event) => {
-                    const message = event.data || {};
+            ranges.forEach(([sustainStart, sustainEnd], workerId) => {
+                const worker = createOptimizerWorker((message) => {
                     if (message.type === "progress") {
-                        progressByWorker[workerId] = message.evaluated;
+                        progressByWorker[workerId] = Math.max(progressByWorker[workerId], Math.min(1, Math.max(0, message.fraction || 0)));
                         if (onProgress) {
                             onProgress({
                                 evaluated: progressByWorker.reduce((sum, value) => sum + value, 0),
-                                total: plan.checks,
+                                total: ranges.length,
                                 workers: ranges.length,
                             });
                         }
                     } else if (message.type === "result") {
-                        progressByWorker[workerId] = message.result && Number.isFinite(message.result.total)
-                            ? message.result.total
-                            : workerTotal;
+                        progressByWorker[workerId] = 1;
                         results[workerId] = message.result;
                         worker.terminate();
                         finished += 1;
+                        if (onProgress) onProgress({ evaluated: progressByWorker.reduce((sum, value) => sum + value, 0), total: ranges.length, workers: ranges.length });
                         if (finished === ranges.length && !failed) {
                             resolve(WareraOptimizer.prepareResponse(results, options));
                         }
                     } else if (message.type === "error") {
-                        failed = true;
-                        terminateAll();
-                        reject(new Error(message.error || "Worker optimization failed"));
+                        fail(new Error(message.error || "Worker optimization failed"));
                     }
-                };
-
-                worker.onerror = (error) => {
-                    failed = true;
-                    terminateAll();
-                    reject(new Error(error.message || "Worker optimization failed"));
-                };
+                }, fail);
+                workers.push(worker);
 
                 worker.postMessage({
                     type: "run",
@@ -535,9 +577,10 @@
         const plan = WareraOptimizer.getSearchPlan(runOptions);
         runOptions.workers = Math.min(runOptions.workers, plan.sustainCount);
         // Every worker holds combat tables. Limit replication for the larger roll search.
-        const combatBytes = plan.combatCount * (plan.budget + 1) * 48;
-        const sustainBytes = plan.sustainCount * (plan.budget + 1) * 128;
-        runOptions.workers = Math.max(1, Math.min(runOptions.workers, 4, Math.floor((512 * 1024 * 1024 - sustainBytes) / Math.max(1, combatBytes))));
+        const combatBytes = plan.combatCount * (plan.budget + 1) * 96;
+        const sustainBytes = plan.sustainCount * (plan.budget + 1) * 192;
+        const memoryBudget = (navigator.deviceMemory && navigator.deviceMemory <= 4 ? 256 : 512) * 1024 * 1024;
+        runOptions.workers = Math.max(1, Math.min(runOptions.workers, 4, Math.floor((memoryBudget - sustainBytes) / Math.max(1, combatBytes))));
 
         if (onProgress) {
             onProgress({
@@ -548,16 +591,14 @@
         }
 
         const response = await runWorkerPool(runOptions, plan, onProgress);
+        if (onProgress) onProgress({ phase: "roll-refinement", completed: 0, total: response.builds.length });
         if (!global.Worker) return WareraOptimizer.refineGearRolls(response, runOptions, onProgress);
         return new Promise((resolve, reject) => {
-            const worker = new Worker(WORKER_URL);
-            worker.onmessage = event => {
-                const message = event.data || {};
+            const worker = createOptimizerWorker(message => {
                 if (message.type === "refinement-progress" && onProgress) onProgress(message.progress);
                 if (message.type === "refined-result") { worker.terminate(); resolve(message.response); }
                 if (message.type === "error") { worker.terminate(); reject(new Error(message.error)); }
-            };
-            worker.onerror = event => { worker.terminate(); reject(new Error(event.message || "Gear roll refinement failed")); };
+            }, reject);
             worker.postMessage({ type: "refine", options: runOptions, response });
         });
     }

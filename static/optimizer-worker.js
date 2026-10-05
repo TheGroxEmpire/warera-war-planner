@@ -1,4 +1,6 @@
-importScripts("optimizer-core.js");
+const coreUrl = new URL("optimizer-core.js", self.location.href);
+coreUrl.search = self.location.search;
+importScripts(coreUrl.href);
 
 self.onmessage = (event) => {
     if (!event.data || !["run", "refine"].includes(event.data.type)) return;
@@ -10,11 +12,11 @@ self.onmessage = (event) => {
             self.postMessage({ type: "refined-result", response });
             return;
         }
-        const result = self.WareraOptimizer.runSearch(options, (evaluated) => {
+        const result = self.WareraOptimizer.runSearch(options, null, (fraction) => {
             self.postMessage({
                 type: "progress",
                 workerId: options.workerId,
-                evaluated,
+                fraction,
             });
         });
 
@@ -31,3 +33,5 @@ self.onmessage = (event) => {
         });
     }
 };
+
+self.postMessage({ type: "ready", protocol: 2 });

@@ -82,6 +82,7 @@ def _static_asset_version(flask_app: Flask) -> str:
     candidates = (
         "style.css",
         "optimizer-core.js",
+        "optimizer-worker.js",
         "browser-optimizer.js",
         "eco-engine.js",
         "profile-import.js",

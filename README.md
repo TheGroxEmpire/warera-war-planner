@@ -8,7 +8,7 @@ Skills, gear, ammo, and food can be pinned before a run so the optimizer only ch
 
 Gear recommendations show the per-item stat targets used by the simulation in both Cards and Detailed View: weapon attack and crit chance, helmet crit damage, gloves precision, chest/pants armor, and boots dodge. These are the model's representative tier bonuses, not individual market rolls or total character stats. Live prices update costs; actual gear rolls can differ. Gear quantity percentages indicate daily durability consumption.
 
-Item stat bonuses use the same icons and typography as the skill tiles. Each recommended gear item, ammo, and food shows its estimated price per item with the same money icon and typography as daily net cost. Prices come from the run's live market overrides, with the model's bundled costs used for unavailable individual prices.
+Item stat bonuses use the same icons and typography as the skill tiles. Each recommended gear item, ammo, and food shows its estimated total cost prefixed with `~`, using the same money icon and typography as daily net cost. Gear cost is the unit price multiplied by the displayed daily durability fraction (e.g. 50% = 0.5 items); ammo and food costs are unit prices multiplied by the displayed daily quantities. Prices come from the run's live market overrides, with the model's bundled costs used for unavailable individual prices.
 
 ## WarEra Profile Import
 

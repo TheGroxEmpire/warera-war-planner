@@ -1326,6 +1326,8 @@ h1 {
     justify-content: center;
     padding: 0.2em 0.3em;
     font-family: inherit;
+    background: transparent;
+    border: 0;
 }
 
 .item-cost {

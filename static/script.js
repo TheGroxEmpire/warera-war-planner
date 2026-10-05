@@ -126,9 +126,11 @@ function moneyIconHtml() {
     return `<svg aria-hidden="true" stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 24 24" height="1em" width="1em"><path d="M12 5C7.031 5 2 6.546 2 9.5S7.031 14 12 14c4.97 0 10-1.546 10-4.5S16.97 5 12 5zm-5 9.938v3c1.237.299 2.605.482 4 .541v-3a21.166 21.166 0 0 1-4-.541zm6 .54v3a20.994 20.994 0 0 0 4-.541v-3a20.994 20.994 0 0 1-4 .541zm6-1.181v3c1.801-.755 3-1.857 3-3.297v-3c0 1.44-1.199 2.542-3 3.297zm-14 3v-3C3.2 13.542 2 12.439 2 11v3c0 1.439 1.2 2.542 3 3.297z"></path></svg>`;
 }
 
-function itemCostHtml(unitCost) {
-    if (!Number.isFinite(unitCost) || unitCost < 0) return "";
-    return `<span class="item-cost" title="Estimated price per item" aria-label="Estimated price ${unitCost.toFixed(2)} per item"><span class="item-cost-amount">${moneyIconHtml()}<span class="net-cost-value">${formatMoney(unitCost)}</span></span><small>each</small></span>`;
+function itemCostHtml(unitCost, quantity) {
+    if (!Number.isFinite(unitCost) || unitCost < 0
+        || !Number.isFinite(quantity) || quantity < 0) return "";
+    const totalCost = unitCost * quantity;
+    return `<span class="item-cost" title="Estimated total cost for daily requirement" aria-label="Estimated total cost ${totalCost.toFixed(2)} for daily requirement"><span class="item-cost-amount">${moneyIconHtml()}<span class="net-cost-value">~${formatMoney(totalCost)}</span></span></span>`;
 }
 
 function consumableCardHtml(name, color, quantity, unitCost) {
@@ -136,7 +138,7 @@ function consumableCardHtml(name, color, quantity, unitCost) {
     return `<div class='gear-item' style='background-color: ${color}'>
         <img src='${itemIconAsset(`${name}.png`)}' alt='${name}'>
         <span class='quantity-label' title='Consumables needed per day'>${quantity}</span>
-        ${itemCostHtml(unitCost)}
+        ${itemCostHtml(unitCost, quantity)}
     </div>`;
 }
 
@@ -149,14 +151,14 @@ function gearCardHtml(gear) {
             <span class='gear-name'>${name}</span>
             <span class='gear-stats'>${gearStatsHtml(gear)}</span>
             <span class='quantity-label' title='Gear durability consumed per day'>x ${(Number(gear.quantity) * 100).toFixed(0)} %</span>
-            ${itemCostHtml(gear.unit_cost)}
+            ${itemCostHtml(gear.unit_cost, gear.quantity)}
         </div>
     `;
 }
 
 function gearTableCellHtml(gear) {
     if (gear.is_none) return `<td class="td-gear">None</td>`;
-    return `<td class="td-gear" style="background-color:${gear.color}">${gear.tier}<span class="gear-stats">${gearStatsHtml(gear)}</span><small title="Gear durability consumed per day">${(Number(gear.quantity) * 100).toFixed(0)}%</small>${itemCostHtml(gear.unit_cost)}</td>`;
+    return `<td class="td-gear" style="background-color:${gear.color}">${gear.tier}<span class="gear-stats">${gearStatsHtml(gear)}</span><small title="Gear durability consumed per day">${(Number(gear.quantity) * 100).toFixed(0)}%</small>${itemCostHtml(gear.unit_cost, gear.quantity)}</td>`;
 }
 
 function buildCostValue(build) {
@@ -2410,7 +2412,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     </div>
                     <div class='card-items'>
                         <h3>Gear &amp; Consumables</h3>
-                        <p class='gear-stat-note'>Stat targets used in this simulation. Actual gear rolls vary. Estimated prices are per item.</p>
+                        <p class='gear-stat-note'>Stat targets used in this simulation. Actual gear rolls vary. Estimated costs cover the daily durability or quantity shown.</p>
                         <div class='items-grid'>
                             ${gearHtml}
                             ${consumableCardHtml(d.ammo_name, d.ammo_color, d.ammo_quantity, d.ammo_unit_cost)}
@@ -2485,14 +2487,14 @@ document.addEventListener("DOMContentLoaded", () => {
                     <td class="td-eff">${efficiencyValue}</td>
                     ${skillCells}
                     ${gearCells}
-                    <td class="td-gear" style="background-color:${d.ammo_color}">${d.ammo_name}<br><small>×${d.ammo_quantity}</small>${d.ammo_name !== 'noAmmo' ? itemCostHtml(d.ammo_unit_cost) : ''}</td>
-                    <td class="td-gear" style="background-color:${d.food_color}">${d.food_name}<br><small>×${d.food_quantity}</small>${d.food_name !== 'noFood' ? itemCostHtml(d.food_unit_cost) : ''}</td>
+                    <td class="td-gear" style="background-color:${d.ammo_color}">${d.ammo_name}<br><small>×${d.ammo_quantity}</small>${d.ammo_name !== 'noAmmo' ? itemCostHtml(d.ammo_unit_cost, d.ammo_quantity) : ''}</td>
+                    <td class="td-gear" style="background-color:${d.food_color}">${d.food_name}<br><small>×${d.food_quantity}</small>${d.food_name !== 'noFood' ? itemCostHtml(d.food_unit_cost, d.food_quantity) : ''}</td>
                 </tr>`;
         }).join("");
 
         resultsDiv.innerHTML = `
             <div class="table-wrapper">
-                <p class="gear-stat-note">Gear stats are the stat targets used in this simulation. Actual gear rolls vary; gear percentages show daily durability consumption. Estimated prices are per item.</p>
+                <p class="gear-stat-note">Gear stats are the stat targets used in this simulation. Actual gear rolls vary; gear percentages show daily durability consumption. Estimated costs cover the daily durability or quantity shown.</p>
                 <table class="builds-table">
                     <thead>
                         <tr>

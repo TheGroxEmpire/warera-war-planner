@@ -97,6 +97,12 @@ class SimulationCoreTest(unittest.TestCase):
                 foodCard: sandbox.consumableCardHtml("steak", "blue", 5, optimizer.createModelContext(options.priceOverrides).food.steak.cost),
                 emptyAmmoCard: sandbox.consumableCardHtml("noAmmo", "grey", 0, 0),
                 emptyFoodCard: sandbox.consumableCardHtml("noFood", "grey", 0, 0),
+                sniperCards: [0.5, 1, 1.5].map(quantity => sandbox.gearCardHtml({
+                    ...gear[0], tier: "sniper", image_name: "sniper", unit_cost: 70, quantity,
+                })),
+                sniperCells: [0.5, 1, 1.5].map(quantity => sandbox.gearTableCellHtml({
+                    ...gear[0], tier: "sniper", image_name: "sniper", unit_cost: 70, quantity,
+                })),
                 emptyMods: empty.mods,
                 emptyCard: sandbox.gearCardHtml(empty),
                 emptyCell: sandbox.gearTableCellHtml(empty),
@@ -122,9 +128,10 @@ class SimulationCoreTest(unittest.TestCase):
                     self.assertIn(f'xlink:href="#skill-svg-{icon}"', html)
                 self.assertIn('class="skill gear-stat"', html)
                 self.assertIn('class="item-cost"', html)
-                self.assertIn('Estimated price per item', html)
-            self.assertIn('>8.75</span>', result[view][0])
-            self.assertIn('>0.00</span>', result[view][1])
+                self.assertIn('Estimated total cost for daily requirement', html)
+                self.assertNotIn('each', html)
+            self.assertIn('>~8.05</span>', result[view][0])
+            self.assertIn('>~0.00</span>', result[view][1])
             self.assertNotIn("Armor +14%", result[view][3])
             self.assertNotIn("Dodge +36%", result[view][5])
         self.assertEqual(result["emptyMods"], {})
@@ -135,8 +142,13 @@ class SimulationCoreTest(unittest.TestCase):
         self.assertEqual(result["unitCosts"], [8.75, 0, 7, 27, 70, 240])
         self.assertEqual(result["ammoCost"], 0.23)
         self.assertEqual(result["foodCost"], 0)
-        self.assertIn(">0.23</span>", result["ammoCard"])
-        self.assertIn(">4.12</span>", result["foodCard"])
+        self.assertIn(">~9.20</span>", result["ammoCard"])
+        self.assertIn(">~20.60</span>", result["foodCard"])
+        self.assertNotIn("each", result["ammoCard"])
+        self.assertNotIn("each", result["foodCard"])
+        for view in ("sniperCards", "sniperCells"):
+            for html, expected_total in zip(result[view], ["35.00", "70.00", "105.00"]):
+                self.assertIn(f">~{expected_total}</span>", html)
         self.assertEqual(result["emptyAmmoCard"], "")
         self.assertEqual(result["emptyFoodCard"], "")
 

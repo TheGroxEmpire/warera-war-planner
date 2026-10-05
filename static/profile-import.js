@@ -218,6 +218,14 @@
             Object.prototype.hasOwnProperty.call(equipped, slot),
         ));
         const ammoIndex = ammoTierIndex(user, equipped);
+        const statKeys = { attack: "atk", criticalChance: "critc", criticalDamages: "critd", precision: "prc", armor: "arm", dodge: "ddg" };
+        const gearStats = GEAR_SLOTS.map(slot => {
+            const stats = equipped[slot]?.skills;
+            if (!stats || typeof stats !== "object") return null;
+            const mods = Object.fromEntries(Object.entries(stats).filter(([key, value]) => statKeys[key] && Number.isInteger(value) && value >= 0)
+                .map(([key, value]) => [statKeys[key], value]));
+            return Object.keys(mods).length ? mods : null;
+        });
         const loadoutWarnings = [];
         if (normalizedLoadoutAvailable) {
             GEAR_SLOTS.forEach((slot, index) => {
@@ -244,6 +252,7 @@
                 ? ""
                 : "One or more combat skill levels are missing, so skill pins cannot be imported.",
             gearTiers,
+            gearStats,
             ammoIndex,
             loadoutAvailable: normalizedLoadoutAvailable,
             loadoutWarnings,
@@ -293,6 +302,7 @@
             ammo: source.ammo ?? null,
             food: source.food ?? null,
         };
+        if (Array.isArray(source.gearStats)) result.gearStats = cloneArray(source.gearStats, 6);
         const importedSkills = cloneArray(profile?.skillLevels, 9);
         if (options.pinSkills && importedSkills.every((value) => isIntegerInRange(value, 0, 10))) {
             result.skills = importedSkills;
@@ -302,6 +312,10 @@
             result.gear = importedGear.map((tier, index) => (
                 tier === null || tier === undefined ? result.gear[index] : tier
             ));
+            if (Array.isArray(profile?.gearStats) || Array.isArray(source.gearStats)) {
+                result.gearStats = importedGear.map((tier, index) => tier === null || tier === undefined
+                    ? source.gearStats?.[index] ?? null : profile.gearStats?.[index] ?? null);
+            }
             if (profile?.ammoIndex !== null && profile?.ammoIndex !== undefined) {
                 result.ammo = profile.ammoIndex;
             }

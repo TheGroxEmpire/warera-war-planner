@@ -124,8 +124,107 @@
         },
     };
 
+    // Verified against gameConfig.getGameConfig on 2026-10-05; refreshed per browser run.
+    const GEAR_STAT_RANGES = {"weapon":{"knife":{"atk":[21,40],"critc":[1,5]},"gun":{"atk":[51,60],"critc":[6,10]},"rifle":{"atk":[71,90],"critc":[11,15]},"sniper":{"atk":[101,130],"critc":[16,20]},"tank":{"atk":[141,170],"critc":[26,35]},"jet":{"atk":[221,300],"critc":[41,50]}},"helmet":{"grey":{"critd":[1,15]},"green":{"critd":[16,30]},"blue":{"critd":[31,50]},"purple":{"critd":[71,90]},"gold":{"critd":[91,110]},"red":{"critd":[121,150]}},"gloves":{"grey":{"prc":[1,5]},"green":{"prc":[6,10]},"blue":{"prc":[11,15]},"purple":{"prc":[21,25]},"gold":{"prc":[31,40]},"red":{"prc":[51,60]}},"chest":{"grey":{"arm":[1,5]},"green":{"arm":[6,10]},"blue":{"arm":[11,15]},"purple":{"arm":[21,30]},"gold":{"arm":[36,50]},"red":{"arm":[56,70]}},"pants":{"grey":{"arm":[1,5]},"green":{"arm":[6,10]},"blue":{"arm":[11,15]},"purple":{"arm":[21,30]},"gold":{"arm":[36,50]},"red":{"arm":[56,70]}},"boots":{"grey":{"ddg":[1,5]},"green":{"ddg":[6,10]},"blue":{"ddg":[11,15]},"purple":{"ddg":[21,25]},"gold":{"ddg":[31,40]},"red":{"ddg":[51,60]}}};
+
     function cloneJson(value) {
         return JSON.parse(JSON.stringify(value));
+    }
+
+    function rollQuality(mods, ranges) {
+        const values = Object.entries(ranges).map(([stat, [min, max]]) => (
+            max === min ? 1 : Math.max(0, Math.min(1, (mods[stat] - min) / (max - min)))
+        ));
+        return values.reduce((sum, value) => sum + value, 0) / Math.max(1, values.length);
+    }
+
+    function interpolateRollPrice(curve, quality, fallback) {
+        const points = (curve || []).filter(point => Number.isFinite(point.quality)
+            && Number.isFinite(point.price) && point.price > 0).slice().sort((a, b) => a.quality - b.quality);
+        if (!points.length) return fallback;
+        if (quality <= points[0].quality) return points[0].price;
+        for (let index = 1; index < points.length; index += 1) {
+            if (quality <= points[index].quality) {
+                const left = points[index - 1], right = points[index];
+                const fraction = (quality - left.quality) / Math.max(1e-9, right.quality - left.quality);
+                return left.price + fraction * (right.price - left.price);
+            }
+        }
+        return points[points.length - 1].price;
+    }
+
+    function gearAt(ctx, slot, index) {
+        return ctx.gearChoices[slot][index];
+    }
+
+    function gearChoiceAllowed(ctx, options, slot, index) {
+        const slotIndex = GEAR_SLOTS.indexOf(slot);
+        const pin = pinnedArray(options, "pinnedGear", 6)[slotIndex];
+        const choice = gearAt(ctx, slot, index);
+        if (pin !== null && choice.tierIndex !== pin) return false;
+        const mods = options.pinnedGearStats && options.pinnedGearStats[slotIndex];
+        if ((choice.dominated || choice.gridExcluded) && !mods) return false;
+        return !mods || Object.entries(mods).every(([stat, value]) => choice.mods[stat] === value);
+    }
+
+    function configureGearChoices(ctx, overrides) {
+        ctx.gearChoices = {};
+        ctx.rollRanges = overrides.gearStatRanges || GEAR_STAT_RANGES;
+        ctx.rollCurves = overrides.gearPriceCurves || {};
+        ctx.rollSearch = Boolean(overrides.searchGearRolls);
+        for (const slot of GEAR_SLOTS) {
+            const tiers = slot === "weapon" ? WEAPON_TIERS : GEAR_TIERS;
+            // Keep the first seven indexes stable for legacy simulation calls.
+            ctx.gearChoices[slot] = tiers.map((tier, tierIndex) => ({
+                ...cloneJson(ctx.gear[slot][tier]), tier, tierIndex,
+            }));
+            if (!ctx.rollSearch) continue;
+            const extras = [];
+            tiers.forEach((tier, tierIndex) => {
+                if (!tierIndex) return;
+                const ranges = ctx.rollRanges[slot] && ctx.rollRanges[slot][tier];
+                if (!ranges || !Object.keys(ranges).length) return;
+                const base = ctx.gearChoices[slot][tierIndex];
+                base.mods = Object.fromEntries(Object.entries(ranges).map(([stat, [min, max]]) => [stat, Math.round((min + max) / 2)]));
+                const curve = ctx.rollCurves[slot] && ctx.rollCurves[slot][tier];
+                base.cost = interpolateRollPrice(curve, rollQuality(base.mods, ranges), base.cost);
+                base.priceSource = curve && curve.length >= 2 ? "transaction-curve" : "tier-average";
+                if (!curve || curve.length < 2) return;
+                base.gridExcluded = true;
+                // Broad endpoint grid; the final pass refines integer rolls between endpoints.
+                let rolls = [{}];
+                for (const [stat, [min, max]] of Object.entries(ranges)) {
+                    rolls = rolls.flatMap(mods => [...new Set([min, max])].map(value => ({ ...mods, [stat]: value })));
+                }
+                for (const mods of rolls) {
+                    const quality = rollQuality(mods, ranges);
+                    const cost = interpolateRollPrice(curve, quality, ctx.gear[slot][tier].cost);
+                    extras.push({ ...base, mods, cost, gridExcluded: false });
+                }
+            });
+            ctx.gearChoices[slot].push(...extras);
+            const pin = overrides.pinnedGearRolls && overrides.pinnedGearRolls[GEAR_SLOTS.indexOf(slot)];
+            if (pin && tiers[pin.tierIndex] && pin.tierIndex > 0) {
+                const base = ctx.gearChoices[slot][pin.tierIndex];
+                const ranges = ctx.rollRanges[slot][base.tier];
+                const mods = Object.fromEntries(Object.entries(ranges).map(([stat, [min, max]]) => {
+                    const value = pin.mods[stat];
+                    // Existing items can retain legacy rolls outside today's drop range.
+                    if (!Number.isInteger(value) || value < 0 || value > 10000) throw new Error(`Pinned ${slot} ${stat} must be a valid stat value.`);
+                    return [stat, value];
+                }));
+                ctx.gearChoices[slot].push({ ...base, mods, gridExcluded: false,
+                    cost: interpolateRollPrice(ctx.rollCurves[slot]?.[base.tier], rollQuality(mods, ranges), ctx.gear[slot][base.tier].cost) });
+            }
+            // Safe within-tier dominance: no more expensive, no weaker stat, same scrap.
+            ctx.gearChoices[slot].forEach((choice, index, choices) => {
+                choice.dominated = choices.some((other, otherIndex) => otherIndex !== index
+                    && !other.gridExcluded && other.tierIndex === choice.tierIndex && other.cost <= choice.cost
+                    && Object.keys(choice.mods).every(stat => other.mods[stat] >= choice.mods[stat])
+                    && (other.cost < choice.cost || Object.keys(choice.mods).some(stat => other.mods[stat] > choice.mods[stat])
+                        || otherIndex < index));
+            });
+        }
     }
 
     function createModelContext(priceOverrides) {
@@ -176,6 +275,7 @@
             }
         }
 
+        configureGearChoices(ctx, overrides);
         return ctx;
     }
 
@@ -195,17 +295,17 @@
         return tables;
     }
 
-    function gearTier(gearIdx, index) {
+    function gearTier(gearIdx, index, ctx) {
         const slot = GEAR_SLOTS[index];
-        return slot === "weapon" ? WEAPON_TIERS[gearIdx[index]] : GEAR_TIERS[gearIdx[index]];
+        return ctx.gearChoices[slot][gearIdx[index]].tier;
     }
 
     function applyGearToBaseline(gearIdx, ctx) {
         const out = { ...BASELINE };
         for (let i = 0; i < GEAR_SLOTS.length; i += 1) {
             const slot = GEAR_SLOTS[i];
-            const tier = gearTier(gearIdx, i);
-            const data = ctx.gear[slot][tier];
+            const tier = gearTier(gearIdx, i, ctx);
+            const data = gearAt(ctx, slot, gearIdx[i]);
             for (const [stat, delta] of Object.entries(data.mods)) {
                 out[stat] = (out[stat] || 0) + delta;
             }
@@ -217,6 +317,7 @@
         const key = gearIdx.join(",");
         let tables = ctx.gearCache.get(key);
         if (!tables) {
+            if (ctx.gearCache.size >= 1024) ctx.gearCache.clear();
             tables = makeSkillTables(applyGearToBaseline(gearIdx, ctx));
             ctx.gearCache.set(key, tables);
         }
@@ -288,9 +389,9 @@
         let gearCostTotal = 0.0;
         for (let i = 0; i < GEAR_SLOTS.length; i += 1) {
             const slot = GEAR_SLOTS[i];
-            const tier = gearTier(gearIdx, i);
+            const tier = gearTier(gearIdx, i, ctx);
             const decayMultiplier = slot === "weapon" ? 1 : (1 - ddg / (ddg + 40));
-            gearCostTotal += (ctx.gear[slot][tier].cost / 100) * nAttacks * decayMultiplier;
+            gearCostTotal += (gearAt(ctx, slot, gearIdx[i]).cost / 100) * nAttacks * decayMultiplier;
         }
 
         const dayMultiplier = options.pill ? 1.8 : 2.4;
@@ -341,9 +442,9 @@
         let totalScrap = 0.0;
         for (let i = 0; i < GEAR_SLOTS.length; i += 1) {
             const slot = GEAR_SLOTS[i];
-            const tier = gearTier(gearIdx, i);
+            const tier = gearTier(gearIdx, i, ctx);
             const quantity = Math.max(0.01, gearDecayQuantityFromDiag(gearIdx, slot, diag));
-            totalScrap += (ctx.gear[slot][tier].scrap / 3) * quantity;
+            totalScrap += (gearAt(ctx, slot, gearIdx[i]).scrap / 3) * quantity;
         }
         return totalScrap;
     }
@@ -377,13 +478,15 @@
             build.gear_idx.join(","),
             build.ammo_idx,
             build.food_idx,
+            build.gear_rolls ? JSON.stringify(build.gear_rolls.map(item => item.mods)) : "",
         ].join("|");
     }
 
-    function createRawBuild(candidate, totals, econ, selectionScore) {
+    function createRawBuild(candidate, totals, econ, selectionScore, ctx) {
         return {
             skill_lvls: candidate.skillLevels.slice(),
             gear_idx: candidate.gearIdx.slice(),
+            gear_rolls: ctx ? candidate.gearIdx.map((choice, index) => ({ ...gearAt(ctx, GEAR_SLOTS[index], choice), mods: { ...gearAt(ctx, GEAR_SLOTS[index], choice).mods } })) : undefined,
             ammo_idx: candidate.ammoIdx,
             food_idx: candidate.foodIdx,
             total_damage: totals.totalDamage,
@@ -420,43 +523,13 @@
         return value == null ? null : value;
     }
 
-    function damageCombatConfigCount(options) {
-        const gearPins = pinnedArray(options, "pinnedGear", GEAR_SLOTS.length);
-        const ammoPin = pinnedIndex(options, "pinnedAmmo");
-        let count = 0;
-        for (let weaponIdx = 0; weaponIdx < WEAPON_TIERS.length; weaponIdx += 1) {
-            if (gearPins[0] !== null && gearPins[0] !== weaponIdx) continue;
-            const ammoIndexes = weaponIdx <= 1 ? [0] : [1, 2, 3];
-            const ammoCount = ammoPin === null
-                ? ammoIndexes.length
-                : Number(ammoIndexes.includes(ammoPin));
-            if (!ammoCount) continue;
-            const helmetCount = gearPins[1] === null ? GEAR_TIERS.length : 1;
-            const glovesCount = gearPins[2] === null ? GEAR_TIERS.length : 1;
-            count += ammoCount * helmetCount * glovesCount;
-        }
-        return count;
-    }
-
-    function sustainConfigCount(options) {
-        const gearPins = pinnedArray(options, "pinnedGear", GEAR_SLOTS.length);
-        return (gearPins[3] === null ? GEAR_TIERS.length : 1)
-            * (gearPins[4] === null ? GEAR_TIERS.length : 1)
-            * (gearPins[5] === null ? GEAR_TIERS.length : 1)
-            * (pinnedIndex(options, "pinnedFood") === null ? FOOD_NAMES.length : 1);
-    }
-
     function getSearchPlan(options) {
+        const ctx = createModelContext(options.priceOverrides);
         const budget = skillBudget(options);
-        const combatCount = damageCombatConfigCount(options);
-        const sustainCount = sustainConfigCount(options);
-        const splitChecks = budgetSplitCount(budget, options);
-        return {
-            budget,
-            combatCount,
-            sustainCount,
-            checks: combatCount * sustainCount * splitChecks,
-        };
+        const combatCount = makeDamageCombatConfigs(ctx, options).length;
+        const sustainCount = makeSustainConfigs(ctx, options).length;
+        return { budget, combatCount, sustainCount,
+            checks: combatCount * sustainCount * budgetSplitCount(budget, options) };
     }
 
     function normalizedBudgetTargets(options) {
@@ -532,16 +605,16 @@
         const gearPins = pinnedArray(options, "pinnedGear", GEAR_SLOTS.length);
         const ammoPin = pinnedIndex(options, "pinnedAmmo");
         const configs = [];
-        for (let weaponIdx = 0; weaponIdx < WEAPON_TIERS.length; weaponIdx += 1) {
-            if (gearPins[0] !== null && gearPins[0] !== weaponIdx) continue;
-            const weapon = ctx.gear.weapon[WEAPON_TIERS[weaponIdx]];
-            const ammoIndexes = weaponIdx <= 1 ? [0] : [1, 2, 3];
-            for (let helmetIdx = 0; helmetIdx < GEAR_TIERS.length; helmetIdx += 1) {
-                if (gearPins[1] !== null && gearPins[1] !== helmetIdx) continue;
-                const helmet = ctx.gear.helmet[GEAR_TIERS[helmetIdx]];
-                for (let glovesIdx = 0; glovesIdx < GEAR_TIERS.length; glovesIdx += 1) {
-                    if (gearPins[2] !== null && gearPins[2] !== glovesIdx) continue;
-                    const gloves = ctx.gear.gloves[GEAR_TIERS[glovesIdx]];
+        for (let weaponIdx = 0; weaponIdx < ctx.gearChoices.weapon.length; weaponIdx += 1) {
+            if (!gearChoiceAllowed(ctx, options, "weapon", weaponIdx)) continue;
+            const weapon = gearAt(ctx, "weapon", weaponIdx);
+            const ammoIndexes = gearAt(ctx, "weapon", weaponIdx).tierIndex <= 1 ? [0] : [1, 2, 3];
+            for (let helmetIdx = 0; helmetIdx < ctx.gearChoices.helmet.length; helmetIdx += 1) {
+                if (!gearChoiceAllowed(ctx, options, "helmet", helmetIdx)) continue;
+                const helmet = gearAt(ctx, "helmet", helmetIdx);
+                for (let glovesIdx = 0; glovesIdx < ctx.gearChoices.gloves.length; glovesIdx += 1) {
+                    if (!gearChoiceAllowed(ctx, options, "gloves", glovesIdx)) continue;
+                    const gloves = gearAt(ctx, "gloves", glovesIdx);
                     for (const ammoIdx of ammoIndexes) {
                         if (ammoPin !== null && ammoPin !== ammoIdx) continue;
                         configs.push({
@@ -566,15 +639,15 @@
         const gearPins = pinnedArray(options, "pinnedGear", GEAR_SLOTS.length);
         const foodPin = pinnedIndex(options, "pinnedFood");
         const configs = [];
-        for (let chestIdx = 0; chestIdx < GEAR_TIERS.length; chestIdx += 1) {
-            if (gearPins[3] !== null && gearPins[3] !== chestIdx) continue;
-            const chest = ctx.gear.chest[GEAR_TIERS[chestIdx]];
-            for (let pantsIdx = 0; pantsIdx < GEAR_TIERS.length; pantsIdx += 1) {
-                if (gearPins[4] !== null && gearPins[4] !== pantsIdx) continue;
-                const pants = ctx.gear.pants[GEAR_TIERS[pantsIdx]];
-                for (let bootsIdx = 0; bootsIdx < GEAR_TIERS.length; bootsIdx += 1) {
-                    if (gearPins[5] !== null && gearPins[5] !== bootsIdx) continue;
-                    const boots = ctx.gear.boots[GEAR_TIERS[bootsIdx]];
+        for (let chestIdx = 0; chestIdx < ctx.gearChoices.chest.length; chestIdx += 1) {
+            if (!gearChoiceAllowed(ctx, options, "chest", chestIdx)) continue;
+            const chest = gearAt(ctx, "chest", chestIdx);
+            for (let pantsIdx = 0; pantsIdx < ctx.gearChoices.pants.length; pantsIdx += 1) {
+                if (!gearChoiceAllowed(ctx, options, "pants", pantsIdx)) continue;
+                const pants = gearAt(ctx, "pants", pantsIdx);
+                for (let bootsIdx = 0; bootsIdx < ctx.gearChoices.boots.length; bootsIdx += 1) {
+                    if (!gearChoiceAllowed(ctx, options, "boots", bootsIdx)) continue;
+                    const boots = gearAt(ctx, "boots", bootsIdx);
                     for (let foodIdx = 0; foodIdx < FOOD_NAMES.length; foodIdx += 1) {
                         if (foodPin !== null && foodPin !== foodIdx) continue;
                         configs.push({
@@ -632,7 +705,7 @@
         };
     }
 
-    function makeValueTable(config, patterns, budget, valueFn) {
+    function makeValueTable(config, patterns, budget, valueFn, omitBudgetRuns = false) {
         const values = new Float64Array(budget + 1);
         const patternIndexes = new Int32Array(budget + 1);
         for (let i = 0; i <= budget; i += 1) {
@@ -658,7 +731,7 @@
         }
 
         const budgetRuns = [];
-        if (budget >= 0) {
+        if (budget >= 0 && !omitBudgetRuns) {
             let start = 0;
             let currentIndex = patternIndexes[0];
             let currentValue = values[0];
@@ -720,9 +793,9 @@
 
     function attachCombatEconomy(table, patterns, budget, ctx) {
         const config = table.config;
-        const weapon = ctx.gear.weapon[WEAPON_TIERS[config.weaponIdx]];
-        const helmet = ctx.gear.helmet[GEAR_TIERS[config.helmetIdx]];
-        const gloves = ctx.gear.gloves[GEAR_TIERS[config.glovesIdx]];
+        const weapon = gearAt(ctx, "weapon", config.weaponIdx);
+        const helmet = gearAt(ctx, "helmet", config.helmetIdx);
+        const gloves = gearAt(ctx, "gloves", config.glovesIdx);
         const prc = new Float64Array(budget + 1);
 
         for (let cost = 0; cost <= budget; cost += 1) {
@@ -747,9 +820,9 @@
 
     function attachSustainEconomy(table, patterns, budget, options, ctx) {
         const config = table.config;
-        const chest = ctx.gear.chest[GEAR_TIERS[config.chestIdx]];
-        const pants = ctx.gear.pants[GEAR_TIERS[config.pantsIdx]];
-        const boots = ctx.gear.boots[GEAR_TIERS[config.bootsIdx]];
+        const chest = gearAt(ctx, "chest", config.chestIdx);
+        const pants = gearAt(ctx, "pants", config.pantsIdx);
+        const boots = gearAt(ctx, "boots", config.bootsIdx);
         const sustainGearAttackCost = (chest.cost + pants.cost + boots.cost) / 100;
         const sustainGearScrap = (chest.scrap + pants.scrap + boots.scrap) / 3;
         const dayMultiplier = options.pill ? 1.8 : 2.4;
@@ -843,9 +916,9 @@
     }
 
     function campaignBudgetLimit(options) {
-        const campaignBudget = Number(options.campaignBudget);
+        const campaignBudget = options.campaignBudget == null ? NaN : Number(options.campaignBudget);
         if (Number.isFinite(campaignBudget)) return campaignBudget;
-        const dailyBudget = Number(options.dailyBudget);
+        const dailyBudget = options.dailyBudget == null ? NaN : Number(options.dailyBudget);
         return Number.isFinite(dailyBudget) ? dailyBudget : null;
     }
 
@@ -860,7 +933,7 @@
     }
 
     function campaignCostFromNetCost(netCost, options) {
-        if (!Number.isFinite(Number(options.campaignBudget))) return netCost;
+        if (!(options.campaignBudget != null && Number.isFinite(Number(options.campaignBudget)))) return netCost;
         const days = campaignWarDays(options);
         return netCost * days;
     }
@@ -981,19 +1054,19 @@
     }
 
     function campaignCostForBuild(build, options) {
-        return Number.isFinite(Number(options.campaignBudget))
+        return (options.campaignBudget != null && Number.isFinite(Number(options.campaignBudget)))
             ? simulateCampaignBuild(build, options).warTotalCost
             : Number(build.net_cost) || 0;
     }
 
     function campaignBudgetForBuild(build, options) {
-        return Number.isFinite(Number(options.campaignBudget))
+        return (options.campaignBudget != null && Number.isFinite(Number(options.campaignBudget)))
             ? simulateCampaignBuild(build, options).availableBudget
             : campaignBudgetLimit(options);
     }
 
     function campaignIsBuildSustainable(build, options) {
-        return Number.isFinite(Number(options.campaignBudget))
+        return (options.campaignBudget != null && Number.isFinite(Number(options.campaignBudget)))
             ? simulateCampaignBuild(build, options).sustainable
             : campaignCostForBuild(build, options) <= campaignBudgetLimit(options);
     }
@@ -1015,18 +1088,18 @@
         const helmetIdx = combatTable.config.helmetIdx;
         const glovesIdx = combatTable.config.glovesIdx;
         const gearParts = [
-            ["weapon", WEAPON_TIERS[weaponIdx], 1.0],
-            ["helmet", GEAR_TIERS[helmetIdx], dodgeDecay],
-            ["gloves", GEAR_TIERS[glovesIdx], dodgeDecay],
-            ["chest", GEAR_TIERS[sustainTable.config.chestIdx], dodgeDecay],
-            ["pants", GEAR_TIERS[sustainTable.config.pantsIdx], dodgeDecay],
-            ["boots", GEAR_TIERS[sustainTable.config.bootsIdx], dodgeDecay],
+            ["weapon", weaponIdx, 1.0],
+            ["helmet", helmetIdx, dodgeDecay],
+            ["gloves", glovesIdx, dodgeDecay],
+            ["chest", sustainTable.config.chestIdx, dodgeDecay],
+            ["pants", sustainTable.config.pantsIdx, dodgeDecay],
+            ["boots", sustainTable.config.bootsIdx, dodgeDecay],
         ];
 
         let gearCost = 0.0;
         let scrapGenerated = 0.0;
-        for (const [slot, tier, decayMultiplier] of gearParts) {
-            const gear = ctx.gear[slot][tier];
+        for (const [slot, choiceIndex, decayMultiplier] of gearParts) {
+            const gear = gearAt(ctx, slot, choiceIndex);
             gearCost += (gear.cost / 100) * sustain.attacks * decayMultiplier;
             const quantity = Math.max(0.01, Math.round((sustain.attacks * decayMultiplier / 100) * 100) / 100);
             scrapGenerated += (gear.scrap / 3) * quantity;
@@ -1110,7 +1183,7 @@
         const econ = computeEconomics(candidate.skillLevels, candidate.gearIdx, totals.totalCost, totals.diag, ctx);
         const primary = totals.totalDamage;
         const denominator = Math.max(primary, 1);
-        return createRawBuild(candidate, totals, econ, econ.net_cost / denominator);
+        return createRawBuild(candidate, totals, econ, econ.net_cost / denominator, ctx);
     }
 
     function runBestDamageSearch(options, onProgress, ctx, plan, budget, combatTables, sustainConfigs, combatPatterns, sustainPatterns, sustainValueFn) {
@@ -1485,7 +1558,7 @@
         const pinnedLootLevel = pinnedArray(options, "pinnedSkills", 9)[8];
         const needsCandidateCosts = hasCampaignBudget || budgetTargets.length > 0 || (pinnedLootLevel !== null && pinnedLootLevel > 0);
         const combatTables = combatConfigs.map((config) => {
-            const table = makeValueTable(config, combatPatterns, budget, combatValueFn);
+            const table = makeValueTable(config, combatPatterns, budget, combatValueFn, ctx.rollSearch && needsCandidateCosts && !options.exactCampaignSearch);
             return needsCandidateCosts ? attachCombatEconomy(table, combatPatterns, budget, ctx) : table;
         });
 
@@ -1634,7 +1707,7 @@
         const sustainTables = [];
         for (let sustainIndex = sustainStart; sustainIndex < sustainEnd; sustainIndex += 1) {
             sustainTables.push(attachSustainEconomy(
-                makeValueTable(sustainConfigs[sustainIndex], sustainPatterns, budget, sustainValueFn),
+                makeValueTable(sustainConfigs[sustainIndex], sustainPatterns, budget, sustainValueFn, ctx.rollSearch && !options.exactCampaignSearch),
                 sustainPatterns,
                 budget,
                 options,
@@ -1684,6 +1757,7 @@
         }
 
         function sampledCostValueFrontier(entries, limit) {
+            if (entries instanceof Map) entries = Array.from(entries.values());
             if (!entries.length) return [];
 
             const sorted = entries.slice().sort((a, b) => (
@@ -1713,8 +1787,17 @@
             return sampled;
         }
 
+        function retainFrontierEntry(frontier, entry) {
+            if (!(frontier instanceof Map)) { frontier.push(entry); return; }
+            // Bounded price bands keep the roll search from retaining millions of
+            // per-budget objects. Cheapest and strongest candidates are kept separately.
+            const band = Math.sign(entry.costHint) * Math.floor(Math.log1p(Math.abs(entry.costHint)) * 64);
+            const current = frontier.get(band);
+            if (!current || entry.value > current.value || (entry.value === current.value && entry.costHint < current.costHint)) frontier.set(band, entry);
+        }
+
         function buildCombatBudgetCandidates() {
-            const byBudget = Array.from({ length: budget + 1 }, () => ({ value: [], cheap: [], frontier: [] }));
+            const byBudget = Array.from({ length: budget + 1 }, () => ({ value: [], cheap: [], frontier: ctx.rollSearch ? new Map() : [] }));
             const valueSorter = (a, b) => b.value - a.value || a.costHint - b.costHint;
             const cheapSorter = (a, b) => a.costHint - b.costHint || b.value - a.value;
             const caseIncomePerAttack = ctx.rewards.case1_price * 0.02 + ctx.rewards.case2_price * 0.0002;
@@ -1737,7 +1820,7 @@
                     entry.key = sideCandidateKey(entry);
                     addSortedEntry(byBudget[cost].value, entry, 16, valueSorter);
                     addSortedEntry(byBudget[cost].cheap, entry, 10, cheapSorter);
-                    byBudget[cost].frontier.push(entry);
+                    retainFrontierEntry(byBudget[cost].frontier, entry);
                 }
             }
 
@@ -1749,7 +1832,7 @@
         }
 
         function buildSustainBudgetCandidates() {
-            const byBudget = Array.from({ length: budget + 1 }, () => ({ value: [], cheap: [], frontier: [] }));
+            const byBudget = Array.from({ length: budget + 1 }, () => ({ value: [], cheap: [], frontier: ctx.rollSearch ? new Map() : [] }));
             const valueSorter = (a, b) => b.value - a.value || a.costHint - b.costHint;
             const cheapSorter = (a, b) => a.costHint - b.costHint || b.value - a.value;
 
@@ -1769,7 +1852,7 @@
                     entry.key = sideCandidateKey(entry);
                     addSortedEntry(byBudget[cost].value, entry, 16, valueSorter);
                     addSortedEntry(byBudget[cost].cheap, entry, 10, cheapSorter);
-                    byBudget[cost].frontier.push(entry);
+                    retainFrontierEntry(byBudget[cost].frontier, entry);
                 }
             }
 
@@ -1865,6 +1948,11 @@
             const combatBudgetCandidates = buildCombatBudgetCandidates();
             const sustainBudgetCandidates = buildSustainBudgetCandidates();
             const progressStep = (sustainEnd - sustainStart) * combatTables.length;
+            if (ctx.rollSearch) {
+                // Candidate entries retain the tables they need; release the full grids.
+                combatTables.length = 0;
+                sustainTables.length = 0;
+            }
             for (const lootLevel of lootSkillLevels) {
                 const remainingBudget = budget - SKILL_LEVEL_COST[lootLevel];
                 for (let combatBudget = 0; combatBudget <= remainingBudget; combatBudget += 1) {
@@ -2133,15 +2221,17 @@
 
     function gearEntries(build, ctx) {
         return GEAR_SLOTS.map((slot, index) => {
-            const tier = gearTier(build.gear_idx, index);
+            const choice = build.gear_rolls ? build.gear_rolls[index] : gearAt(ctx, slot, build.gear_idx[index]);
+            const tier = choice.tier;
             const imageName = slot === "weapon" ? tier : slot;
             const quantity = Math.max(0.01, gearDecayQuantityFromDiag(build.gear_idx, slot, build.diag));
             return {
                 tier,
                 image_name: imageName,
                 slot,
-                mods: { ...ctx.gear[slot][tier].mods },
-                unit_cost: ctx.gear[slot][tier].cost,
+                mods: { ...choice.mods },
+                unit_cost: choice.cost,
+                price_source: choice.priceSource || "tier-average",
                 quantity,
                 is_none: tier === "none",
                 color: getTierColor(tier),
@@ -2164,6 +2254,8 @@
         build.ammo_unit_cost = ctx.ammo[build.ammo_name].bullet_cost;
         build.food_unit_cost = ctx.food[build.food_name].cost;
         build.gear = gearEntries(build, ctx);
+        build.gear_choice_idx = build.gear_idx.slice();
+        build.gear_idx = build.gear_choice_idx.map((choice, index) => build.gear_rolls ? build.gear_rolls[index].tierIndex : gearAt(ctx, GEAR_SLOTS[index], choice).tierIndex);
         build.ammo_color = getConsumableColor(build.ammo_name);
         build.food_color = getConsumableColor(build.food_name);
         build.total_damage_formatted = formatNumber(build.total_damage);
@@ -2312,6 +2404,103 @@
         };
     }
 
+    function refineGearRolls(response, options, onProgress) {
+        if (!options.priceOverrides?.searchGearRolls || !response.builds?.length) return response;
+        const ctx = createModelContext(options.priceOverrides);
+        const skillsPinned = pinnedArray(options, "pinnedSkills", 9);
+        const rollPins = options.pinnedGearStats || [];
+        const budget = skillBudget(options);
+        const seeds = response.builds.slice();
+        const refined = [];
+        let evaluated = 0;
+        for (let seedIndex = 0; seedIndex < seeds.length; seedIndex += 1) {
+            const seed = seeds[seedIndex];
+            let choices = seed.gear_rolls.map(item => ({ ...item, mods: { ...item.mods } }));
+            let levels = seed.skill_lvls.slice();
+            const currentCost = campaignCostForBuild(seed, options);
+            const targets = normalizedBudgetTargets(options);
+            const sustainable = Number.isFinite(campaignBudgetLimit(options)) && campaignIsBuildSustainable(seed, options);
+            const target = sustainable ? campaignBudgetLimit(options)
+                : seed.is_highest_damage ? Infinity : targets.find(value => value >= currentCost - 1e-8) ?? currentCost;
+
+            function evaluate(candidateChoices, candidateLevels) {
+                // Reuse indexes 0/1 while pricing and evaluating the actual selected rolls.
+                const indexes = candidateChoices.map((choice, index) => {
+                    const slot = GEAR_SLOTS[index];
+                    ctx.gearChoices[slot] = [ctx.gear[slot].none, choice];
+                    return choice.tierIndex === 0 ? 0 : 1;
+                });
+                ctx.gearCache.clear();
+                const totals = computeTotals(candidateLevels, indexes, seed.ammo_idx, seed.food_idx, options, ctx);
+                const econ = computeEconomics(candidateLevels, indexes, totals.totalCost, totals.diag, ctx);
+                const candidate = createRawBuild({ skillLevels: candidateLevels, gearIdx: indexes, ammoIdx: seed.ammo_idx, foodIdx: seed.food_idx },
+                    totals, econ, econ.net_cost / Math.max(1, totals.totalDamage));
+                candidate.gear_rolls = candidateChoices.map(item => ({ ...item, mods: { ...item.mods } }));
+                candidate.gear_idx = candidateChoices.map(item => item.tierIndex);
+                evaluated += 1;
+                return candidate;
+            }
+
+            function rolledChoice(slot, base, mods) {
+                const ranges = ctx.rollRanges[slot][base.tier];
+                return { ...base, mods,
+                    cost: interpolateRollPrice(ctx.rollCurves[slot]?.[base.tier], rollQuality(mods, ranges), ctx.gear[slot][base.tier].cost) };
+            }
+
+            let best = evaluate(choices, levels);
+            const acceptable = candidate => (
+                campaignCostForBuild(candidate, options) <= target + 1e-8
+                && (!sustainable || campaignIsBuildSustainable(candidate, options))
+                && betterExactBuild(candidate, best)
+            );
+            // Multistart coordinate refinement preserves every original build. Four passes
+            // bound runtime; this improves sampled candidates, not a global-optimum proof.
+            for (let pass = 0; pass < 4; pass += 1) {
+                let changed = false;
+                for (let index = 0; index < 6; index += 1) {
+                    const slot = GEAR_SLOTS[index], base = choices[index];
+                    if (!base.tierIndex || rollPins[index]) continue;
+                    const ranges = ctx.rollRanges[slot][base.tier];
+                    if ((ctx.rollCurves[slot]?.[base.tier]?.length || 0) < 2) continue;
+                    let rollOptions = [{}];
+                    for (const [stat, [min, max]] of Object.entries(ranges)) {
+                        rollOptions = rollOptions.flatMap(mods => Array.from({ length: max - min + 1 }, (_, offset) => ({ ...mods, [stat]: min + offset })));
+                    }
+                    for (const mods of rollOptions) {
+                        const trial = choices.slice();
+                        trial[index] = rolledChoice(slot, base, mods);
+                        const candidate = evaluate(trial, levels);
+                        if (acceptable(candidate)) { best = candidate; choices = trial; changed = true; }
+                    }
+                }
+                // Redistribute skill points after changing rolls, including overflow bonuses.
+                for (let left = 0; left < 9; left += 1) {
+                    if (skillsPinned[left] !== null) continue;
+                    for (let right = left + 1; right < 9; right += 1) {
+                        if (skillsPinned[right] !== null) continue;
+                        const otherCost = skillCost(levels) - SKILL_LEVEL_COST[levels[left]] - SKILL_LEVEL_COST[levels[right]];
+                        for (let a = 0; a <= 10; a += 1) {
+                            for (let b = 0; b <= 10; b += 1) {
+                                if (otherCost + SKILL_LEVEL_COST[a] + SKILL_LEVEL_COST[b] > budget) continue;
+                                if ((left === 8 && a > 0 || right === 8 && b > 0) && !usesLootSkillBudget(options)) continue;
+                                const trial = levels.slice(); trial[left] = a; trial[right] = b;
+                                const candidate = evaluate(choices, trial);
+                                if (acceptable(candidate)) { best = candidate; levels = trial; changed = true; }
+                            }
+                        }
+                    }
+                }
+                if (!changed) break;
+            }
+            refined.push(best);
+            if (onProgress) onProgress({ phase: "roll-refinement", completed: seedIndex + 1, total: seeds.length });
+        }
+        const result = prepareResponse([{ builds: [...response.all_builds, ...refined] }], options);
+        result.gear_search = { method: "endpoint-grid-and-integer-refinement", evaluated,
+            market: options.priceOverrides.gearMarketMeta || null };
+        return result;
+    }
+
     global.WareraOptimizer = {
         constants: {
             SKILL_POINTS_PER_LEVEL,
@@ -2327,14 +2516,18 @@
             GEAR_TIERS,
             WEAPON_TIERS,
             TIER_NUM,
+            GEAR_STAT_RANGES,
         },
         createModelContext,
+        rollQuality,
+        interpolateRollPrice,
         computeTotals,
         getSearchPlan,
         simulateCampaignValues,
         simulateCampaignBuild,
         runSearch,
         prepareResponse,
+        refineGearRolls,
         formatNumber,
     };
 })(typeof globalThis !== "undefined" ? globalThis : this);

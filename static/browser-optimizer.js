@@ -4,6 +4,8 @@
     const currentScript = document.currentScript;
     const WORKER_URL = new URL("optimizer-worker.js", currentScript ? currentScript.src : window.location.href).href;
     const API_BASE_URL = "https://api2.warera.io/trpc";
+    const ROLL_CACHE_KEY = "wbt-gear-market-curves-v1";
+    const STAT_KEYS = { attack: "atk", criticalChance: "critc", criticalDamages: "critd", precision: "prc", armor: "arm", dodge: "ddg" };
 
     function parseIntOption(value, name, fallback, minValue, maxValue) {
         const parsed = Number.parseInt(value == null || value === "" ? fallback : value, 10);
@@ -82,6 +84,8 @@
         const skillPointReserve = Math.min(totalSkillPoints, importedSkillReserve);
         const pinnedSkills = parsePinnedArray(formData.get("pinned_skills"), "pinned_skills", 9, 10);
         const pinnedGear = parsePinnedArray(formData.get("pinned_gear"), "pinned_gear", 6, 6);
+        const pinnedGearStats = parseJsonOption(formData.get("pinned_gear_stats"), "pinned_gear_stats", Array(6).fill(null));
+        if (!Array.isArray(pinnedGearStats) || pinnedGearStats.length !== 6) throw new Error("Pinned gear stats must contain six slots.");
         const pinnedAmmo = parsePinnedIndex(formData.get("pinned_ammo"), "pinned_ammo", 3);
         const pinnedFood = parsePinnedIndex(formData.get("pinned_food"), "pinned_food", 3);
         const availableSkillPoints = Math.max(0, Math.floor(totalSkillPoints - skillPointReserve));
@@ -132,6 +136,7 @@
             adjustedLevel: Math.max(0.0, (totalSkillPoints - skillPointReserve) / WareraOptimizer.constants.SKILL_POINTS_PER_LEVEL),
             pinnedSkills,
             pinnedGear,
+            pinnedGearStats,
             pinnedAmmo,
             pinnedFood,
             pill: formData.get("pill") === "on",
@@ -177,14 +182,130 @@
         return [];
     }
 
-    async function fetchJson(url, apiKey) {
+    async function fetchJson(url, apiKey, input) {
         const response = await fetch(url, {
-            headers: { "X-API-Key": apiKey },
+            method: input ? "POST" : "GET",
+            headers: input ? { "X-API-Key": apiKey, "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" } : { "X-API-Key": apiKey },
+            ...(input ? { body: JSON.stringify(input) } : {}),
+            signal: AbortSignal.timeout(20000),
         });
         if (!response.ok) {
-            throw new Error(`WarEra API returned ${response.status}`);
+            const error = new Error(`WarEra API returned ${response.status}`);
+            error.status = response.status;
+            throw error;
         }
         return response.json();
+    }
+
+    function median(values) {
+        const sorted = values.slice().sort((a, b) => a - b);
+        const mid = Math.floor(sorted.length / 2);
+        return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+    }
+
+    function analyzeGearTransactions(rows, ranges, itemCode) {
+        const samples = [];
+        const seen = new Set();
+        for (const row of rows) {
+            if (row._id && seen.has(row._id)) continue;
+            if (row._id) seen.add(row._id);
+            const item = row.item;
+            if (!item || item.code !== itemCode || !item.skills) continue;
+            const mods = Object.fromEntries(Object.entries(item.skills).filter(([key]) => STAT_KEYS[key]).map(([key, value]) => [STAT_KEYS[key], value]));
+            if (!Object.entries(ranges).every(([stat, [min, max]]) => Number.isFinite(mods[stat]) && mods[stat] >= min && mods[stat] <= max)) continue;
+            const durability = Number(item.state) / Number(item.maxState);
+            const quantity = Number(row.quantity || item.quantity || 1);
+            const price = Number(row.money) / quantity / durability;
+            if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(durability) || durability < 0.25 || durability > 1 || quantity <= 0) continue;
+            const quality = WareraOptimizer.rollQuality(mods, ranges);
+            samples.push({ quality, price, mods });
+        }
+        if (!samples.length) return { curve: [], samples: 0 };
+        const center = median(samples.map(sample => sample.price));
+        const filtered = samples.filter(sample => sample.price >= center / 4 && sample.price <= center * 4);
+        const buckets = new Map();
+        for (const sample of filtered) {
+            const band = Math.min(9, Math.floor(sample.quality * 10));
+            if (!buckets.has(band)) buckets.set(band, []);
+            buckets.get(band).push(sample);
+        }
+        const curve = Array.from(buckets.values()).filter(bucket => bucket.length >= 3).map(bucket => ({
+            quality: bucket.reduce((sum, sample) => sum + sample.quality, 0) / bucket.length,
+            price: median(bucket.map(sample => sample.price)),
+            sampleSize: bucket.length,
+        })).sort((a, b) => a.quality - b.quality);
+        return { curve: curve.length >= 2 ? curve : [], samples: filtered.length };
+    }
+
+    async function fetchGearRollMarket(apiKey, options, onProgress) {
+        const wanted = WareraOptimizer.constants.GEAR_SLOTS.flatMap((slot, index) => {
+            const tiers = slot === "weapon" ? WareraOptimizer.constants.WEAPON_TIERS : WareraOptimizer.constants.GEAR_TIERS;
+            return tiers.slice(1).filter(tier => options.pinnedGear[index] === null || tiers.indexOf(tier) === options.pinnedGear[index])
+                .map(tier => slot === "weapon" ? tier : `${slot}${WareraOptimizer.constants.TIER_NUM[tier]}`);
+        });
+        try {
+            const cached = JSON.parse(localStorage.getItem(ROLL_CACHE_KEY) || "null");
+            if (cached && Date.now() - cached.savedAt < 15 * 60 * 1000 && cached.data?.gearStatRanges && cached.data?.gearPriceCurves
+                && wanted.every(code => cached.data.gearMarketMeta?.codes?.includes(code))) return cached.data;
+        } catch (_) { /* Browser storage may be unavailable. */ }
+        const ranges = JSON.parse(JSON.stringify(WareraOptimizer.constants.GEAR_STAT_RANGES));
+        let rangeSource = "bundled";
+        try {
+            const config = await fetchJson(`${API_BASE_URL}/gameConfig.getGameConfig`, apiKey);
+            const items = config.result?.data?.items;
+            if (items) {
+                for (const slot of WareraOptimizer.constants.GEAR_SLOTS) {
+                    const tiers = slot === "weapon" ? WareraOptimizer.constants.WEAPON_TIERS : WareraOptimizer.constants.GEAR_TIERS;
+                    tiers.forEach((tier, index) => {
+                        const code = slot === "weapon" ? tier : `${slot}${index}`;
+                        const stats = items[code]?.dynamicStats;
+                        if (!stats) return;
+                        const mapped = Object.fromEntries(Object.entries(stats).filter(([key, value]) => STAT_KEYS[key] && Array.isArray(value) && value.length === 2
+                            && value.every(Number.isInteger) && value[0] >= 0 && value[1] >= value[0]).map(([key, value]) => [STAT_KEYS[key], value]));
+                        if (Object.keys(mapped).length === Object.keys(ranges[slot][tier] || {}).length) ranges[slot][tier] = mapped;
+                    });
+                }
+                rangeSource = "live";
+            }
+        } catch (_) { /* Keep the verified bundled game ranges. */ }
+        const jobs = WareraOptimizer.constants.GEAR_SLOTS.flatMap(slot => Object.keys(ranges[slot]).map(tier => ({
+            slot, tier, code: slot === "weapon" ? tier : `${slot}${WareraOptimizer.constants.TIER_NUM[tier]}`,
+        }))).filter(job => wanted.includes(job.code));
+        const gearPriceCurves = {}, sampleCounts = {};
+        let nextJob = 0, completed = 0, failed = 0, unavailable = false;
+        // Three paginated streams; stop at 500 recent trades per item, never scan unbounded history.
+        await Promise.all(Array.from({ length: 3 }, async () => {
+            while (nextJob < jobs.length) {
+                const job = jobs[nextJob++], rows = [];
+                let cursor;
+                try {
+                    if (unavailable) throw new Error("Equipment history unavailable");
+                    for (let page = 0; page < 5; page += 1) {
+                        const input = { itemCode: job.code, transactionType: "itemMarket", limit: 100, ...(cursor ? { cursor } : {}) };
+                        const response = await fetchJson(`${API_BASE_URL}/transaction.getPaginatedTransactions`, apiKey, input);
+                        const payload = response.result?.data;
+                        if (!Array.isArray(payload?.items)) throw new Error("Unexpected equipment transaction response");
+                        rows.push(...payload.items);
+                        if (!payload.nextCursor || payload.nextCursor === cursor || !payload.items.length) break;
+                        cursor = payload.nextCursor;
+                    }
+                } catch (error) {
+                    failed += 1;
+                    if ([401, 403, 429].includes(error.status) || (failed >= 3 && completed === failed - 1)) unavailable = true;
+                }
+                const analyzed = analyzeGearTransactions(rows, ranges[job.slot][job.tier], job.code);
+                (gearPriceCurves[job.slot] ||= {})[job.tier] = analyzed.curve;
+                (sampleCounts[job.slot] ||= {})[job.tier] = analyzed.samples;
+                completed += 1;
+                if (onProgress) onProgress({ phase: "roll-prices", completed, total: jobs.length });
+            }
+        }));
+        const data = { searchGearRolls: true, gearStatRanges: ranges, gearPriceCurves,
+            gearMarketMeta: { sampleCounts, failed, rangeSource, codes: jobs.map(job => job.code), fetchedAt: new Date().toISOString() } };
+        if (failed < jobs.length) {
+            try { localStorage.setItem(ROLL_CACHE_KEY, JSON.stringify({ savedAt: Date.now(), data })); } catch (_) {}
+        }
+        return data;
     }
 
     async function fetchEquipmentPrices(apiKey) {
@@ -404,12 +525,19 @@
         const onProgress = callbacks && callbacks.onProgress;
         const options = parseOptimizationRequest(formData);
         const priceOverrides = await fetchMarketPrices(options.apiKey, options, onProgress);
+        Object.assign(priceOverrides, await fetchGearRollMarket(options.apiKey, options, onProgress));
+        priceOverrides.pinnedGearRolls = options.pinnedGear.map((tierIndex, index) => tierIndex !== null && options.pinnedGearStats[index]
+            ? { tierIndex, mods: options.pinnedGearStats[index] } : null);
         const runOptions = {
             ...options,
             priceOverrides,
         };
         const plan = WareraOptimizer.getSearchPlan(runOptions);
         runOptions.workers = Math.min(runOptions.workers, plan.sustainCount);
+        // Every worker holds combat tables. Limit replication for the larger roll search.
+        const combatBytes = plan.combatCount * (plan.budget + 1) * 48;
+        const sustainBytes = plan.sustainCount * (plan.budget + 1) * 128;
+        runOptions.workers = Math.max(1, Math.min(runOptions.workers, 4, Math.floor((512 * 1024 * 1024 - sustainBytes) / Math.max(1, combatBytes))));
 
         if (onProgress) {
             onProgress({
@@ -419,11 +547,24 @@
             });
         }
 
-        return runWorkerPool(runOptions, plan, onProgress);
+        const response = await runWorkerPool(runOptions, plan, onProgress);
+        if (!global.Worker) return WareraOptimizer.refineGearRolls(response, runOptions, onProgress);
+        return new Promise((resolve, reject) => {
+            const worker = new Worker(WORKER_URL);
+            worker.onmessage = event => {
+                const message = event.data || {};
+                if (message.type === "refinement-progress" && onProgress) onProgress(message.progress);
+                if (message.type === "refined-result") { worker.terminate(); resolve(message.response); }
+                if (message.type === "error") { worker.terminate(); reject(new Error(message.error)); }
+            };
+            worker.onerror = event => { worker.terminate(); reject(new Error(event.message || "Gear roll refinement failed")); };
+            worker.postMessage({ type: "refine", options: runOptions, response });
+        });
     }
 
     global.WareraBrowserOptimizer = {
         run,
         parseOptimizationRequest,
+        analyzeGearTransactions,
     };
 })(window);

@@ -12,6 +12,7 @@ function emptyPinnedConstraints() {
     return {
         skills: Array(9).fill(null),
         gear: Array(6).fill(null),
+        gearStats: Array(6).fill(null),
         ammo: null,
         food: null,
     };
@@ -34,6 +35,11 @@ function normalizePinnedConstraints(value) {
     return {
         skills,
         gear,
+        gearStats: gear.map((tier, index) => {
+            const mods = source.gearStats?.[index];
+            return tier !== null && mods && typeof mods === "object" && !Array.isArray(mods)
+                && Object.values(mods).every(value => Number.isInteger(value) && value >= 0) ? { ...mods } : null;
+        }),
         ammo: normalizedNullableIndex(source.ammo, 3),
         food: normalizedNullableIndex(source.food, 3),
     };
@@ -126,11 +132,13 @@ function moneyIconHtml() {
     return `<svg aria-hidden="true" stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 24 24" height="1em" width="1em"><path d="M12 5C7.031 5 2 6.546 2 9.5S7.031 14 12 14c4.97 0 10-1.546 10-4.5S16.97 5 12 5zm-5 9.938v3c1.237.299 2.605.482 4 .541v-3a21.166 21.166 0 0 1-4-.541zm6 .54v3a20.994 20.994 0 0 0 4-.541v-3a20.994 20.994 0 0 1-4 .541zm6-1.181v3c1.801-.755 3-1.857 3-3.297v-3c0 1.44-1.199 2.542-3 3.297zm-14 3v-3C3.2 13.542 2 12.439 2 11v3c0 1.439 1.2 2.542 3 3.297z"></path></svg>`;
 }
 
-function itemCostHtml(unitCost, quantity) {
+function itemCostHtml(unitCost, quantity, priceSource) {
     if (!Number.isFinite(unitCost) || unitCost < 0
         || !Number.isFinite(quantity) || quantity < 0) return "";
     const totalCost = unitCost * quantity;
-    return `<span class="item-cost" title="Estimated total cost for daily requirement" aria-label="Estimated total cost ${totalCost.toFixed(2)} for daily requirement"><span class="item-cost-amount">${moneyIconHtml()}<span class="net-cost-value">~${formatMoney(totalCost)}</span></span></span>`;
+    const source = priceSource === "transaction-curve" ? " · Based on recent sale prices for roll quality"
+        : priceSource === "tier-average" ? " · Tier-average estimate; insufficient roll-price data" : "";
+    return `<span class="item-cost" title="Estimated total cost for daily requirement${source}" aria-label="Estimated total cost ${totalCost.toFixed(2)} for daily requirement"><span class="item-cost-amount">${moneyIconHtml()}<span class="net-cost-value">~${formatMoney(totalCost)}</span></span></span>`;
 }
 
 function consumableCardHtml(name, color, quantity, unitCost) {
@@ -151,14 +159,14 @@ function gearCardHtml(gear) {
             <span class='gear-name'>${name}</span>
             <span class='gear-stats'>${gearStatsHtml(gear)}</span>
             <span class='quantity-label' title='Gear durability consumed per day'>x ${(Number(gear.quantity) * 100).toFixed(0)} %</span>
-            ${itemCostHtml(gear.unit_cost, gear.quantity)}
+            ${itemCostHtml(gear.unit_cost, gear.quantity, gear.price_source)}
         </div>
     `;
 }
 
 function gearTableCellHtml(gear) {
     if (gear.is_none) return `<td class="td-gear">None</td>`;
-    return `<td class="td-gear" style="background-color:${gear.color}">${gear.tier}<span class="gear-stats">${gearStatsHtml(gear)}</span><small title="Gear durability consumed per day">${(Number(gear.quantity) * 100).toFixed(0)}%</small>${itemCostHtml(gear.unit_cost, gear.quantity)}</td>`;
+    return `<td class="td-gear" style="background-color:${gear.color}">${gear.tier}<span class="gear-stats">${gearStatsHtml(gear)}</span><small title="Gear durability consumed per day">${(Number(gear.quantity) * 100).toFixed(0)}%</small>${itemCostHtml(gear.unit_cost, gear.quantity, gear.price_source)}</td>`;
 }
 
 function buildCostValue(build) {
@@ -414,6 +422,7 @@ document.addEventListener("DOMContentLoaded", () => {
         data.set('bounty_per_1k_damage', getFormControlValue('bounty_per_1k_damage', '0'));
         data.set('pinned_skills', JSON.stringify(pinnedConstraints.skills));
         data.set('pinned_gear', JSON.stringify(pinnedConstraints.gear));
+        data.set('pinned_gear_stats', JSON.stringify(pinnedConstraints.gearStats));
         data.set('pinned_ammo', JSON.stringify(pinnedConstraints.ammo));
         data.set('pinned_food', JSON.stringify(pinnedConstraints.food));
         [
@@ -633,6 +642,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const visual = imageName
             ? `<img src="${itemIconAsset(`${imageName}.png`)}" alt="">`
             : `<span class="pin-empty-icon" aria-hidden="true">${selectedName === null ? "?" : "—"}</span>`;
+        const mods = definition.kind === "gear" ? pinnedConstraints.gearStats[definition.index] : null;
         return `
             <label class="pin-slot">
                 <span class="pin-slot-label">${escapeHtml(definition.label)}</span>
@@ -645,6 +655,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         ${selectOptionsHtml(definition.choices, selectedIndex)}
                     </select>
                 </span>
+                ${mods ? `<span class="gear-stats" title="These stat rolls are pinned">${gearStatsHtml({ mods })}</span>` : ""}
             </label>`;
     }
 
@@ -728,7 +739,10 @@ document.addEventListener("DOMContentLoaded", () => {
         const kind = select.dataset.pinKind;
         const index = Number.parseInt(select.dataset.pinIndex, 10);
         if (kind === "skill") pinnedConstraints.skills[index] = normalizedNullableIndex(value, 10);
-        if (kind === "gear") pinnedConstraints.gear[index] = normalizedNullableIndex(value, 6);
+        if (kind === "gear") {
+            pinnedConstraints.gear[index] = normalizedNullableIndex(value, 6);
+            pinnedConstraints.gearStats[index] = null;
+        }
         if (kind === "ammo") pinnedConstraints.ammo = normalizedNullableIndex(value, 3);
         if (kind === "food") pinnedConstraints.food = normalizedNullableIndex(value, 3);
         persistPinnedConstraints();
@@ -745,7 +759,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     return { name: entry.name, skills: normalizePinnedConstraints({ skills: entry.skills }).skills };
                 }
                 const normalized = normalizePinnedConstraints(entry);
-                return { name: entry.name, gear: normalized.gear, ammo: normalized.ammo, food: normalized.food };
+                return { name: entry.name, gear: normalized.gear, gearStats: normalized.gearStats, ammo: normalized.ammo, food: normalized.food };
             });
         } catch (error) {
             console.warn(`Could not restore saved ${kind} pin sets.`, error);
@@ -788,7 +802,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (kind === "skill") {
                 applyPinnedConstraints({ ...pinnedConstraints, skills: set.skills }, `Loaded skill set “${set.name}”.`);
             } else {
-                applyPinnedConstraints({ ...pinnedConstraints, gear: set.gear, ammo: set.ammo, food: set.food }, `Loaded gear set “${set.name}”.`);
+                applyPinnedConstraints({ ...pinnedConstraints, gear: set.gear, gearStats: set.gearStats, ammo: set.ammo, food: set.food }, `Loaded gear set “${set.name}”.`);
             }
         });
         container.addEventListener("click", (event) => {
@@ -799,7 +813,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 const sets = loadSavedPinSets(kind);
                 sets.push(kind === "skill"
                     ? { name: name.trim(), skills: pinnedConstraints.skills.slice() }
-                    : { name: name.trim(), gear: pinnedConstraints.gear.slice(), ammo: pinnedConstraints.ammo, food: pinnedConstraints.food });
+                    : { name: name.trim(), gear: pinnedConstraints.gear.slice(), gearStats: pinnedConstraints.gearStats, ammo: pinnedConstraints.ammo, food: pinnedConstraints.food });
                 savePinSets(kind, sets);
                 renderPresetControls(kind);
                 showPinStatus(`Saved ${kind} set “${name.trim()}”.`);
@@ -824,6 +838,7 @@ document.addEventListener("DOMContentLoaded", () => {
         applyPinnedConstraints({
             skills: build.skill_lvls,
             gear: build.gear_idx,
+            gearStats: build.gear.map(item => item.is_none ? null : item.mods),
             ammo: build.ammo_idx,
             food: build.food_idx,
         }, "Pinned the full build. Change any locked slot, then optimize again.");
@@ -848,7 +863,7 @@ document.addEventListener("DOMContentLoaded", () => {
             applyPinnedConstraints({ ...pinnedConstraints, skills: Array(9).fill(null) }, "All skill pins reset to Any.");
         });
         document.getElementById("reset-gear-pins")?.addEventListener("click", () => {
-            applyPinnedConstraints({ ...pinnedConstraints, gear: Array(6).fill(null), ammo: null, food: null }, "All gear and consumable pins reset to Any.");
+            applyPinnedConstraints({ ...pinnedConstraints, gear: Array(6).fill(null), gearStats: Array(6).fill(null), ammo: null, food: null }, "All gear and consumable pins reset to Any.");
         });
         bindPresetControls(skillPresetControls, "skill");
         bindPresetControls(gearPresetControls, "gear");
@@ -1962,6 +1977,12 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function renderProgress(progress) {
+        if (progress.phase === "roll-prices" || progress.phase === "roll-refinement") {
+            const percent = 100 * progress.completed / Math.max(1, progress.total);
+            const label = progress.phase === "roll-prices" ? "Analyzing Gear Transactions" : "Refining Gear Rolls & Skills";
+            resultsDiv.innerHTML = `<div class="optimizer-progress"><div class="progress-header"><span>${label}</span><span>${progress.completed} / ${progress.total}</span></div><div class="progress-track"><div class="progress-fill" style="width:${percent}%"></div></div></div>`;
+            return;
+        }
         if (progress.phase === "preparing") {
             resultsDiv.innerHTML = `
                 <div class="optimizer-progress">
@@ -2013,7 +2034,7 @@ document.addEventListener("DOMContentLoaded", () => {
         resultsDiv.innerHTML = `
             <div class="optimizer-progress">
                 <div class="progress-header">
-                    <span>${formatProgressNumber(displayedEvaluated)} / ${formatProgressNumber(total)} checks</span>
+                    <span>Searching Builds · ${percent.toFixed(1)}%</span>
                     <span>${workerLabel}</span>
                 </div>
                 <div class="progress-track"><div class="progress-fill" style="width:${percent.toFixed(1)}%"></div></div>

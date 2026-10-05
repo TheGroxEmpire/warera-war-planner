@@ -250,7 +250,7 @@
                         <div class="constraints-header">
                             <div>
                                 <h3 id="pin-gear-heading">Pin Gear &amp; Consumables</h3>
-                                <p>Lock items you already own, or leave slots on <strong>Any</strong> for the optimizer to choose.</p>
+                                <p>Choose tiers to lock. Rolls are optimized within each tier; <strong>Pin Full Build</strong> also locks its stats.</p>
                             </div>
                             <div id="gear-preset-controls" class="pin-preset-controls" aria-label="Saved gear pin sets"></div>
                         </div>
@@ -271,13 +271,13 @@
                         <div class="input-group">
                             <label for="workers">Thread Override</label>
                             <input type="number" id="workers" name="workers" min="1" step="1" placeholder="Auto">
-                            <span class="tooltip">Leave empty to split the exact optimizer across every logical CPU thread reported by this browser.</span>
+                            <span class="tooltip">Leave empty to choose CPU threads within the gear search's memory budget.</span>
                         </div>
                     </div>
                 </details>
 
 <div class="btn-row">
-                    <button type="submit" name="objective" value="damage" class="optimize-btn">Optimize for Best Sustainable Set<span class="tooltip">Finds the exact highest-damage sustainable build.</span></button>
+                    <button type="submit" name="objective" value="damage" class="optimize-btn">Optimize for Best Sustainable Set<span class="tooltip">Searches gear tiers and rolls, then refines promising builds within your budget.</span></button>
                 </div>
             </form>
         </div>

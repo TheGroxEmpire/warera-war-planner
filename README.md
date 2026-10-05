@@ -2,11 +2,15 @@
 
 Browser app for planning WarEra eco and war durations.
 
-The optimizer runs entirely in the browser. It uses Web Workers to split a deterministic exact search across local CPU threads and returns budget-tier build candidates for the selected objective.
+The optimizer runs entirely in the browser. Web Workers search gear tiers, stat rolls, skills, ammo and food, then refine promising builds across all integer rolls within their selected tiers and redistribute skill points. The budget search shortlists candidates and refinement uses up to four passes; it is deterministic for the same market data, but does not guarantee a global optimum across all builds.
 
 Skills, gear, ammo, and food can be pinned before a run so the optimizer only changes slots left on **Any**. A result card can also be copied back with **Pin Full Build**. Current pins and named skill/gear sets are stored locally in the browser.
 
-Gear recommendations show the per-item stat targets used by the simulation in both Cards and Detailed View: weapon attack and crit chance, helmet crit damage, gloves precision, chest/pants armor, and boots dodge. These are the model's representative tier bonuses, not individual market rolls or total character stats. Live prices update costs; actual gear rolls can differ. Gear quantity percentages indicate daily durability consumption.
+Gear recommendations show the selected per-item rolls in Cards and Detailed View: weapon attack and crit chance, helmet crit damage, gloves precision, chest/pants armor, and boots dodge. Legal ranges refresh from `gameConfig.getGameConfig`. Up to 500 recent `itemMarket` transactions per item provide prices, normalized to full durability. Duplicate sales, invalid rolls, durability below 25%, and extreme price outliers are excluded. Quality bands with at least three sales use median prices, interpolated by normalized roll quality (the mean of the two normalized weapon stats). This follows Intel Builder's transaction-curve pricing approach while allowing rolls to affect the search itself.
+
+The broad search compares endpoint roll combinations, removes strictly dominated choices within each tier, and refines selected candidates with integer roll sweeps and skill-point redistribution. Price-banded candidate frontiers bound memory usage. If fewer than two quality bands are available, the item uses its legal midpoint and tier-average price; its cost tooltip identifies this fallback. Cost curves are estimates from completed sales, not live offers or guaranteed stock. Market curves and ranges are cached locally for 15 minutes; raw transactions and credentials are not included in the cache. Worker replication is capped by an estimated table memory budget.
+
+Tier pins still allow roll optimization. **Pin Full Build** and recognized equipped profile imports retain the exact rolls, and saved gear sets preserve them. Changing a tier or resetting gear pins clears its roll pin.
 
 Item stat bonuses use the same icons and typography as the skill tiles. Each recommended gear item, ammo, and food shows its estimated total cost prefixed with `~`, using the same money icon and typography as daily net cost. Gear cost is the unit price multiplied by the displayed daily durability fraction (e.g. 50% = 0.5 items); ammo and food costs are unit prices multiplied by the displayed daily quantities. Prices come from the run's live market overrides, with the model's bundled costs used for unavailable individual prices.
 
